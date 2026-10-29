@@ -4,9 +4,9 @@
 
 _1.0.6 is the same feature set as 1.0.5 with a corrected update manifest: the
 published `latest.json` now points every platform at the package the updater can
-actually install (the AppImage tarball on Linux, the `.app` archive on macOS, the
-NSIS installer on Windows), instead of whichever signed file the bundler happened
-to write last. Installing 1.0.6 by hand once puts you on the fixed channel;
+install — the AppImage on Linux, the `.app` archive on macOS, the NSIS installer
+on Windows — instead of whichever signed file the bundler happened to write
+last. Installing 1.0.6 by hand once puts you on the fixed channel;
 everything after it updates from inside the app._
 
 Windows · macOS · Linux · Android · Android TV · Web
@@ -99,7 +99,7 @@ The server is loopback-only, needs no permission, and stops with the app.
 - **The update manifest now names the right file per platform.** Tauri signs every
   Linux bundle, so `latest.json` could point at the `.deb` or `.rpm`; only an
   AppImage can replace a running AppImage. The collector ranks the candidates
-  (AppImage tarball → AppImage → `app.tar.gz` → NSIS installer) and refuses to
+  (AppImage archive → AppImage → `app.tar.gz` → NSIS installer) and refuses to
   publish a manifest with a gap.
 - **The release pipeline exports the updater key as content**, which is what
   Tauri expects (`TAURI_SIGNING_PRIVATE_KEY`), instead of a path — desktop
