@@ -7,7 +7,7 @@
   **Windows · macOS · Linux · Android · Android TV · Web**
 
   [![CI](https://img.shields.io/badge/build-passing-4ecf9a?style=flat-square)](.github/workflows/ci.yml)
-  [![Release](https://img.shields.io/badge/release-v1.0.2-f8da7e?style=flat-square)](../../releases/latest)
+  [![Release](https://img.shields.io/badge/release-v1.0.3-f8da7e?style=flat-square)](../../releases/latest)
   [![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square)](https://tauri.app)
   [![License](https://img.shields.io/badge/license-MIT-f8a24a?style=flat-square)](LICENSE)
   [![Languages](https://img.shields.io/badge/languages-47-6ba8ff?style=flat-square)](#languages)
@@ -41,13 +41,14 @@ Every version ships ready-to-install builds for all platforms on the
 
 | Platform | File |
 | --- | --- |
-| **Windows 10/11 (x64)** | `ROZH.Player_1.0.2_x64-setup.exe` |
-| **macOS — Apple Silicon (M1–M4)** | `ROZH.Player_1.0.2_aarch64.dmg` |
-| **macOS — Intel** | `ROZH.Player_1.0.2_x64.dmg` |
-| **Linux (Debian/Ubuntu)** | `ROZH.Player_1.0.2_amd64.deb` |
-| **Linux (Fedora/RHEL/openSUSE)** | `ROZH.Player-1.0.2-1.x86_64.rpm` |
-| **Linux (any distribution)** | `ROZH.Player_1.0.2_amd64.AppImage` |
-| **Android 7.0+ / Android TV** | `ROZH-Player-1.0.2.apk` |
+| **Windows 10/11 (x64)** | `ROZH.Player_1.0.3_x64-setup.exe` |
+| **macOS — Apple Silicon (M1–M4)** | `ROZH.Player_1.0.3_aarch64.dmg` |
+| **macOS — Intel** | `ROZH.Player_1.0.3_x64.dmg` |
+| **Linux (Debian/Ubuntu)** | `ROZH.Player_1.0.3_amd64.deb` |
+| **Linux (Fedora/RHEL/openSUSE)** | `ROZH.Player-1.0.3-1.x86_64.rpm` |
+| **Linux (any distribution)** | `ROZH.Player_1.0.3_amd64.AppImage` |
+| **Android 7.0+ (phones, tablets)** | `ROZH-Player-1.0.3.apk` |
+| **Android TV (dedicated build)** | `ROZH-Player-TV-1.0.3.apk` |
 | **Web / PWA** | `rozh-player-web.zip` — unzip and serve as static files |
 
 > Builds are unsigned: Windows may show SmartScreen and macOS Gatekeeper needs a
@@ -161,27 +162,45 @@ Outputs:
 ### Android and Android TV
 
 ```bash
-npm run tauri android init            # first time only
-node scripts/patch-android-tv.mjs     # add the LEANBACK category
-npm run tauri android dev             # run on a device or emulator
-npm run tauri android build -- --apk
+npm run tauri android init                 # first time only
+node scripts/patch-android-tv.mjs          # cleartext, permissions, leanback
+npm run tauri android dev                  # run on a device or emulator
+npm run tauri android build -- --apk       # phone / tablet package
 ```
 
-For **Android TV**, make sure the generated manifest contains:
+`patch-android-tv.mjs` is not optional: it turns on `usesCleartextTraffic`
+(Android 9+ blocks every plain `http://` stream without it), declares the network
+permissions, enables hardware acceleration and adds the LEANBACK launcher
+category so the same APK shows up on TVs.
 
-```xml
-<category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+**Dedicated Android TV package:**
+
+```bash
+node scripts/make-tv-variant.mjs                       # applicationId, banner, landscape
+VITE_TV_BUILD=1 npm run tauri android build -- --apk   # 10-foot UI baked in
 ```
 
-and that `<uses-feature android:name="android.hardware.touchscreen"
-android:required="false" />` is set. The app detects TV devices itself and
-scales the interface up.
+That produces an app labelled **ROZH Player TV** with its own package id
+(`…rozh.player.tv`), a 320×180 launcher banner, `leanback` required, touchscreen
+not required and a landscape-locked activity. `VITE_TV_BUILD=1` forces TV mode
+from the first frame instead of relying on device detection.
+
+### Remote control (Android TV)
+
+| Key | Action |
+| --- | --- |
+| `▲ ▼ ◀ ▶` | Move the focus ring between controls (spatial navigation) |
+| `OK` / `Enter` | Activate the focused control; on the video surface: play / pause |
+| `▲ ▼` on the video surface | Bring the control bar up and focus it |
+| `◀ ▶` on the video surface | Seek by the configured step |
+| `Back` / `Esc` | Close the sheet, hide the controls, then return to the player |
 
 ## Formats
 
 | Runtime | Video | Audio | Subtitles | Streaming |
 | --- | --- | --- | --- | --- |
 | Web / desktop (WebView) | MP4 (H.264/H.265*), WebM (VP8/VP9/AV1), Ogg | MP3, AAC/M4A, FLAC, WAV, Opus, Ogg | SRT, VTT, ASS/SSA | HLS, DASH |
+| Any Tauri build (desktop, Android, TV) | + MPEG-TS / M2TS / HTTP-FLV through the bundled software demuxer | + AC3/EAC3 in TS | SRT, VTT, ASS/SSA | HLS, DASH, raw TS, FLV |
 | Desktop with native FFmpeg | **MKV, AVI, MOV, TS, M2TS, WMV, FLV, 3GP, ProRes…** | AC3, DTS, EAC3, ALAC, WMA, APE… | all | all |
 
 \* H.265/HEVC depends on the codec installed in the operating system.
@@ -230,7 +249,7 @@ Pushing a tag that matches `v*` builds the full matrix and publishes a new
 GitHub release with every asset attached:
 
 ```bash
-git tag v1.0.2 && git push origin v1.0.2
+git tag v1.0.3 && git push origin v1.0.3
 ```
 
 | Job | Tooling | Output |
@@ -238,7 +257,7 @@ git tag v1.0.2 && git push origin v1.0.2
 | Windows | `windows-latest` + NSIS | `*-setup.exe` |
 | macOS | `macos-latest`, both architectures | `aarch64.dmg` · `x64.dmg` |
 | Linux | `ubuntu-22.04` | `deb` · `rpm` · `AppImage` |
-| Android | JDK 17 + NDK 27 | `apk` · `aab` |
+| Android | JDK 17 + NDK 27 | `apk` · `aab` (phone **and** TV builds) |
 | Web | `ubuntu-latest` | `rozh-player-web.zip` |
 
 The release body is generated from [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md).
@@ -267,7 +286,7 @@ rozh-player/
 ├── src-tauri/                 # native Rust shell + Tauri config
 │   └── src/lib.rs             # tray, FFmpeg remux, probe, reveal-in-folder
 ├── public/                    # font, icons, demo media, libass
-├── scripts/                   # libass copy, FFmpeg fetch, Android TV patch
+├── scripts/                   # libass copy, FFmpeg fetch, Android + Android TV patchers
 └── docs/                      # architecture, build, third-party, release notes
 ```
 

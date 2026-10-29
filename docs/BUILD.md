@@ -55,19 +55,39 @@ npm run tauri android dev
 npm run tauri android build
 ```
 
-For TV, the quick way:
+`patch-android-tv.mjs` must run after `init` and before **every** build — it
+enables cleartext `http://` playback (Android 9+ blocks it by default, which is
+what made phone streaming fail), declares the network permissions, turns on
+hardware acceleration and adds the LEANBACK launcher category:
 
 ```bash
-node scripts/patch-android-tv.mjs     # adds LEANBACK + optional touchscreen + banner
+node scripts/patch-android-tv.mjs
 ```
 
-Or by hand:
-1. Open `src-tauri/gen/android/app/src/main/AndroidManifest.xml`.
-2. Inside the main `<activity>` add
-   `<category android:name="android.intent.category.LEANBACK_LAUNCHER" />`.
-3. Add `<uses-feature android:name="android.hardware.touchscreen" android:required="false" />`.
-4. ROZH detects the TV at runtime and switches to the 10-foot layout
-   (or force it in Settings → TV mode).
+### Dedicated Android TV package
+
+The TV build is a second package from the same source, with the 10-foot
+interface compiled in (`VITE_TV_BUILD=1`) instead of detected at runtime:
+
+```bash
+node scripts/patch-android-tv.mjs
+VITE_TV_BUILD=1 npx tauri android build --apk --aab   # phone package
+node scripts/make-tv-variant.mjs                      # own applicationId + banner
+VITE_TV_BUILD=1 npx tauri android build --apk --aab   # TV package
+```
+
+`make-tv-variant.mjs` changes `applicationId` to `…rozh.player.tv`, sets the
+label to **ROZH Player TV**, installs `icons/tv-banner.png` as the 320×180
+launcher banner, marks `leanback` as required, drops the touchscreen requirement
+and locks the activity to landscape.
+
+By hand, the manifest needs:
+1. `<category android:name="android.intent.category.LEANBACK_LAUNCHER" />` inside
+   the main `<activity>`.
+2. `<uses-feature android:name="android.software.leanback"
+   android:required="true" />` and touchscreen `required="false"`.
+3. `android:usesCleartextTraffic="true"` on `<application>`.
+4. `android:banner="@drawable/tv_banner"` plus the drawable itself.
 
 ## 4. CI
 
@@ -75,14 +95,14 @@ Or by hand:
 `cargo check` + the Rust unit tests on every push.
 
 `.github/workflows/release.yml` builds the whole matrix when a tag `v*` is
-pushed and attaches everything to a **draft** release:
+pushed and attaches everything to a published release (`draft: false`):
 
 | Job | Runner | Artefacts |
 | --- | --- | --- |
 | Windows | `windows-latest` | NSIS `*-setup.exe` |
 | macOS | `macos-latest` × 2 | `aarch64.dmg`, `x64.dmg` |
 | Linux | `ubuntu-22.04` | `.deb`, `.rpm`, `.AppImage` |
-| Android | `ubuntu-latest` + NDK 27 | `.apk`, `.aab` |
+| Android | `ubuntu-latest` + NDK 27 | `.apk`, `.aab` (phone **and** `-TV-` variants) |
 | Web | `ubuntu-latest` | `rozh-player-web.zip` |
 
 The release workflow can also be started by hand

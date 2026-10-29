@@ -8,7 +8,7 @@ on:
       tag:
         description: Release tag to attach assets to
         required: true
-        default: v1.0.2
+        default: v1.0.3
       only:
         description: Which platform to build (all, windows, macos, linux, web, android)
         required: true
@@ -220,7 +220,7 @@ jobs:
         shell: bash
         run: npx tauri android init --ci
 
-      - name: Patch manifest for Android TV
+      - name: Patch Android manifest (cleartext, permissions, leanback)
         run: node scripts/patch-android-tv.mjs
 
       - name: Signing key (ephemeral, CI only)
@@ -273,6 +273,49 @@ jobs:
               out/"ROZH-Player-$VERSION.aab" rozh
           fi
           rm -f out/unsigned-aligned.apk
+          ls -lh out
+
+      # ---------------------------------------------------------- Android TV
+      # One web bundle, two packages: the TV build bakes VITE_TV_BUILD=1 so the
+      # 10-foot interface is on from the first frame, and takes its own
+      # applicationId so it installs next to the phone app.
+      - name: Prepare Android TV package
+        run: node scripts/make-tv-variant.mjs
+
+      - name: Build Android TV APK + AAB
+        shell: bash
+        env:
+          VITE_TV_BUILD: '1'
+        run: |
+          set +e
+          npx tauri android build --apk --aab 2>&1 | tee /tmp/android-tv.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            summary=$(tail -n 80 /tmp/android-tv.log | sed -e 's/%/%25/g' -e 's/\r//g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Android TV build failed::$summary"
+            exit "$code"
+          fi
+
+      - name: Sign Android TV APK + AAB
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          KS="$GITHUB_WORKSPACE/src-tauri/keystore/rozh-ci.jks"
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)"
+          unsigned=$(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' | head -1)
+          echo "unsigned TV apk: $unsigned"
+          "$BT/zipalign" -f -p 4 "$unsigned" out/unsigned-tv-aligned.apk
+          "$BT/apksigner" sign --ks "$KS" --ks-pass pass:rozhplayer --key-pass pass:rozhplayer \
+            --out out/"ROZH-Player-TV-$VERSION.apk" out/unsigned-tv-aligned.apk
+          "$BT/apksigner" verify out/"ROZH-Player-TV-$VERSION.apk"
+          aab=$(find src-tauri/gen/android/app/build/outputs/bundle -name '*.aab' | head -1)
+          if [ -n "$aab" ]; then
+            cp "$aab" out/"ROZH-Player-TV-$VERSION.aab"
+            jarsigner -keystore "$KS" -storepass rozhplayer -keypass rozhplayer \
+              out/"ROZH-Player-TV-$VERSION.aab" rozh
+          fi
+          rm -f out/unsigned-tv-aligned.apk
           ls -lh out
 
       - uses: softprops/action-gh-release@v2

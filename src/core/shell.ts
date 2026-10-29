@@ -7,6 +7,7 @@ import { mountPlayer, type Playable } from './player';
 import { applySettings, store, type MediaItem } from './store';
 import { onNativeCommand, probeFile, urlForFile } from './native';
 import { openDrawer, toast } from './ui';
+import { focusView, initTv } from './tv';
 import { $, $$, escapeHtml, isTextEntry, pickFiles, platform } from './util';
 import { renderHistory } from '../views/history';
 import { renderLibrary, generateThumb } from '../views/library';
@@ -198,6 +199,7 @@ export function navigate(view: ViewId): void {
   const shell = $('.shell');
   if (shell && window.innerWidth <= 900) shell.setAttribute('data-sidebar', 'closed');
   $('.scrim')?.setAttribute('hidden', '');
+  focusView(view);
 
   renderActiveView();
   if (view === 'player') player.showUi();
@@ -549,7 +551,8 @@ export async function bootApp(): Promise<void> {
     else if (cmd === 'queue') player.showUi();
   });
 
-  // TV mode: focus the first nav item so a remote can drive immediately
+  // TV mode: spatial navigation, back-button handling and a sane first focus
+  initTv();
   if (document.documentElement.dataset.tv === 'true') {
     $('.nav-item.is-active')?.focus();
   }

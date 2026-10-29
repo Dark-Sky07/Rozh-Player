@@ -1,6 +1,6 @@
 [package]
 name = "rozh-player"
-version = "1.0.2"
+version = "1.0.3"
 description = "ROZH Player — a fast, beautiful, universal media player"
 authors = ["ROZH"]
 edition = "2021"
@@ -21,6 +21,9 @@ tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-os = "2"
+# network requests performed in Rust: makes HLS/IPTV panels that do not send
+# CORS headers playable inside the webview (Android included)
+tauri-plugin-http = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 

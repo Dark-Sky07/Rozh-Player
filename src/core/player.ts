@@ -10,9 +10,10 @@
 import { icon, hydrateIcons } from './icons';
 import { t, n } from './i18n';
 import { store, type Aspect, type Fit, type LoopMode } from './store';
-import { openDrawer, openPopover, toast, type PopItem } from './ui';
+import { hasOverlay, openDrawer, openPopover, toast, type PopItem } from './ui';
 import { openUrlModal } from '../views/streams';
 import { remuxToPlayable, revealInFolder, type NativeFile } from './native';
+import { nativeHlsLoader } from './netLoader';
 import {
   $,
   $$,
@@ -27,6 +28,18 @@ import {
   saveBlob,
   ext,
 } from './util';
+
+interface MpegtsNamespace {
+  isSupported?: () => boolean;
+  createPlayer?: (
+    media: { type: string; url: string; isLive?: boolean },
+    config?: Record<string, unknown>,
+  ) => {
+    destroy: () => void;
+    attachMediaElement: (el: HTMLVideoElement) => void;
+    load: () => void;
+  };
+}
 
 export interface Playable {
   key: string;
@@ -247,6 +260,9 @@ export class Player {
   index = -1;
 
   private hls: HlsLike | null = null;
+  /** mpegts.js engine: IPTV .ts / .flv links the webview refuses to open. */
+  private mpegts: { destroy: () => void } | null = null;
+  private hlsAttempt = 0;
   private dash: { destroy?: () => void; reset?: () => void } | null = null;
   private hlsLevels: { height?: number; bitrate?: number }[] = [];
   private dashLevels: { height?: number; bitrate?: number; index: number }[] = [];
@@ -256,7 +272,7 @@ export class Player {
   private statsTimer = 0;
   private sleepAt = 0;
   private locked = false;
-  private engine: 'native' | 'hls' | 'dash' = 'native';
+  private engine: 'native' | 'hls' | 'dash' | 'mpegts' = 'native';
   private pressTimer = 0;
   private boostFrom = 1;
   private audioCtx: AudioContext | null = null;
@@ -280,6 +296,13 @@ export class Player {
     this.stage = $('.stage', host)!;
     this.video = $('.video', host)!;
     hydrateIcons(host);
+
+    // A TV remote needs a focusable surface: the stage is the "media" element
+    // the D-pad acts on, its buttons stay reachable with the arrows.
+    this.stage.tabIndex = -1;
+    this.stage.addEventListener('pointerdown', () => {
+      if (document.documentElement.dataset.tv === 'true') this.stage.focus({ preventScroll: true });
+    });
 
     this.bindControls();
     this.bindVideoEvents();
@@ -342,6 +365,11 @@ export class Player {
     this.video.poster = item.thumb ?? '';
     this.applyEffects();
 
+    // a remote should drive the film, not the button that started it
+    if (document.documentElement.dataset.tv === 'true') {
+      requestAnimationFrame(() => this.stage.focus({ preventScroll: true }));
+    }
+
     this.setText(item.title, item.isStream ? t('player.stream') : isAudio ? t('player.audioOnly') : t('player.local'));
     this.updateMeta(item);
     this.renderChapters([]);
@@ -350,6 +378,8 @@ export class Player {
     const clean = url.split('#')[0].split('?')[0].toLowerCase();
     const isHls = /\.m3u8$/.test(clean);
     const isDash = /\.mpd$/.test(clean);
+    const isMpegTs = /\.(ts|m2ts|mts|flv|f4v)$/.test(clean);
+    this.hlsAttempt = 0;
 
     // resume position (set before we attach so loadedmetadata sees it)
     let start = opts.startAt ?? 0;
@@ -364,6 +394,7 @@ export class Player {
     try {
       if (isHls) await this.attachHls(url);
       else if (isDash) await this.attachDash(url);
+      else if (isMpegTs) await this.attachMpegTs(url, !!item.isStream);
       else {
         this.video.src = url;
         this.video.load();
@@ -388,7 +419,7 @@ export class Player {
 
   private pendingStart = 0;
 
-  private async attachHls(url: string): Promise<void> {
+  private async attachHls(url: string, extra: Record<string, unknown> = {}): Promise<void> {
     this.engine = 'hls';
     const mod = (await import('hls.js')) as unknown as {
       default: { isSupported(): boolean; new (cfg: Record<string, unknown>): HlsLike } & {
@@ -407,6 +438,7 @@ export class Player {
       maxBufferLength: 42,
       capLevelToPlayerSize: true,
       startLevel: store.settings.hlsQuality >= 0 ? store.settings.hlsQuality : -1,
+      ...extra,
     });
     this.hls = hls;
     hls.loadSource(url);
@@ -416,13 +448,84 @@ export class Player {
       this.stage.dataset.buffering = 'false';
     });
     hls.on(Hls.Events.ERROR, (_e, data) => {
-      const d = data as { fatal?: boolean; type?: string };
-      if (d?.fatal) {
-        console.warn('[rozh] hls fatal', d);
-        if (d.type === 'networkError') hls.loadSource(url);
-        else this.showError(t('player.mediaError'));
+      const d = data as { fatal?: boolean; type?: string; details?: string };
+      if (!d?.fatal) return;
+      console.warn('[rozh] hls fatal', d);
+      if (d.type === 'networkError' || /manifest|loadError|timeOut/i.test(d.details ?? '')) {
+        void this.retryHls(url);
+        return;
       }
+      this.showError(t('player.mediaError'), `${d.type ?? 'error'} · ${d.details ?? ''}`);
     });
+  }
+
+  /**
+   * Progressive HLS recovery: 1) replay the playlist through the native HTTP
+   * layer (bypasses missing CORS headers, the usual IPTV blocker), 2) hand the
+   * playlist to the platform decoder, 3) show a readable error.
+   */
+  private async retryHls(url: string): Promise<void> {
+    if (this.hlsAttempt === 0) {
+      this.hlsAttempt = 1;
+      const hlsMod = (await import('hls.js')) as unknown as { default: unknown };
+      const native = await nativeHlsLoader(hlsMod.default);
+      if (native) {
+        console.info('[rozh] hls: retrying through the native network layer');
+        this.teardownEngine();
+        try {
+          await this.attachHls(url, native);
+          void this.play().catch(() => undefined);
+          return;
+        } catch (err) {
+          console.warn('[rozh] native hls loader failed', err);
+        }
+      }
+    }
+    if (this.hlsAttempt <= 1) {
+      this.hlsAttempt = 2;
+      console.info('[rozh] hls: falling back to the platform decoder');
+      this.teardownEngine();
+      this.engine = 'native';
+      this.video.src = url;
+      this.video.load();
+      try {
+        await this.play();
+        return;
+      } catch {
+        /* fall through to the error card */
+      }
+    }
+    this.showError(t('player.mediaError'), t('player.corsHint'));
+  }
+
+  /**
+   * IPTV links are frequently raw MPEG-TS or HTTP-FLV, which Chromium based
+   * webviews (Android, Windows) refuse to open directly. mpegts.js demuxes them
+   * in software and feeds Media Source Extensions, which works everywhere.
+   */
+  private async attachMpegTs(url: string, live: boolean): Promise<void> {
+    this.engine = 'mpegts';
+    const mod = (await import('mpegts.js')) as unknown as { default?: MpegtsNamespace } & MpegtsNamespace;
+    const mpegts = mod.default ?? mod;
+    if (!mpegts?.isSupported?.() || !mpegts.createPlayer) {
+      this.engine = 'native';
+      this.video.src = url;
+      return;
+    }
+    const type = /\.(flv|f4v)(\?|$)/i.test(url) ? 'flv' : 'mpegts';
+    const player = mpegts.createPlayer(
+      { type, url, isLive: live },
+      {
+        enableWorker: true,
+        lazyLoad: !live,
+        liveBufferLatencyChasing: live,
+        autoCleanupSourceBuffer: true,
+        reuseRedirectedURL: true,
+      },
+    );
+    this.mpegts = player;
+    player.attachMediaElement(this.video);
+    player.load();
   }
 
   private async attachDash(url: string): Promise<void> {
@@ -467,6 +570,12 @@ export class Player {
     }
     this.dash = null;
     this.dashLevels = [];
+    try {
+      this.mpegts?.destroy();
+    } catch {
+      /* noop */
+    }
+    this.mpegts = null;
     this.clearJassub();
     this.clearUserSubs();
   }
@@ -1871,6 +1980,10 @@ export class Player {
     }, 5000);
     this.disposers.push(() => clearInterval(resumeTimer));
 
+    const showUiEvent = (): void => this.showUi();
+    window.addEventListener('rozh:show-ui', showUiEvent);
+    this.disposers.push(() => window.removeEventListener('rozh:show-ui', showUiEvent));
+
     this.onWindow('beforeunload', () => {
       this.persistPosition();
       this.queue.forEach((q) => this.revokeIfOwned(q));
@@ -1938,7 +2051,13 @@ export class Player {
     }
   }
 
-  private showError(message: string): void {
+  private showError(message: string, detail = ''): void {
+    const code = this.video.error?.code ?? 0;
+    const codeText = code ? `MEDIA_ERR_${['', 'ABORTED', 'NETWORK', 'DECODE', 'SRC_NOT_SUPPORTED'][code] ?? code}` : '';
+    const src = this.current?.url ?? '';
+    const source = src.startsWith('blob:') ? 'local file' : src.startsWith('http') ? 'network' : src.slice(0, 48);
+    const diagnostics = [this.engine, codeText, detail, source].filter(Boolean).join(' · ');
+    console.warn('[rozh] playback error', { message, diagnostics, url: src });
     this.stage.dataset.buffering = 'false';
     this.stage.dataset.state = 'empty';
     this.wrap.dataset.empty = 'true';
@@ -1947,6 +2066,13 @@ export class Player {
       <h3>${escapeHtml(t('player.error'))}</h3>
       <p>${escapeHtml(message)}</p>
       <p style="font-size:.84rem;color:var(--text-4)">${escapeHtml(t('player.notSupportedSub'))}</p>
+      ${
+        diagnostics
+          ? `<p class="err-diag" style="font-size:.72rem;color:var(--text-4);opacity:.75;font-variant-numeric:tabular-nums">${escapeHtml(
+              diagnostics,
+            )}</p>`
+          : ''
+      }
       <div class="empty-actions">
         <button class="btn btn-primary btn-lg" data-act="open">${icon('folder-open')}<span>${escapeHtml(
           t('player.openFile'),
@@ -2169,6 +2295,20 @@ export class Player {
     this.hudTimer = window.setTimeout(() => hud.classList.remove('show'), 900);
   }
 
+  /**
+   * True when the D-pad should seek/change volume instead of moving focus:
+   * TV mode, the player view is on screen, nothing modal is open and the focus
+   * sits on the video surface itself.
+   */
+  private tvSurfaceOwnsKeys(): boolean {
+    if (document.documentElement.dataset.tv !== 'true') return true;
+    if (document.body.dataset.view !== 'player') return false;
+    if (hasOverlay()) return false;
+    if (document.documentElement.dataset.kbdHelp === 'open') return false;
+    const el = document.activeElement as HTMLElement | null;
+    return !el || el === document.body || el === this.stage || el === this.video;
+  }
+
   private hudTimer = 0;
 
   /* ================================================================ */
@@ -2180,6 +2320,9 @@ export class Player {
       if (isTextEntry(e.target)) return;
       if (document.documentElement.dataset.kbdHelp === 'open') return;
       const tv = document.documentElement.dataset.tv === 'true';
+      // On a TV the D-pad drives the media surface; only when a control or a
+      // sheet has focus does it fall back to moving between elements.
+      const tvSurface = !tv || this.tvSurfaceOwnsKeys();
       const mod = e.ctrlKey || e.metaKey;
 
       // Ctrl/⌘+B drops a bookmark — plain B stays "previous", like VLC/PotPlayer.
@@ -2216,28 +2359,28 @@ export class Player {
           this.showUi();
           return;
         case 'ArrowRight':
-          if (tv) return;
+          if (!tvSurface) return;
           handled();
           if (e.altKey) this.stepFrame(1);
           else this.seekBy(e.shiftKey ? longStep : step);
           this.showUi();
           return;
         case 'ArrowLeft':
-          if (tv) return;
+          if (!tvSurface) return;
           handled();
           if (e.altKey) this.stepFrame(-1);
           else this.seekBy(-(e.shiftKey ? longStep : step));
           this.showUi();
           return;
         case 'ArrowUp':
-          if (tv) return;
+          if (!tvSurface) return;
           handled();
           this.setVolume(store.settings.volume + volStep);
           this.flashHud('volume', `${n(Math.round(store.settings.volume * 100))}%`);
           this.showUi();
           return;
         case 'ArrowDown':
-          if (tv) return;
+          if (!tvSurface) return;
           handled();
           this.setVolume(store.settings.volume - volStep);
           this.flashHud('volume', `${n(Math.round(store.settings.volume * 100))}%`);
@@ -2353,6 +2496,11 @@ export class Player {
           window.dispatchEvent(new CustomEvent('rozh:shortcuts'));
           return;
         case 'Escape':
+          if (tv && this.wrap.classList.contains('ui-visible')) {
+            handled();
+            this.toggleUiVisible();
+            return;
+          }
           if (this.wrap.classList.contains('fs-fallback')) {
             this.wrap.classList.remove('fs-fallback');
             this.wrap.dataset.fs = 'false';

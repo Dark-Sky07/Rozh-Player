@@ -114,6 +114,8 @@ const fa: Dict = {
   'player.error': 'خطا در پخش',
   'player.retry': 'تلاش دوباره',
   'player.mediaError': 'فایل خوانده نشد یا پشتیبانی نمی‌شود',
+  'player.corsHint':
+    'این پخش‌کننده نتوانست به منبع دسترسی پیدا کند: یا سرور اجازهٔ پخش از برنامه‌های دیگر (CORS) را نمی‌دهد، یا کدک/پروتکل پشتیبانی نمی‌شود. لینک مستقیم m3u8/ts یا کانال دیگری را امتحان کنید.',
   'player.seek': 'جابه‌جایی',
 
   'library.title': 'کتابخانه',
@@ -469,6 +471,8 @@ const en: Dict = {
   'player.error': 'Playback error',
   'player.retry': 'Retry',
   'player.mediaError': 'The file could not be read or decoded',
+  'player.corsHint':
+    'ROZH could not reach the source: the server refuses cross-origin playback (CORS) or the codec/protocol is unsupported. Try the direct m3u8/ts link or another mirror.',
   'player.seek': 'Seek',
 
   'library.title': 'Library',

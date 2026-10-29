@@ -1,0 +1,205 @@
+/* ============================================================
+   ROZH Player — 10-foot interface (Android TV, Fire TV, boxes)
+   Loaded after every other layer so it wins the cascade.
+   Active only on :root[data-tv='true'].
+   ============================================================ */
+
+:root[data-tv='true'] {
+  --ui-scale: 1.34;
+  --sidebar-w: 296px;
+  --topbar-h: 86px;
+  --tv-ring: 0 0 0 3px var(--accent), 0 0 0 7px color-mix(in srgb, var(--accent) 32%, transparent),
+    0 22px 60px rgba(0, 0, 0, 0.55);
+  --tv-safe: clamp(22px, 3.2vw, 64px);
+}
+
+/* room for overscan: televisions crop the outer edge of the picture */
+:root[data-tv='true'] .shell {
+  padding-inline: calc(var(--tv-safe) * 0.35);
+}
+:root[data-tv='true'] .view {
+  padding-inline: calc(var(--tv-safe) * 0.5);
+}
+:root[data-tv='true'] .topbar {
+  padding-inline: var(--tv-safe);
+}
+
+/* ---- focus ring --------------------------------------------------- */
+:root[data-tv='true'] .tv-focus,
+:root[data-tv='true'] .tv-focus:focus,
+:root[data-tv='true'] .tv-focus:focus-visible {
+  outline: none !important;
+  box-shadow: var(--tv-ring);
+  border-radius: var(--r-md);
+  position: relative;
+  z-index: 3;
+}
+:root[data-tv='true'] .tv-focus::after {
+  content: '';
+  position: absolute;
+  inset: -9px;
+  border-radius: calc(var(--r-md) + 9px);
+  border: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  pointer-events: none;
+  animation: tv-ring-in 0.16s ease-out;
+}
+@keyframes tv-ring-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* the video surface itself must not glow like a button */
+:root[data-tv='true'] .stage.tv-focus,
+:root[data-tv='true'] .stage:focus,
+:root[data-tv='true'] .stage:focus-visible {
+  box-shadow: none;
+  outline: none !important;
+}
+:root[data-tv='true'] .stage.tv-focus::after {
+  display: none;
+}
+
+/* ---- navigation rail --------------------------------------------- */
+:root[data-tv='true'] .nav-item {
+  min-height: 58px;
+  font-size: 1.02rem;
+  border-radius: var(--r-md);
+}
+:root[data-tv='true'] .nav-label {
+  font-weight: 650;
+}
+:root[data-tv='true'] .brand-name {
+  font-size: 1.5rem;
+}
+:root[data-tv='true'] .nav-title {
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+}
+
+/* ---- cards -------------------------------------------------------- */
+:root[data-tv='true'] .media-grid {
+  grid-template-columns: repeat(auto-fill, minmax(clamp(240px, 19vw, 340px), 1fr));
+  gap: 26px;
+}
+:root[data-tv='true'] .media-card,
+:root[data-tv='true'] .stream-card,
+:root[data-tv='true'] .setting-row,
+:root[data-tv='true'] .opt-row {
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+:root[data-tv='true'] .media-card.tv-focus,
+:root[data-tv='true'] .stream-card.tv-focus {
+  transform: translateY(-6px) scale(1.045);
+}
+:root[data-tv='true'] .media-card .card-title {
+  font-size: 1.06rem;
+}
+
+/* ---- buttons / inputs -------------------------------------------- */
+:root[data-tv='true'] .iconbtn {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+}
+:root[data-tv='true'] .btn {
+  --btn-h: 56px;
+  font-size: 1.02rem;
+  padding: 0 26px;
+}
+:root[data-tv='true'] .btn-lg {
+  --btn-h: 68px;
+  font-size: 1.1rem;
+}
+:root[data-tv='true'] .seg {
+  --seg-h: 54px;
+}
+:root[data-tv='true'] .range {
+  height: 44px;
+}
+
+/* ---- player ------------------------------------------------------- */
+:root[data-tv='true'] .stage-bottom {
+  padding: 88px 40px 30px;
+}
+:root[data-tv='true'] .scrub-track {
+  height: 8px;
+  border-radius: 999px;
+}
+:root[data-tv='true'] .scrub-knob {
+  width: 20px;
+  height: 20px;
+}
+:root[data-tv='true'] .ctrl-row {
+  gap: 16px;
+}
+:root[data-tv='true'] .ctrl-row .play-btn {
+  width: 74px;
+  height: 74px;
+}
+:root[data-tv='true'] .time-code {
+  font-size: 1.05rem;
+  letter-spacing: 0.02em;
+}
+:root[data-tv='true'] .stage-meta .title-main {
+  font-size: 1.5rem;
+}
+:root[data-tv='true'] .big-play {
+  width: 132px;
+  height: 132px;
+}
+:root[data-tv='true'] .empty-inner .empty-logo {
+  width: 128px;
+  height: 128px;
+}
+:root[data-tv='true'] .empty-inner h3 {
+  font-size: 1.9rem;
+}
+:root[data-tv='true'] .empty-inner p {
+  font-size: 1.02rem;
+  max-width: 46ch;
+}
+:root[data-tv='true'] .empty-actions {
+  gap: 18px;
+}
+
+/* ---- sheets ------------------------------------------------------- */
+:root[data-tv='true'] .drawer {
+  width: min(720px, 92vw) !important;
+}
+:root[data-tv='true'] .drawer-body {
+  font-size: 1rem;
+}
+:root[data-tv='true'] .toast {
+  font-size: 1rem;
+  padding: 16px 22px;
+}
+
+/* ---- cleanliness -------------------------------------------------- */
+:root[data-tv='true'] ::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+:root[data-tv='true'] * {
+  scrollbar-width: none;
+}
+:root[data-tv='true'] .media-card .card-hover,
+:root[data-tv='true'] .card-actions {
+  opacity: 1;
+}
+:root[data-tv='true'] .hint-desktop-only {
+  display: none;
+}
+
+/* a remote cannot hover: keep every affordance permanently available */
+@media (hover: none) {
+  :root[data-tv='true'] .media-card .card-play {
+    opacity: 1;
+    transform: none;
+  }
+}

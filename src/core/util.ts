@@ -137,6 +137,8 @@ export interface PlatformInfo {
   os: 'windows' | 'macos' | 'linux' | 'android' | 'ios' | 'web';
   touch: boolean;
   tv: boolean;
+  /** True inside the dedicated Android TV package (`VITE_TV_BUILD=1`). */
+  tvBuild: boolean;
   standalone: boolean;
   mobile: boolean;
 }
@@ -149,8 +151,12 @@ function detect(): PlatformInfo {
   const ios = /iPhone|iPad|iPod/i.test(ua) && !/Android/i.test(ua);
   const standalone =
     matchMedia('(display-mode: standalone)').matches || (navigator as unknown as { standalone?: boolean }).standalone === true;
+  // The dedicated Android TV package bakes this flag in at build time, so the
+  // 10-foot UI is on from the very first frame even before any heuristic runs.
+  const tvBuild = String((import.meta.env as Record<string, unknown> | undefined)?.VITE_TV_BUILD ?? '') === '1';
   // Android TV / Fire TV signals
   const tv =
+    tvBuild ||
     /AndroidTV|TV;|SMART-TV|SmartTV|FireTV|AFT[A-Z]|BRAVIA|Web0S|Tizen|Xbox/i.test(ua) ||
     (android && !touch && matchMedia('(min-width: 1200px)').matches);
 
@@ -168,6 +174,7 @@ function detect(): PlatformInfo {
     os,
     touch,
     tv,
+    tvBuild,
     standalone,
     mobile: android || ios,
   };
@@ -175,8 +182,42 @@ function detect(): PlatformInfo {
 
 export const platform: PlatformInfo = detect();
 
-/** Native-feeling file picker: Tauri dialog when packaged, hidden <input> on the web. */
-export async function pickFiles(accept = 'video/*,audio/*,.mkv,.webm,.avi,.mov,.m4v,.ts,.mp4,.mp3,.flac,.wav,.m4a,.opus,.ogg,.aac,.srt,.vtt,.ass,.ssa'): Promise<File[]> {
+/** Hidden `<input type=file>` picker — the universally available fallback. */
+export function pickWebFiles(accept: string): Promise<File[]> {
+  return new Promise<File[]>((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = true;
+    input.accept = accept;
+    input.style.display = 'none';
+    const done = (files: File[]): void => {
+      resolve(files);
+      input.remove();
+    };
+    input.addEventListener('change', () => done(Array.from(input.files ?? [])));
+    input.addEventListener('cancel', () => done([]));
+    document.body.appendChild(input);
+    input.click();
+  });
+}
+
+/**
+ * Native-feeling file picker.
+ *
+ * Desktop: the Tauri dialog + asset protocol streams straight off the disk, so
+ * multi-gigabyte files cost no memory.
+ *
+ * Android / iOS: the native dialog returns `content://` URIs (Android) which no
+ * asset protocol can stream and which `<video>` cannot open — that was the bug
+ * that made every phone/local-file combination fail. The webview's own file
+ * chooser hands back real `File` objects backed by the very same content
+ * providers, so here we deliberately use it instead.
+ */
+export async function pickFiles(
+  accept = 'video/*,audio/*,.mkv,.webm,.avi,.mov,.m4v,.ts,.mp4,.mp3,.flac,.wav,.m4a,.opus,.ogg,.aac,.srt,.vtt,.ass,.ssa',
+): Promise<File[]> {
+  if (platform.tauri && platform.mobile) return pickWebFiles('*/*');
+
   if (platform.tauri) {
     try {
       const [{ open }, { convertFileSrc }] = await Promise.all([
@@ -198,23 +239,7 @@ export async function pickFiles(accept = 'video/*,audio/*,.mkv,.webm,.avi,.mov,.
       console.warn('[rozh] native dialog unavailable, using the web picker', err);
     }
   }
-  return new Promise<File[]>((resolve) => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.multiple = true;
-    input.accept = accept;
-    input.style.display = 'none';
-    input.addEventListener('change', () => {
-      resolve(Array.from(input.files ?? []));
-      input.remove();
-    });
-    input.addEventListener('cancel', () => {
-      resolve([]);
-      input.remove();
-    });
-    document.body.appendChild(input);
-    input.click();
-  });
+  return pickWebFiles(accept);
 }
 
 const MIME_MAP: Record<string, string> = {

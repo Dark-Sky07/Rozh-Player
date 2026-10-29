@@ -37,6 +37,7 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes('hls.js')) return 'hls';
           if (id.includes('dashjs')) return 'dash';
+          if (id.includes('mpegts.js')) return 'mpegts';
           if (id.includes('jassub')) return 'libass';
           return undefined;
         },
