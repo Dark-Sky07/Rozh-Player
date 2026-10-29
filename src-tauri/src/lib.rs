@@ -6,12 +6,14 @@
 //!   * an FFmpeg fallback for containers/codecs the system webview refuses
 //!     (MKV, AVI, TS, AC3, DTS …), remuxed losslessly when possible
 //!   * a tray icon with quick transport actions
-//!   * power-saving keepscreen while video is playing
+//!   * a macOS close-to-tray behaviour so playback survives window closing
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+#[cfg(desktop)]
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+#[cfg(desktop)]
 use tauri::tray::TrayIconBuilder;
 use tauri::{Emitter, Manager};
 
@@ -28,6 +30,7 @@ fn ffmpeg_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     // dev runs execute from src-tauri/target/debug
     if let Ok(dir) = std::env::current_dir() {
         candidates.push(dir.join("bin").join(exe));
+        candidates.push(dir.join("src-tauri").join("bin").join(exe));
     }
 
     candidates
@@ -47,14 +50,21 @@ fn cache_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 }
 
 fn file_stem(path: &str) -> String {
-    Path::new(path)
+    let raw = Path::new(path)
         .file_stem()
         .map(|s| s.to_string_lossy().to_string())
-        .unwrap_or_else(|| "media".into())
+        .unwrap_or_else(|| "media".into());
+    let cleaned: String = raw
         .chars()
-        .filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '-' || *c == '_')
+        .map(|c| if c.is_alphanumeric() || c == ' ' || c == '-' || c == '_' { c } else { ' ' })
         .take(48)
-        .collect()
+        .collect();
+    let trimmed = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
+    if trimmed.is_empty() {
+        "media".into()
+    } else {
+        trimmed
+    }
 }
 
 fn size_of(path: &Path) -> u64 {
@@ -76,7 +86,7 @@ fn run_ffmpeg(bin: &Path, input: &str, output: &Path, args: &[&str]) -> Result<(
         .args(args)
         .arg(output)
         .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
         .status()
         .map_err(|e| format!("failed to launch ffmpeg: {e}"))?;
 
@@ -89,7 +99,7 @@ fn run_ffmpeg(bin: &Path, input: &str, output: &Path, args: &[&str]) -> Result<(
 
 /// Make any local file playable by the webview.
 ///
-/// 1. Try a **lossless remux** into fragmented MP4 (H.264/VP9/AV1 + AAC/Opus).
+/// 1. Try a **lossless remux** into MP4 (H.264/VP9/AV1 + AAC/Opus).
 /// 2. Fall back to a **hardware-friendly transcode** (H.264 + AAC) when the
 ///    source codecs are not supported by the platform decoder.
 #[tauri::command]
@@ -98,64 +108,91 @@ async fn remux_file(app: tauri::AppHandle, path: String) -> Result<String, Strin
     let dir = cache_dir(&app)?;
     let stem = file_stem(&path);
     let remuxed = dir.join(format!("{stem}.mp4"));
+    let transcoded = dir.join(format!("{stem}.x264.mp4"));
 
-    tauri::async_runtime::spawn_blocking({
+    // ---- pass 1: copy the video stream, normalise audio to AAC -----------
+    let first = {
         let bin = bin.clone();
         let input = path.clone();
-        let output = remuxed.clone();
-        move || {
-            // keep the container, copy the streams we can, normalise the rest
+        let out = remuxed.clone();
+        tauri::async_runtime::spawn_blocking(move || {
             run_ffmpeg(
                 &bin,
                 &input,
-                &output,
+                &out,
                 &[
-                    "-map", "0:v:0?",
-                    "-map", "0:a:0?",
-                    "-c:v", "copy",
-                    "-c:a", "aac",
-                    "-b:a", "192k",
-                    "-movflags", "+faststart",
-                    "-f", "mp4",
+                    "-map",
+                    "0:v:0?",
+                    "-map",
+                    "0:a:0?",
+                    "-c:v",
+                    "copy",
+                    "-c:a",
+                    "aac",
+                    "-b:a",
+                    "192k",
+                    "-movflags",
+                    "+faststart",
+                    "-f",
+                    "mp4",
                 ],
             )
-        }
-    })
-    .await
-    .map_err(|e| e.to_string())?
-    .or_else(|_| {
-        // Full transcode — slower, but plays literally anything FFmpeg decodes.
-        let transcoded = dir.join(format!("{stem}.x264.mp4"));
-        let _ = app.emit("rozh:transcoding", &path);
-        run_ffmpeg(
-            &bin,
-            &path,
-            &transcoded,
-            &[
-                "-map", "0:v:0?",
-                "-map", "0:a:0?",
-                "-c:v", "libx264",
-                "-preset", "veryfast",
-                "-crf", "22",
-                "-pix_fmt", "yuv420p",
-                "-c:a", "aac",
-                "-b:a", "192k",
-                "-movflags", "+faststart",
-                "-f", "mp4",
-            ],
-        )
-        .map(|_| transcoded.to_string_lossy().to_string())
-    })
-    .map(|p| {
-        if p.is_empty() {
-            remuxed.to_string_lossy().to_string()
-        } else {
-            p
-        }
-    })
+            .map(|_| out.to_string_lossy().to_string())
+        })
+        .await
+    };
+
+    if let Ok(Ok(playable)) = first {
+        return Ok(playable);
+    }
+
+    // ---- pass 2: full transcode — slower, plays anything FFmpeg decodes --
+    let _ = app.emit("rozh:transcoding", &path);
+    let second = {
+        let bin = bin.clone();
+        let input = path.clone();
+        let out = transcoded.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            run_ffmpeg(
+                &bin,
+                &input,
+                &out,
+                &[
+                    "-map",
+                    "0:v:0?",
+                    "-map",
+                    "0:a:0?",
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "veryfast",
+                    "-crf",
+                    "22",
+                    "-pix_fmt",
+                    "yuv420p",
+                    "-c:a",
+                    "aac",
+                    "-b:a",
+                    "192k",
+                    "-movflags",
+                    "+faststart",
+                    "-f",
+                    "mp4",
+                ],
+            )
+            .map(|_| out.to_string_lossy().to_string())
+        })
+        .await
+    };
+
+    match second {
+        Ok(Ok(playable)) => Ok(playable),
+        Ok(Err(e)) => Err(e),
+        Err(e) => Err(e.to_string()),
+    }
 }
 
-/// Probe a file with ffprobe-style output through ffmpeg's stderr.
+/// Probe a file using FFmpeg's own metadata output.
 #[tauri::command]
 async fn probe_file(app: tauri::AppHandle, path: String) -> Result<serde_json::Value, String> {
     let bin = ffmpeg_path(&app)?;
@@ -204,6 +241,7 @@ fn reveal_in_folder(path: String) -> Result<(), String> {
     } else {
         p.to_path_buf()
     };
+
     #[cfg(target_os = "windows")]
     {
         Command::new("explorer")
@@ -245,10 +283,10 @@ pub fn run() {
         // ---- tray: quick transport for the desktop build ----------------
         #[cfg(desktop)]
         {
-            let play = MenuItem::with_id(app, "play", "Play / Pause", true, Some("Space"))?;
-            let open = MenuItem::with_id(app, "open", "Open file…", true, Some("CmdOrCtrl+O"))?;
             let show = MenuItem::with_id(app, "show", "Show ROZH Player", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "Quit", true, Some("CmdOrCtrl+Q"))?;
+            let play = MenuItem::with_id(app, "play", "Play / Pause", true, None::<&str>)?;
+            let open = MenuItem::with_id(app, "open", "Open file…", true, None::<&str>)?;
+            let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let sep = PredefinedMenuItem::separator(app)?;
             let menu = Menu::with_items(app, &[&show, &sep, &play, &open, &sep, &quit])?;
 
@@ -266,6 +304,7 @@ pub fn run() {
                 "show" => {
                     if let Some(w) = app.get_webview_window("main") {
                         let _ = w.show();
+                        let _ = w.unminimize();
                         let _ = w.set_focus();
                     }
                 }
@@ -282,19 +321,12 @@ pub fn run() {
                     let app = tray.app_handle();
                     if let Some(w) = app.get_webview_window("main") {
                         let _ = w.show();
+                        let _ = w.unminimize();
                         let _ = w.set_focus();
                     }
                 }
             })
             .build(app)?;
-        }
-
-        // ---- keep the screen awake while playing ------------------------
-        #[cfg(desktop)]
-        {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.set_title("ROZH Player");
-            }
         }
 
         Ok(())
@@ -303,7 +335,8 @@ pub fn run() {
     builder
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                // hide instead of quit so playback state survives re-opening
+                // On macOS the app keeps running in the tray/dock after the
+                // window closes, so playback state survives.
                 #[cfg(target_os = "macos")]
                 {
                     api.prevent_close();
@@ -327,5 +360,6 @@ mod tests {
     fn stems_are_sanitised() {
         assert_eq!(file_stem("/movies/My Film (2024).mkv"), "My Film 2024");
         assert_eq!(file_stem("/x/y.mkv"), "y");
+        assert_eq!(file_stem(""), "media");
     }
 }

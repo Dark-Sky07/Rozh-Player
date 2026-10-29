@@ -4,53 +4,204 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to build and attach assets to
+        required: true
+        default: v1.0.0
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
-  build:
+  # ---------------------------------------------------------------- desktop
+  desktop:
+    name: ${{ matrix.label }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
+          - label: macOS · Apple Silicon
+            platform: macos-latest
             args: --target aarch64-apple-darwin
-          - platform: macos-latest
+            rust-targets: aarch64-apple-darwin
+          - label: macOS · Intel
+            platform: macos-latest
             args: --target x86_64-apple-darwin
-          - platform: ubuntu-22.04
+            rust-targets: x86_64-apple-darwin
+          - label: Linux · deb / rpm / AppImage
+            platform: ubuntu-22.04
             args: ''
-          - platform: windows-latest
+            rust-targets: ''
+          - label: Windows · x64
+            platform: windows-latest
             args: ''
+            rust-targets: ''
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
+
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
-      - name: Linux deps
+          targets: ${{ matrix.rust-targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.label }}
+
+      - name: Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
-            libayatana-appindicator3-dev librsvg2-dev patchelf
+            libayatana-appindicator3-dev librsvg2-dev patchelf rpm
+
       - run: npm ci
+
       - name: Fetch FFmpeg (optional native engine)
         continue-on-error: true
         run: node scripts/fetch-ffmpeg.mjs
-      - uses: tauri-apps/tauri-action@v0
+
+      - name: Build & attach installers
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'ROZH Player ${{ github.ref_name }}'
-          releaseBody: 'See the assets below for installers. ROZH Player — one player, every platform.'
+          tagName: ${{ github.event.inputs.tag || github.ref_name }}
+          releaseName: 'ROZH Player ${{ github.event.inputs.tag || github.ref_name }}'
+          releaseBody: |
+            **ROZH Player — one player, every platform.**
+
+            | Platform | File |
+            | --- | --- |
+            | Windows | `*-setup.exe` (NSIS), `*.msi` |
+            | macOS (Apple Silicon) | `*_aarch64.dmg` |
+            | macOS (Intel) | `*_x64.dmg` |
+            | Linux | `.deb`, `.rpm`, `.AppImage` |
+            | Android / Android TV | `.apk` (see the Android job) |
+            | Web / PWA | `rozh-player-web.zip` — unzip and serve |
+
+            Builds are unsigned: on macOS right-click → Open the first time,
+            on Windows choose “More info → Run anyway”.
           releaseDraft: true
           prerelease: false
           args: ${{ matrix.args }}
+
+  # -------------------------------------------------------------------- web
+  web:
+    name: Web · PWA bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: |
+          cd dist && zip -qr ../rozh-player-web.zip . && cd ..
+          ls -la rozh-player-web.zip
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: 'ROZH Player ${{ github.event.inputs.tag || github.ref_name }}'
+          draft: true
+          files: rozh-player-web.zip
+
+  # ---------------------------------------------------------------- android
+  android:
+    name: Android · APK + AAB (arm64 / armv7 / x86_64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install NDK & SDK packages
+        run: |
+          sdkmanager --install "ndk;27.1.12297006" "platforms;android-34" "build-tools;34.0.0"
+          echo "ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.1.12297006" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.1.12297006" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: android
+
+      - run: npm ci
+
+      - name: Scaffold Android project
+        run: |
+          set -o pipefail
+          npx tauri android init --ci 2>&1 | tee /tmp/init.log
+
+      - name: Patch manifest for Android TV
+        run: node scripts/patch-android-tv.mjs
+
+      - name: Signing key (ephemeral, CI only)
+        run: |
+          mkdir -p src-tauri/keystore
+          keytool -genkeypair -v \
+            -keystore src-tauri/keystore/rozh-ci.jks \
+            -alias rozh \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass rozhplayer -keypass rozhplayer \
+            -dname "CN=ROZH Player, OU=ROZH, O=ROZH, L=Tehran, C=IR"
+          cat > src-tauri/gen/android/keystore.properties <<EOF
+          password=rozhplayer
+          keyAlias=rozh
+          storeFile=$GITHUB_WORKSPACE/src-tauri/keystore/rozh-ci.jks
+          EOF
+
+      - name: Build APK + AAB
+        shell: bash
+        run: |
+          set +e
+          npx tauri android build --apk --aab 2>&1 | tee /tmp/android.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            summary=$(tail -n 60 /tmp/android.log | sed -e 's/%/%25/g' -e 's/\r//g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Android build failed::$summary"
+            exit "$code"
+          fi
+
+      - name: Collect artefacts
+        run: |
+          mkdir -p out
+          find src-tauri/gen/android/app/build/outputs -type f \( -name '*.apk' -o -name '*.aab' \) -exec cp {} out/ \;
+          ls -lh out
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: 'ROZH Player ${{ github.event.inputs.tag || github.ref_name }}'
+          draft: true
+          files: out/*
