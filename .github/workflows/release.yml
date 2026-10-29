@@ -29,10 +29,15 @@ jobs:
   # ---------------------------------------------------------------- desktop
   desktop:
     name: ${{ matrix.label }}
+    # NOTE: the matrix context is not available to a job-level `if`, so the
+    # desktop matrix always runs for a tag; the `only` input just selects the
+    # single-target jobs. (Step-level `if`s may use matrix.key.)
     if: |
       github.event_name == 'push' ||
       github.event.inputs.only == 'all' ||
-      github.event.inputs.only == matrix.key
+      github.event.inputs.only == 'windows' ||
+      github.event.inputs.only == 'macos' ||
+      github.event.inputs.only == 'linux'
     strategy:
       fail-fast: false
       matrix:

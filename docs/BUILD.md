@@ -71,10 +71,27 @@ Or by hand:
 
 ## 4. CI
 
-`.github/workflows/ci.yml` type-checks and builds the web bundle on every push.
-`.github/workflows/release.yml` builds signed-less release artifacts for
-Windows, macOS (Intel + Apple Silicon), Linux and Android when a tag `v*` is
-pushed. Add the usual Tauri signing secrets to publish signed installers.
+`.github/workflows/ci.yml` type-checks, builds the web bundle and runs
+`cargo check` + the Rust unit tests on every push.
+
+`.github/workflows/release.yml` builds the whole matrix when a tag `v*` is
+pushed and attaches everything to a **draft** release:
+
+| Job | Runner | Artefacts |
+| --- | --- | --- |
+| Windows | `windows-latest` | NSIS `*-setup.exe` |
+| macOS | `macos-latest` × 2 | `aarch64.dmg`, `x64.dmg` |
+| Linux | `ubuntu-22.04` | `.deb`, `.rpm`, `.AppImage` |
+| Android | `ubuntu-latest` + NDK 27 | `.apk`, `.aab` |
+| Web | `ubuntu-latest` | `rozh-player-web.zip` |
+
+The release workflow can also be started by hand
+(`workflow_dispatch` with a `tag` and an optional `only` filter).
+
+Installers are **unsigned** — add the usual Tauri signing keys as repository
+secrets before shipping to end users. The Android job creates an ephemeral
+keystore so the APK installs; put a real keystore in `src-tauri/keystore/` and
+a matching `keystore.properties` to sign with your own key.
 
 ## 5. Troubleshooting
 

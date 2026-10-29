@@ -8,6 +8,7 @@
   *A fast, beautiful, universal media player — Windows · macOS · Linux · Android · Android TV · Web*
 
   [![CI](https://img.shields.io/badge/build-passing-4ecf9a?style=flat-square)](.github/workflows/ci.yml)
+  [![Release](https://img.shields.io/badge/release-v1.0.0-f8da7e?style=flat-square)](../../releases)
   [![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square)](https://tauri.app)
   [![License](https://img.shields.io/badge/license-MIT-f8a24a?style=flat-square)](LICENSE)
 </div>
@@ -16,6 +17,7 @@
 
 ## فهرست
 
+- [دانلود](#دانلود)
 - [چرا ROZH؟](#چرا-rozh)
 - [امکانات](#امکانات)
 - [اجرا و نصب](#اجرا-و-نصب)
@@ -23,6 +25,28 @@
 - [کلیدهای میان‌بر](#کلیدهای-میان‌بر)
 - [ساختار پروژه](#ساختار-پروژه)
 - [English](#english)
+
+---
+
+## دانلود
+
+نسخهٔ آمادهٔ **v1.0.0** برای همهٔ پلتفرم‌ها در صفحهٔ [Releases](../../releases) است:
+
+| پلتفرم | فایل |
+| --- | --- |
+| ویندوز ۱۰/۱۱ | `ROZH Player_1.0.0_x64-setup.exe` |
+| مک — Apple Silicon | `ROZH.Player_1.0.0_aarch64.dmg` |
+| مک — Intel | `ROZH.Player_1.0.0_x64.dmg` |
+| لینوکس | `.deb` · `.rpm` · `.AppImage` |
+| اندروید / اندروید تی‌وی | `app-universal-release.apk` |
+| وب / PWA | `rozh-player-web.zip` |
+
+<div dir="ltr">
+
+> Builds are unsigned: Windows may show SmartScreen and macOS Gatekeeper needs a
+> right-click → Open on first launch. Details in the release notes.
+
+</div>
 
 ---
 
@@ -160,6 +184,24 @@ FFmpeg جابه‌جا (remux) یا در صورت نیاز ترنسکد می‌�
 | `Ctrl/⌘ + O` | باز کردن فایل |
 | `Ctrl/⌘ + L` | باز کردن لینک |
 | `Ctrl/⌘ + ,` | تنظیمات |
+
+## ساخت خودکار (CI)
+
+هر پوش تگ با الگوی `v*` کل ماتریس را می‌سازد و ضمیمهٔ همان Release می‌کند:
+
+```bash
+git tag v1.0.1 && git push origin v1.0.1
+```
+
+| کار | ابزار | خروجی |
+| --- | --- | --- |
+| Windows | `windows-latest` + NSIS | `*-setup.exe` |
+| macOS | `macos-latest` × ۲ معماری | `aarch64.dmg` · `x64.dmg` |
+| Linux | `ubuntu-22.04` | `deb` · `rpm` · `AppImage` |
+| Android | JDK 17 + NDK 27 | `apk` · `aab` |
+| وب | `ubuntu-latest` | `rozh-player-web.zip` |
+
+---
 
 ## ساختار پروژه
 
