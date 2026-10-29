@@ -5,7 +5,15 @@ import { icon, hydrateIcons } from '../core/icons';
 import type { NativeFile } from '../core/native';
 import { t, n } from '../core/i18n';
 import { store, type MediaItem } from '../core/store';
-import { applyDeviceStatus, isAndroidDevice, onDeviceSync, pickDeviceFolder, syncDeviceLibrary, type DeviceStatus } from '../core/device';
+import {
+  applyDeviceStatus,
+  isAndroidDevice,
+  lastDeviceStatus,
+  onDeviceSync,
+  pickDeviceFolder,
+  syncDeviceLibrary,
+  type DeviceStatus,
+} from '../core/device';
 import { confirmDialog, toast } from '../core/ui';
 import { escapeHtml, fmtBytes, fmtTime, fmtRelative, isAudioFile, pickFiles, $, $$ } from '../core/util';
 
@@ -108,7 +116,7 @@ function card(item: MediaItem): string {
  */
 function devicePanel(): string {
   if (!isAndroidDevice()) return '';
-  const st = deviceStatus?.state;
+  const st = (deviceStatus ?? lastDeviceStatus())?.state;
   const busy = st === 'scanning' || st === 'picking' || st === 'starting';
   const denied = st === 'permission' || st === 'denied';
   const count = store.deviceCount();
@@ -234,6 +242,7 @@ export function renderLibrary(host: HTMLElement, ctx: AppContext): void {
 
   if (isAndroidDevice() && !deviceBound) {
     deviceBound = true;
+    deviceStatus = lastDeviceStatus();
     onDeviceSync((status) => {
       deviceStatus = status;
       const live = document.querySelector<HTMLElement>('.view[data-view="library"].is-active');

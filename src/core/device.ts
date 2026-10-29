@@ -67,15 +67,27 @@ export function isAndroidDevice(): boolean {
 }
 
 let busy = false;
+let latest: DeviceStatus | null = null;
 const listeners = new Set<(status: DeviceStatus | null) => void>();
 
 /** Subscribe to scan progress (library view redraws, settings status line). */
+/** Last status seen by this session — views that mount later can read it. */
+export function lastDeviceStatus(): DeviceStatus | null {
+  return latest;
+}
+
+/** True while the user still has to grant media access. */
+export function deviceNeedsPermission(): boolean {
+  return latest?.state === 'permission' || latest?.state === 'denied';
+}
+
 export function onDeviceSync(fn: (status: DeviceStatus | null) => void): () => void {
   listeners.add(fn);
   return () => listeners.delete(fn);
 }
 
 function emit(status: DeviceStatus | null): void {
+  if (status) latest = status;
   listeners.forEach((fn) => {
     try {
       fn(status);
@@ -190,6 +202,29 @@ export function applyDeviceStatus(status: DeviceStatus | null): SyncResult {
  * The whole launch-time flow: scan, index, report. Silent when there is nothing
  * new, so an app that opens onto an unchanged device stays quiet.
  */
+/**
+ * After the permission dialog there is no further command to send — Android
+ * simply continues the scan once the grant arrives. Keep a light poll running in
+ * the background so the library fills itself without a relaunch.
+ */
+async function followUpAfterPermission(): Promise<void> {
+  const started = Date.now();
+  while (Date.now() - started < 180_000) {
+    await sleep(1200);
+    const status = await invoke<DeviceStatus>('android_media_status');
+    if (!status) return;
+    emit(status);
+    if (status.state === 'ready') {
+      const result = applyDeviceStatus(status);
+      emit(status);
+      const { toast } = await import('./ui');
+      if (result.added) toast(t('device.added', { n: n(result.added) }), 'ok', 2600);
+      return;
+    }
+    if (status.state === 'denied' || status.state === 'error' || status.state === 'idle') return;
+  }
+}
+
 export async function syncDeviceLibrary(opts: { silent?: boolean; reason?: 'launch' | 'manual' } = {}): Promise<SyncResult> {
   if (!isAndroidDevice() || busy) return { status: null, added: 0, removed: 0, total: store.library().length };
   if (!store.settings.autoIndex && opts.reason !== 'manual') {
@@ -201,6 +236,7 @@ export async function syncDeviceLibrary(opts: { silent?: boolean; reason?: 'laun
     const result = applyDeviceStatus(status);
     if (status?.state === 'permission' || status?.state === 'denied') {
       emit(status);
+      if (status.state === 'permission') void followUpAfterPermission();
       return result;
     }
     if (result.added || result.removed) {
