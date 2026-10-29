@@ -46,9 +46,10 @@ function shellTemplate(): string {
 
     <aside class="sidebar" aria-label="ROZH Player">
       <div class="brand">
-        <img class="brand-logo" src="/icons/rozh-logo.png" alt="" />
+        <span class="brand-mark"><img class="brand-logo" src="/icons/rozh-logo.png" alt="" /></span>
         <div class="brand-text">
-          <div class="brand-name">ROZH<span>PLAYER</span></div>
+          <div class="brand-name">ROZH</div>
+          <div class="brand-sub">PLAYER</div>
         </div>
         <button class="iconbtn sidebar-fold" data-act="fold" data-tip="${t('nav.collapse')}" aria-label="${t(
           'nav.collapse',
@@ -63,9 +64,10 @@ function shellTemplate(): string {
           ${VIEWS.filter((v) => v.group === g.key)
             .map(
               (v) => `<button class="nav-item" data-view="${v.id}">
-                ${icon(v.icon)}
+                <span class="nav-ico">${icon(v.icon)}</span>
                 <span class="nav-label">${escapeHtml(t('nav.' + v.id))}</span>
                 <span class="count" data-count="${v.id}" hidden></span>
+                <span class="nav-spark" aria-hidden="true"></span>
               </button>`,
             )
             .join('')}`,
@@ -77,11 +79,9 @@ function shellTemplate(): string {
         <button class="btn btn-primary open-btn" data-act="open">${icon('folder-open')}<span>${t(
           'nav.openFile',
         )}</span></button>
-        <div class="sidebar-meta">
-          <span class="foot-text"><span class="dot"></span>${platform.tauri ? platform.os : 'web'} · v${
-            __APP_VERSION__
-          }</span>
-          <span>${escapeHtml(t('nav.local'))}</span>
+        <div class="side-card">
+          <span class="foot-text"><span class="dot"></span>${platform.tauri ? platform.os : 'web'}</span>
+          <span class="badge mono">v${__APP_VERSION__}</span>
         </div>
       </div>
     </aside>
@@ -93,11 +93,14 @@ function shellTemplate(): string {
           <h1 data-crumb>${t('view.player')}</h1>
           <div class="crumb-sub" data-crumb-sub>${t('view.player.sub')}</div>
         </div>
-        <div class="topbar-actions">
-          <button class="btn btn-sm" data-act="url">${icon('link')}<span>${t('player.openUrl')}</span></button>
-          <button class="btn btn-primary btn-sm" data-act="open">${icon('folder-open')}<span>${t(
+        <div class="topbar-tools">
+          <button class="iconbtn" data-act="url" data-tip="${t('player.openUrl')}" aria-label="${t(
+            'player.openUrl',
+          )}">${icon('link')}</button>
+          <button class="btn btn-primary btn-sm topbar-open" data-act="open">${icon('folder-open')}<span>${t(
             'player.openFile',
           )}</span></button>
+          <span class="tb-divider" aria-hidden="true"></span>
           <button class="iconbtn" data-act="settings" data-tip="${t('nav.settings')}" aria-label="${t(
             'nav.settings',
           )}">${icon('gear')}</button>

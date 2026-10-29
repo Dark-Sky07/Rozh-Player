@@ -5,12 +5,72 @@
  */
 
 import { storage, uid, platform } from './util';
+import { isRtl } from './langs';
 
 export type Accent = 'ember' | 'crimson' | 'azure' | 'jade' | 'violet';
 export type Glass = 'soft' | 'balanced' | 'bold';
 export type LoopMode = 'off' | 'all' | 'one';
 export type Fit = 'contain' | 'cover' | 'fill' | 'zoom';
-export type Lang = 'fa' | 'en';
+export type Aspect = 'auto' | '16:9' | '4:3' | '21:9' | 'fill' | 'stretch';
+/** Interface languages. Only `fa` and `en` are complete; the rest fall back. */
+export type Lang =
+  | 'fa'
+  | 'ku'
+  | 'en'
+  | 'ar'
+  | 'tr'
+  | 'ru'
+  | 'es'
+  | 'fr'
+  | 'de'
+  | 'it'
+  | 'pt'
+  | 'hi'
+  | 'ur'
+  | 'zh'
+  | 'ja'
+  | 'ko'
+  | 'id'
+  | 'he'
+  | 'ps'
+  | 'az'
+  | 'nl'
+  | 'pl'
+  | 'cs'
+  | 'sk'
+  | 'hu'
+  | 'ro'
+  | 'bg'
+  | 'sr'
+  | 'hr'
+  | 'uk'
+  | 'el'
+  | 'sv'
+  | 'no'
+  | 'da'
+  | 'fi'
+  | 'vi'
+  | 'th'
+  | 'ms'
+  | 'bn'
+  | 'ta'
+  | 'te'
+  | 'tl'
+  | 'sw'
+  | 'kk'
+  | 'uz'
+  | 'hy'
+  | 'ka'
+
+/** Colour grading applied to the video element (CSS filter values). */
+export interface VideoEffects {
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  hue: number;
+  blur: number;
+  grayscale: number;
+}
 
 export interface Settings {
   accent: Accent;
@@ -45,6 +105,27 @@ export interface Settings {
   sdrBoost: boolean;
   showEmbers: boolean;
   seenWelcome: boolean;
+  /* --- VLC / PotPlayer style playback extras --- */
+  effects: VideoEffects;
+  aspect: Aspect;
+  rotate: 0 | 90 | 180 | 270;
+  flipH: boolean;
+  flipV: boolean;
+  pitch: boolean;
+  subOffsetMs: number;
+  sleepTimer: number;
+  lock: boolean;
+  stats: boolean;
+  longPressBoost: boolean;
+  doubleTapSeek: boolean;
+  frameStepMs: number;
+}
+
+/** Bookmarked positions, grouped by playable key. */
+export interface Bookmark {
+  t: number;
+  label: string;
+  at: number;
 }
 
 export type MediaKind = 'video' | 'audio' | 'stream';
@@ -100,6 +181,19 @@ const DEFAULT_SETTINGS: Settings = {
   sdrBoost: false,
   showEmbers: true,
   seenWelcome: false,
+  effects: { brightness: 1, contrast: 1, saturation: 1, hue: 0, blur: 0, grayscale: 0 },
+  aspect: 'auto',
+  rotate: 0,
+  flipH: false,
+  flipV: false,
+  pitch: true,
+  subOffsetMs: 0,
+  sleepTimer: 0,
+  lock: false,
+  stats: false,
+  longPressBoost: true,
+  doubleTapSeek: true,
+  frameStepMs: 40,
 };
 
 /* ------------------------------------------------------------------ */
@@ -302,6 +396,36 @@ class Store {
       .slice(0, limit);
   }
 
+  /* ---------------- bookmarks ---------------- */
+  private bookmarks: Record<string, Bookmark[]> = storage.get<Record<string, Bookmark[]>>('bookmarks', {});
+
+  marks(key: string): Bookmark[] {
+    return [...(this.bookmarks[key] ?? [])].sort((a, b) => a.t - b.t);
+  }
+
+  addMark(key: string, t: number, label: string): Bookmark {
+    const mark: Bookmark = { t, label: label.trim() || `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`, at: Date.now() };
+    const list = this.bookmarks[key] ?? [];
+    // replace a bookmark within 2s of an existing one
+    const near = list.findIndex((b) => Math.abs(b.t - t) < 2);
+    if (near >= 0) list[near] = mark;
+    else list.push(mark);
+    this.bookmarks[key] = list;
+    storage.set('bookmarks', this.bookmarks);
+    this.emit();
+    return mark;
+  }
+
+  removeMark(key: string, at: number): void {
+    this.bookmarks[key] = (this.bookmarks[key] ?? []).filter((b) => Math.abs(b.at - at) > 0.5);
+    storage.set('bookmarks', this.bookmarks);
+    this.emit();
+  }
+
+  allMarks(): { key: string; mark: Bookmark }[] {
+    return Object.entries(this.bookmarks).flatMap(([key, list]) => list.map((mark) => ({ key, mark })));
+  }
+
   /* ---------------- resume ---------------- */
   /**
    * Resume points are keyed by the playable key, which already contains the
@@ -350,7 +474,7 @@ export function applySettings(s: Settings): void {
   });
   set('lang', s.lang, (v) => {
     root.lang = v;
-    root.dir = v === 'fa' ? 'rtl' : 'ltr';
+    root.dir = isRtl(v as typeof s.lang) ? 'rtl' : 'ltr';
   });
   set('subSize', String(s.subSize), (v) => root.style.setProperty('--sub-size', `${v}%`));
   set('subColor', s.subColor, (v) => root.style.setProperty('--sub-color', v));
