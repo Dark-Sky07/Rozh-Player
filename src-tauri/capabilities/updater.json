@@ -8,7 +8,7 @@
   "platforms": [
     "windows",
     "macOS",
-    "Linux"
+    "linux"
   ],
   "permissions": [
     "updater:default",
