@@ -198,6 +198,7 @@ const fa: Dict = {
   'settings.resetSub': 'همهٔ تنظیمات به حالت اولیه برمی‌گردد',
   'settings.resetBtn': 'بازگردانی',
   'settings.on': 'روشن',
+  'common.ctrl': 'Ctrl',
   'settings.off': 'خاموش',
 
   'settings.subtitles': 'زیرنویس',
@@ -552,6 +553,7 @@ const en: Dict = {
   'settings.resetSub': 'Return every setting to its default',
   'settings.resetBtn': 'Reset',
   'settings.on': 'On',
+  'common.ctrl': 'Ctrl',
   'settings.off': 'Off',
 
   'settings.subtitles': 'Subtitles',
