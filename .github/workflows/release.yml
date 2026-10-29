@@ -42,16 +42,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # One macOS runner builds both architectures: the hosted macOS pool
+          # queues a second job unpredictably, and a queued job that never
+          # starts is cancelled after 15 minutes.
           - key: macos
-            label: macOS · Apple Silicon
+            label: macOS · Universal
             platform: macos-latest
             args: --target aarch64-apple-darwin
-            rust-targets: aarch64-apple-darwin
-          - key: macos
-            label: macOS · Intel
-            platform: macos-latest
-            args: --target x86_64-apple-darwin
-            rust-targets: x86_64-apple-darwin
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
           - key: linux
             label: Linux · deb / rpm / AppImage
             platform: ubuntu-22.04
@@ -93,7 +91,22 @@ jobs:
         continue-on-error: true
         run: node scripts/fetch-ffmpeg.mjs
 
+      - name: Build installers (macOS — both architectures)
+        if: matrix.key == 'macos'
+        shell: bash
+        run: |
+          set +e
+          ( npm run tauri build -- --target aarch64-apple-darwin \
+            && npm run tauri build -- --target x86_64-apple-darwin ) 2>&1 | tee /tmp/build.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            summary=$(sed -e 's/\x1b\[[0-9;]*m//g' -e 's/%/%25/g' -e 's/\r//g' /tmp/build.log | grep -aiE "error|fail|panic|invalid" | tail -n 30 | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Bundle failed::$summary"
+            exit "$code"
+          fi
+
       - name: Build installers
+        if: matrix.key != 'macos'
         shell: bash
         run: |
           set +e
