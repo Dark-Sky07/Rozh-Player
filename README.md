@@ -3,277 +3,281 @@
 <div align="center">
   <img src="public/icons/rozh-256.png" width="132" alt="ROZH Player" />
 
-  **پلیر همه‌کاره، سبک و حرفه‌ای — برای ویندوز، مک، لینوکس، اندروید، اندروید تی‌وی و وب**
-
-  *A fast, beautiful, universal media player — Windows · macOS · Linux · Android · Android TV · Web*
+  **A lightweight, beautiful, universal media player**
+  **Windows · macOS · Linux · Android · Android TV · Web**
 
   [![CI](https://img.shields.io/badge/build-passing-4ecf9a?style=flat-square)](.github/workflows/ci.yml)
-  [![Release](https://img.shields.io/badge/release-v1.0.1-f8da7e?style=flat-square)](../../releases)
+  [![Release](https://img.shields.io/badge/release-v1.0.2-f8da7e?style=flat-square)](../../releases/latest)
   [![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square)](https://tauri.app)
   [![License](https://img.shields.io/badge/license-MIT-f8a24a?style=flat-square)](LICENSE)
+  [![Languages](https://img.shields.io/badge/languages-47-6ba8ff?style=flat-square)](#languages)
+</div>
+
+<div align="center">
+  <img src="docs/screenshots/02-playing.jpg" width="880" alt="ROZH Player playing a demo reel" />
 </div>
 
 ---
 
-## فهرست
+## Contents
 
-- [دانلود](#دانلود)
-- [چرا ROZH؟](#چرا-rozh)
-- [امکانات](#امکانات)
-- [اجرا و نصب](#اجرا-و-نصب)
-- [فرمت‌ها](#فرمت‌ها)
-- [کلیدهای میان‌بر](#کلیدهای-میان‌بر)
-- [ساختار پروژه](#ساختار-پروژه)
-- [English](#english)
+- [Download](#download)
+- [Why ROZH](#why-rozh)
+- [Features](#features)
+- [Run and install](#run-and-install)
+- [Formats](#formats)
+- [Keyboard shortcuts](#keyboard-shortcuts)
+- [Languages](#languages)
+- [Automated releases (CI)](#automated-releases-ci)
+- [Project layout](#project-layout)
+- [License](#license)
 
 ---
 
-## دانلود
+## Download
 
-نسخهٔ آمادهٔ **v1.0.1** برای همهٔ پلتفرم‌ها در صفحهٔ [Releases](../../releases) است:
+Every version ships ready-to-install builds for all platforms on the
+[Releases](../../releases/latest) page:
 
-| پلتفرم | فایل |
+| Platform | File |
 | --- | --- |
-| ویندوز ۱۰/۱۱ | `ROZH.Player_1.0.1_x64-setup.exe` |
-| مک — Apple Silicon | `ROZH.Player_1.0.1_aarch64.dmg` |
-| مک — Intel | `ROZH.Player_1.0.1_x64.dmg` |
-| لینوکس | `.deb` · `.rpm` · `.AppImage` |
-| اندروید / اندروید تی‌وی | `ROZH-Player-1.0.1.apk` |
-| وب / PWA | `rozh-player-web.zip` |
-
-<div dir="ltr">
+| **Windows 10/11 (x64)** | `ROZH.Player_1.0.2_x64-setup.exe` |
+| **macOS — Apple Silicon (M1–M4)** | `ROZH.Player_1.0.2_aarch64.dmg` |
+| **macOS — Intel** | `ROZH.Player_1.0.2_x64.dmg` |
+| **Linux (Debian/Ubuntu)** | `ROZH.Player_1.0.2_amd64.deb` |
+| **Linux (Fedora/RHEL/openSUSE)** | `ROZH.Player-1.0.2-1.x86_64.rpm` |
+| **Linux (any distribution)** | `ROZH.Player_1.0.2_amd64.AppImage` |
+| **Android 7.0+ / Android TV** | `ROZH-Player-1.0.2.apk` |
+| **Web / PWA** | `rozh-player-web.zip` — unzip and serve as static files |
 
 > Builds are unsigned: Windows may show SmartScreen and macOS Gatekeeper needs a
-> right-click → Open on first launch. Details in the release notes.
+> right-click → **Open** on first launch. Details in the
+> [release notes](docs/RELEASE_NOTES.md).
 
+## Screenshots
+
+| | |
+| --- | --- |
+| ![Player](docs/screenshots/01-player.jpg) | ![Playback](docs/screenshots/02-playing.jpg) |
+| ![Settings](docs/screenshots/03-settings.jpg) | ![Tools](docs/screenshots/04-tools.jpg) |
+
+<div align="center">
+  <img src="docs/screenshots/05-mobile.jpg" width="300" alt="ROZH Player on a phone" />
 </div>
 
----
+## Why ROZH
 
-## چرا ROZH؟
+**ROZH** comes from *rozh* — dawn, first light. The logo is the same burning
+sun, and the whole interface is built from that palette: ember gold on
+midnight black. Three simple rules:
 
-اسم **ROZH** از «روژ» می‌آید: سپیده‌دم، روشنایی. لوگو هم همان خورشید طلایی شعله‌ور است و تمام
-رابط کاربری از همان پالت ساخته شده — طلاییِ آتشین روی سیاهِ نیمه‌شب.
+1. **Lightweight** — no UI framework, just TypeScript and hand-written CSS.
+   The app itself is ~130 kB of JavaScript (HLS and DASH players are lazy
+   loaded and only fetched when a stream needs them).
+2. **Universal** — video, audio, live streams, subtitles, equalizer, queue,
+   resume, remote-control navigation, and a native FFmpeg fallback on desktop.
+3. **Beautiful** — layered glass surfaces, soft depth, restrained motion, and
+   full respect for `prefers-reduced-motion`.
 
-سه اصل ساده:
+## Features
 
-1. **سبک** — رابط کاربری بدون هیچ فریم‌ورک سنگین؛ فقط TypeScript و CSS خالص. حدود ۱۳۰ کیلوبایت
-   جاوااسکریپت برای خود برنامه (پخش‌کننده‌های HLS/DASH فقط در صورت نیاز بارگذاری می‌شوند).
-2. **همه‌کاره** — پخش ویدیو، صدا، پخش زنده، زیرنویس، اکولایزر، صف پخش، ادامه از آخرین نقطه،
-   دسترسی از ریموت تلویزیون.
-3. **زیبا** — شیشه‌ای، عمق‌دار، با انیمیشن‌های نرم و احترام به `prefers-reduced-motion`.
+### Playback
+- Custom player surface on top of `<video>` with a complete control set
+- **HLS** (`.m3u8`) and **DASH** (`.mpd`) with lazy loading and manual/auto quality
+- Open local media by drag-and-drop, the native file dialog, or the Open button
+- **Queue**, shuffle, repeat (one / all)
+- **Resume where you left off** — every file restarts at the second you stopped
+- Playback speed 0.25×–4× with pitch preservation
+- **A-B loop**, 5 s / 30 s seeks, frame stepping (`, .` or `Alt + ←/→`)
+- Aspect ratio (auto / 16:9 / 4:3 / 21:9 / fill), rotate, horizontal & vertical flip,
+  picture effects (brightness, contrast, saturation, gamma)
+- Sleep timer, screen lock, scene bookmarks, technical stats panel, subtitle sync
+- **Frame capture** (PNG/JPEG) with automatic naming
+- Picture-in-picture, Cast/AirPlay, OS media keys and media session metadata
+- Progress bar with buffered ranges, time tooltip, auto-hiding controls
 
-## امکانات
+### Subtitles
+- SRT, WebVTT and **ASS/SSA rendered by libass** (JASSUB — accurate styling)
+- Drop a `.srt`/`.vtt`/`.ass` file onto the player to load it
+- Size, colour and edge style (outline / shadow / box) with a live preview
+- Per-file sync offset (±10 s) for text tracks
 
-### پخش
-- موتور پخش سفارشی روی `<video>` با کنترل‌های کامل فارسی/انگلیسی
-- **HLS** (`.m3u8`) و **DASH** (`.mpd`) با بارگذاری تنبل و انتخاب کیفیت دستی/خودکار
-- پخش محلی با کشیدن و رها کردن، انتخاب فایل بومی (دیالوگ سیستم) یا دکمهٔ «باز کردن»
-- **صف پخش**، درهم‌سازی، تکرار (یک فایل / همه)
-- **ادامه از آخرین نقطه** — هر فایل از همان ثانیه‌ای که رها کردید باز می‌شود
-- سرعت پخش ۰٫۲۵× تا ۴× با حفظ زیر و بم صدا
-- **حلقهٔ A-B**، پرش ۵/۳۰ ثانیه، حرکت قاب‌به‌قاب (`, .` یا `Alt+←/→`)
-- نسبت تصویر (اصلی/۱۶:۹/۴:۳/۲۱:۹/پرکردن)، چرخش، آینهٔ افقی/عمودی، جلوه‌های تصویر
-- تایمر خواب، قفل صفحه، نشانه‌گذاری صحنه، پنل آمار فنی، هم‌زمان‌سازی زیرنویس
-- **عکس از تصویر** (PNG/JPEG) با نام‌گذاری خودکار
-- تصویر در تصویر (PiP)، ارسال به تلویزیون (Cast/AirPlay)، کلیدهای رسانهٔ سیستم
-- نوار پیشرفت با بافر، پیش‌نمایش زمان، حذف خودکار کنترل‌ها هنگام پخش
+### Audio
+- Real **six-band equalizer** (Web Audio, Biquad filters) plus Bass/Voice presets
+- The audio graph is only built while the equalizer is on, so cross-origin
+  streams are never silenced; volume and mute are owned by one code path
+- Spinning artwork view for audio-only files
+- Volume slider, mute, per-source normalization
 
-### زیرنویس
-- SRT، WebVTT و **ASS/SSA** با موتور **libass** (JASSUB، رندر دقیق استایل‌ها)
-- افزودن زیرنویس دلخواه با کشیدن روی پلیر (فایل `.srt` را روی ویدیو رها کنید)
-- اندازه، رنگ، و سبک حاشیه (خط دور / سایه / کادر) با پیش‌نمایش زنده
+### Library and history
+- Local library with **automatic poster frames** captured off the playback path
+- Search and filters (video / audio / network)
+- Playback history with progress percentage and "continue from…"
+- Everything stays on your device: no account, no server, no telemetry
 
-### صدا
-- **اکولایزر شش‌باندی** واقعی (Web Audio، فیلترهای Biquad) + پیش‌تنظیم‌های Bass/Voice
-- گراف صدا فقط هنگام روشن‌بودن اکولایزر ساخته می‌شود؛ منابع cross-origin بی‌صدا نمی‌شوند
-- نمایش آلبوم/دیسک چرخان برای فایل‌های صوتی
-- کنترل صدا با اسلایدر، بی‌صدا کردن، تقویت رنگ تصویر
+### Experience
+- **47 languages** with a searchable picker and automatic RTL/LTR direction;
+  English is the default, Persian and Kurdish are fully translated
+- Five accent colours, three glass levels
+- **TV mode (10-foot UI)**: larger type, visible focus ring, remote navigation
+- Mobile tab bar, collapsing desktop rail, touch gestures (swipe for volume and
+  brightness, double-tap to seek, hold for 2× speed)
+- Ambient embers, soft transitions, full reduced-motion support
 
-### کتابخانه و تاریخچه
-- کتابخانهٔ محلی با **پیش‌نمایش خودکار** (قاب ویدیو در پس‌زمینه گرفته می‌شود)
-- جست‌وجو و فیلتر (ویدیو / صدا / شبکه)
-- تاریخچهٔ پخش با درصد پیشرفت و «ادامه از …»
-- همه‌چیز روی دستگاه شماست: نه حساب، نه سرور، نه آمارگیری
+## Run and install
 
-### تجربهٔ کاربری
-- **۴۷ زبان** با جست‌وجوی زبان و جهت‌گیری خودکار RTL/LTR؛ فارسی، کوردی و انگلیسی کامل
-- طراحی **RTL/LTR** کامل، فارسی پیش‌فرض و انگلیسی با یک کلیک
-- پنج رنگ تأکیدی، سه سطح شفافیت شیشه‌ای
-- **حالت تلویزیون (۱۰ فوتی)**: فونت درشت، فوکوس واضح، ناوبری با ریموت
-- نوار پایین برای موبایل، منوی جمع‌شو برای دسکتاپ، حرکات لمسی (سوایپ صدا/روشنایی،
-  دو ضربه برای پرش)
-- ذرات نورانی، انتقال‌های نرم، و احترام کامل به کاهش حرکت
-
-## اجرا و نصب
-
-### وب (سریع‌ترین راه)
+### Web (fastest path)
 
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm run build      # خروجی استاتیک در dist/
+npm run build      # static output in dist/
 ```
 
-نسخهٔ وب یک PWA است: از مرورگر «نصب» کنید تا مثل یک برنامهٔ مستقل باز شود.
+The web build is a PWA — use "Install" in your browser to run it like a
+standalone app.
 
-### دسکتاپ — ویندوز، مک، لینوکس
+### Desktop — Windows, macOS, Linux
 
-پیش‌نیازها: [Rust](https://rustup.rs)، Node 18+، و ابزارهای سیستم Tauri
-(در لینوکس: `libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev`).
+Prerequisites: [Rust](https://rustup.rs), Node 18+, and the Tauri system
+packages (on Linux: `libwebkit2gtk-4.1-dev build-essential curl wget file
+libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev`).
 
 ```bash
 npm install
-node scripts/fetch-ffmpeg.mjs     # موتور بومی برای فرمت‌های خاص (اختیاری ولی توصیه‌شده)
-npm run tauri:dev                 # اجرای برنامهٔ دسکتاپ
-npm run tauri:build               # ساخت نصاب
+node scripts/fetch-ffmpeg.mjs     # native engine for exotic formats (optional, recommended)
+npm run tauri:dev                 # run the desktop app
+npm run tauri:build               # build installers
 ```
 
-خروجی‌ها:
+Outputs:
 
-| سیستم | فایل |
+| System | File |
 | --- | --- |
-| ویندوز | `src-tauri/target/release/bundle/nsis/*.exe` (و `.msi`) |
-| مک | `.../bundle/dmg/*.dmg` |
-| لینوکس | `.../bundle/deb/*.deb`، `.../bundle/appimage/*.AppImage` |
+| Windows | `src-tauri/target/release/bundle/nsis/*.exe` (and `.msi`) |
+| macOS | `.../bundle/dmg/*.dmg` |
+| Linux | `.../bundle/deb/*.deb`, `.../bundle/appimage/*.AppImage` |
 
-### اندروید و اندروید تی‌وی
+### Android and Android TV
 
 ```bash
-npm run tauri android init            # فقط بار اول
-node scripts/patch-android-tv.mjs      # افزودن LEANBACK برای اندروید تی‌وی
-npm run tauri android dev             # روی دستگاه/شبیه‌ساز
+npm run tauri android init            # first time only
+node scripts/patch-android-tv.mjs     # add the LEANBACK category
+npm run tauri android dev             # run on a device or emulator
 npm run tauri android build -- --apk
 ```
 
-برای **اندروید تی‌وی**، مانیفست تولیدشده را باز کنید و در `<activity>` اضافه کنید:
+For **Android TV**, make sure the generated manifest contains:
 
 ```xml
 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
 ```
 
-و `<uses-feature android:name="android.hardware.touchscreen" android:required="false" />`
-را تنظیم کنید. برنامه خودش حالت تلویزیون را تشخیص می‌دهد و رابط را بزرگ می‌کند.
+and that `<uses-feature android:name="android.hardware.touchscreen"
+android:required="false" />` is set. The app detects TV devices itself and
+scales the interface up.
 
-## فرمت‌ها
+## Formats
 
-| بستر | ویدیو | صدا | زیرنویس | پخش زنده |
+| Runtime | Video | Audio | Subtitles | Streaming |
 | --- | --- | --- | --- | --- |
-| وب / دسکتاپ (WebView) | MP4 (H.264/H.265*), WebM (VP8/VP9/AV1), Ogg | MP3, AAC/M4A, FLAC, WAV, Opus, Ogg | SRT, VTT, ASS/SSA | HLS, DASH |
-| دسکتاپ با FFmpeg بومی | **MKV, AVI, MOV, TS, M2TS, WMV, FLV, 3GP, ProRes…** | AC3, DTS, EAC3, ALAC, WMA, APE… | همه | همه |
+| Web / desktop (WebView) | MP4 (H.264/H.265*), WebM (VP8/VP9/AV1), Ogg | MP3, AAC/M4A, FLAC, WAV, Opus, Ogg | SRT, VTT, ASS/SSA | HLS, DASH |
+| Desktop with native FFmpeg | **MKV, AVI, MOV, TS, M2TS, WMV, FLV, 3GP, ProRes…** | AC3, DTS, EAC3, ALAC, WMA, APE… | all | all |
 
-\* H.265/HEVC به کدک نصب‌شده در سیستم‌عامل بستگی دارد.
+\* H.265/HEVC depends on the codec installed in the operating system.
 
-روی دسکتاپ، اگر WebView نتواند فایلی را رمزگشایی کند، ROZH به‌طور خودکار آن را با
-FFmpeg جابه‌جا (remux) یا در صورت نیاز ترنسکد می‌کند — بدون اینکه چیزی از شما بپرسد.
+On desktop, if the webview cannot decode a file, ROZH automatically remuxes it
+with FFmpeg — or transcodes when necessary — without asking you anything.
 
-## کلیدهای میان‌بر
+## Keyboard shortcuts
 
-| کلید | کار |
+| Key | Action |
 | --- | --- |
-| `Space` / `K` | پخش / توقف |
-| `←` `→` | ۵ ثانیه عقب/جلو (با `Shift`: ۳۰ ثانیه) |
-| `↑` `↓` | صدا |
-| `J` / `L` | ۱۰ ثانیه عقب/جلو |
-| `M` | بی‌صدا |
-| `F` | تمام‌صفحه |
-| `P` | تصویر در تصویر |
-| `V` | زیرنویس |
-| `C` | عکس از تصویر |
-| `N` / `B` | بعدی / قبلی |
-| `E` / `I` / `A` | جلوه‌ها / آمار فنی / نسبت تصویر |
-| `Z` / `D` | تایمر خواب / هم‌زمان‌سازی زیرنویس |
-| `Ctrl/⌘ + B` | نشانه‌گذاری صحنه |
-| `Q` | صف پخش |
-| `[` / `]` | سرعت پخش |
-| `,` / `.` یا `Alt + ←/→` | قاب به قاب |
-| `0`–`9` | پرش به درصد |
-| `Ctrl/⌘ + O` | باز کردن فایل |
-| `Ctrl/⌘ + L` | باز کردن لینک |
-| `Ctrl/⌘ + ,` | تنظیمات |
+| `Space` / `K` | Play / pause |
+| `←` `→` | Seek 5 s back/forward (`Shift`: 30 s) |
+| `↑` `↓` | Volume |
+| `J` / `L` | Seek 10 s back/forward |
+| `M` | Mute |
+| `F` | Fullscreen |
+| `P` | Picture-in-picture |
+| `V` | Subtitles |
+| `C` | Capture frame |
+| `N` / `B` | Next / previous |
+| `E` / `I` / `A` | Effects / stats / aspect ratio |
+| `Z` / `D` | Sleep timer / subtitle sync |
+| `Ctrl/⌘ + B` | Bookmark the current scene |
+| `Q` | Queue |
+| `[` / `]` | Playback speed |
+| `,` / `.` or `Alt + ←/→` | Frame step |
+| `0`–`9` | Jump to 10 %–90 % |
+| `Ctrl/⌘ + O` | Open a file |
+| `Ctrl/⌘ + L` | Open a link |
+| `Ctrl/⌘ + ,` | Settings |
 
-## ساخت خودکار (CI)
+## Languages
 
-هر پوش تگ با الگوی `v*` کل ماتریس را می‌سازد و ضمیمهٔ همان Release می‌کند:
+47 interface languages, all reachable from **Settings → Appearance**. English,
+Persian (فارسی) and Kurdish (کوردی) carry complete translations; the rest cover
+the navigation, transport and settings vocabulary and fall back key by key to
+English, so the UI never shows a raw key.
+
+Persian, Kurdish, Arabic, Hebrew, Urdu and Pashto switch the whole layout to RTL
+automatically.
+
+## Automated releases (CI)
+
+Pushing a tag that matches `v*` builds the full matrix and publishes a new
+GitHub release with every asset attached:
 
 ```bash
-git tag v1.0.1 && git push origin v1.0.1
+git tag v1.0.2 && git push origin v1.0.2
 ```
 
-| کار | ابزار | خروجی |
+| Job | Tooling | Output |
 | --- | --- | --- |
 | Windows | `windows-latest` + NSIS | `*-setup.exe` |
-| macOS | `macos-latest` × ۲ معماری | `aarch64.dmg` · `x64.dmg` |
+| macOS | `macos-latest`, both architectures | `aarch64.dmg` · `x64.dmg` |
 | Linux | `ubuntu-22.04` | `deb` · `rpm` · `AppImage` |
 | Android | JDK 17 + NDK 27 | `apk` · `aab` |
-| وب | `ubuntu-latest` | `rozh-player-web.zip` |
+| Web | `ubuntu-latest` | `rozh-player-web.zip` |
+
+The release body is generated from [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md).
 
 ---
 
-## ساختار پروژه
+## Project layout
 
 ```
 rozh-player/
-├── index.html                 # پوستهٔ HTML + صفحهٔ بوت
+├── index.html                 # HTML shell + boot screen
 ├── src/
-│   ├── main.ts                # نقطهٔ ورود
+│   ├── main.ts                # entry point
 │   ├── core/
-│   │   ├── player.ts          # موتور پخش، کنترل‌ها، زیرنویس، اکولایزر
-│   │   ├── shell.ts           # اسکلت برنامه، مسیریابی، کتابخانه
-│   │   ├── store.ts           # تنظیمات (localStorage) + کتابخانه (IndexedDB)
-│   │   ├── native.ts          # پل Tauri (asset protocol، موتور FFmpeg)
-│   │   ├── i18n.ts            # فارسی / English
-│   │   ├── ui.ts              # توست، کشو، مودال، پاپ‌اور
-│   │   ├── icons.ts           # آیکون‌های SVG درون‌خطی
-│   │   └── util.ts            # ابزارها و تشخیص پلتفرم
-│   ├── views/                 # کتابخانه، پخش زنده، اخیر، تنظیمات، درباره
-│   └── styles/                # theme / app / overlays / player-extras
-├── src-tauri/                 # پوستهٔ بومی Rust + Tauri
-│   └── src/lib.rs             # tray، remux با FFmpeg، probe، reveal
-├── public/                    # فونت، آیکون‌ها، رسانهٔ نمونه، libass
-├── scripts/                   # کپی libass، دریافت FFmpeg
-└── docs/                      # معماری، ساخت، پروژه‌های سوم
+│   │   ├── player.ts          # playback engine, controls, subtitles, equalizer
+│   │   ├── shell.ts           # app shell, routing, library
+│   │   ├── store.ts           # settings (localStorage) + library (IndexedDB)
+│   │   ├── native.ts          # Tauri bridge (asset protocol, FFmpeg engine)
+│   │   ├── langs.ts           # language registry and partial dictionaries
+│   │   ├── i18n.ts            # translation dictionary + helpers
+│   │   ├── ui.ts              # toasts, drawers, modals, popovers
+│   │   ├── icons.ts           # inline SVG icon set
+│   │   └── util.ts            # helpers and platform detection
+│   ├── views/                 # library, live, history, settings, about
+│   └── styles/                # theme / app / overlays / player-extras / studio
+├── src-tauri/                 # native Rust shell + Tauri config
+│   └── src/lib.rs             # tray, FFmpeg remux, probe, reveal-in-folder
+├── public/                    # font, icons, demo media, libass
+├── scripts/                   # libass copy, FFmpeg fetch, Android TV patch
+└── docs/                      # architecture, build, third-party, release notes
 ```
 
-جزئیات بیشتر: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) و [docs/BUILD.md](docs/BUILD.md).
+More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
+[docs/BUILD.md](docs/BUILD.md).
 
-## مجوز
+## License
 
-کد پروژه تحت [MIT](LICENSE). اجزای شخص ثالث مجوز خودشان را دارند — [docs/THIRD-PARTY.md](docs/THIRD-PARTY.md).
-
----
-
-## English
-
-**ROZH Player** is a lightweight, gorgeous, universal media player built with
-TypeScript + Vite on the front and Tauri 2 (Rust) on the back. One codebase ships
-to Windows, macOS, Linux, Android, Android TV and the web.
-
-**Highlights**
-
-- Custom player surface: HLS + DASH (lazy loaded), queue, shuffle, repeat,
-  resume-where-you-left-off, 0.25×–4× speed with pitch preservation, A-B loop,
-  frame stepping, frame capture (PNG/JPEG), PiP, Cast/AirPlay, OS media keys.
-- Subtitles: SRT, WebVTT and **ASS/SSA rendered by libass (JASSUB)** with live
-  size/colour/edge customisation; drop a `.srt` onto the player to load it.
-- Real six-band equalizer on Web Audio, audio-only artwork view.
-- Library with automatic poster-frame thumbnails (generated off the playback
-  path), search, filters and resume history — all stored locally in IndexedDB.
-- Bilingual UI (Persian / English) with full RTL support, five accents, three
-  glass levels and a **10-foot TV mode** for Android TV remotes.
-- **Native FFmpeg fallback** on desktop: containers the system webview refuses
-  (MKV, AVI, TS, AC3…) are remuxed losslessly, or transcoded when necessary.
-
-**Quick start**
-
-```bash
-npm install
-npm run dev                # web / PWA
-npm run tauri:dev          # desktop shell
-npm run tauri:build        # installers
-```
-
-See [docs/BUILD.md](docs/BUILD.md) for per-platform prerequisites.
+Project code is [MIT](LICENSE). Third-party components keep their own licences —
+see [docs/THIRD-PARTY.md](docs/THIRD-PARTY.md).
 
 <div align="center">
   <sub>Crafted with ❤ for people who love film and music.</sub>
