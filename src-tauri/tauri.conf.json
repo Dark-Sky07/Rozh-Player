@@ -65,7 +65,7 @@
     "windows": {
       "nsis": {
         "installMode": "perMachine",
-        "languages": ["English", "Persian"],
+        "languages": ["English"],
         "displayLanguageSelector": false
       },
       "webviewInstallMode": { "type": "downloadBootstrapper", "silent": true }

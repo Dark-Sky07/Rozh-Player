@@ -14,6 +14,15 @@ export interface NativeFile extends File {
 
 export const isNative = platform.tauri;
 
+/**
+ * A URL the webview can play for this file: the asset protocol on desktop,
+ * an object URL in the browser. Never leaks a blob for native files.
+ */
+export function urlForFile(file: File): string {
+  const native = (file as NativeFile).__url;
+  return native ?? URL.createObjectURL(file);
+}
+
 export async function convertFileSrc(path: string): Promise<string> {
   if (!platform.tauri) return path;
   const { convertFileSrc: convert } = await import('@tauri-apps/api/core');
