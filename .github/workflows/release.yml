@@ -221,7 +221,16 @@ jobs:
         run: npx tauri android init --ci
 
       - name: Patch Android manifest (cleartext, permissions, leanback)
-        run: node scripts/patch-android-tv.mjs
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/patch-android-tv.mjs
+          M=src-tauri/gen/android/app/src/main/AndroidManifest.xml
+          grep -q 'android:usesCleartextTraffic="true"' "$M" || { echo '::error title=manifest::cleartext traffic is still off'; exit 1; }
+          test "$(grep -c 'android.software.leanback' "$M")" -eq 1 || { echo '::error title=manifest::leanback declared more than once'; exit 1; }
+          test "$(grep -c 'android.hardware.touchscreen' "$M")" -eq 1 || { echo '::error title=manifest::touchscreen declared more than once'; exit 1; }
+          grep -q 'LEANBACK_LAUNCHER' "$M"
+          echo 'manifest ok'
 
       - name: Signing key (ephemeral, CI only)
         shell: bash
@@ -280,7 +289,24 @@ jobs:
       # 10-foot interface is on from the first frame, and takes its own
       # applicationId so it installs next to the phone app.
       - name: Prepare Android TV package
-        run: node scripts/make-tv-variant.mjs
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/make-tv-variant.mjs
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const gradle = fs.readFileSync('src-tauri/gen/android/app/build.gradle.kts', 'utf8');
+          const manifest = fs.readFileSync('src-tauri/gen/android/app/src/main/AndroidManifest.xml', 'utf8');
+          const fail = (msg) => {
+            console.error(`::error title=TV package::${msg}`);
+            process.exit(1);
+          };
+          if (!/applicationId\s*=?\s*"[^"]*\.tv"/.test(gradle)) fail('applicationId has no .tv suffix');
+          if (!manifest.includes('android:label="ROZH Player TV"')) fail('TV label missing');
+          if (!/android\.software\.leanback"\s+android:required="true"/.test(manifest)) fail('leanback is not required');
+          if (!manifest.includes('@drawable/tv_banner')) fail('banner missing');
+          console.log('tv package ok');
+          NODE
 
       - name: Build Android TV APK + AAB
         shell: bash
