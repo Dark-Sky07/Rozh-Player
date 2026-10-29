@@ -1105,6 +1105,79 @@ html[dir='rtl'] .chapters i {
   flex-wrap: wrap;
   margin-bottom: 18px;
 }
+/* ============================================================
+   device library strip (Android phone / TV)
+   ============================================================ */
+.device-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  border-radius: var(--r-md);
+  border: 1px solid rgba(var(--accent-rgb), 0.16);
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(var(--accent-rgb), 0.12), transparent 62%),
+    rgba(14, 17, 24, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.device-bar .db-ico {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 12px;
+  background: rgba(var(--accent-rgb), 0.14);
+  color: var(--accent-2);
+}
+.device-bar .db-ico .ico {
+  width: 20px;
+  height: 20px;
+}
+.device-bar .db-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.device-bar .db-text b {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text-0);
+}
+.device-bar .db-text small {
+  font-size: 0.76rem;
+  color: var(--text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.device-bar .db-actions {
+  display: flex;
+  gap: 8px;
+  flex: none;
+}
+.device-bar.is-warn {
+  border-color: rgba(242, 183, 86, 0.4);
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(242, 183, 86, 0.16), transparent 62%),
+    rgba(16, 15, 12, 0.86);
+}
+.device-bar.is-warn .db-ico {
+  background: rgba(242, 183, 86, 0.18);
+  color: var(--warn);
+}
+.device-bar.is-busy .db-ico .ico {
+  animation: db-spin 1.4s linear infinite;
+}
+@keyframes db-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .filter-scroll {
   display: flex;
   gap: 7px;

@@ -4,6 +4,7 @@ import type { AppContext } from '../core/context';
 import { icon, hydrateIcons } from '../core/icons';
 import { t, n } from '../core/i18n';
 import { LANGS } from '../core/langs';
+import { isAndroidDevice, pickDeviceFolder, syncDeviceLibrary } from '../core/device';
 import { store, type Accent } from '../core/store';
 import { confirmDialog, toast } from '../core/ui';
 import { $, $$, escapeHtml, fmtBytes } from '../core/util';
@@ -144,6 +145,25 @@ export function renderSettings(host: HTMLElement, ctx: AppContext): void {
         </div>
         ${row(t('settings.embers'), t('settings.embersSub'), sw(s.showEmbers, 'data-embers'))}
       </section>
+
+      ${
+        isAndroidDevice()
+          ? `<section class="setting-group" id="sec-device">
+        <header>${icon('smartphone')}<h3>${t('device.title')}</h3></header>
+        ${row(t('device.auto'), t('device.autoSub'), sw(s.autoIndex, 'data-autoindex'))}
+        ${row(t('device.audio'), t('device.audioSub'), sw(s.indexAudio, 'data-indexaudio'))}
+        <div class="setting-row">
+          <div class="sr-label"><b>${t('device.scan')}</b><small>${t('device.count', {
+            n: n(store.deviceCount()),
+          })}</small></div>
+          <div class="sr-ctrl row" style="gap:8px">
+            <button class="btn btn-sm" data-devscan>${icon('rotateccw')}<span>${t('device.scan')}</span></button>
+            <button class="btn btn-sm" data-devfolder>${icon('folder')}<span>${t('device.folder')}</span></button>
+          </div>
+        </div>
+      </section>`
+          : ''
+      }
 
       <section class="setting-group" id="sec-playback">
         <header>${icon('play')}<h3>${t('settings.playback')}</h3></header>
@@ -335,6 +355,13 @@ export function renderSettings(host: HTMLElement, ctx: AppContext): void {
 
       <section class="setting-group" id="sec-about">
         <header>${icon('info')}<h3>${t('settings.about')}</h3></header>
+        <div class="setting-row">
+          <div class="sr-label"><b>${t('nav.shortcuts')}</b><small>${t('view.shortcuts.sub')}</small></div>
+          <div class="sr-ctrl row" style="gap:8px">
+            <button class="btn btn-sm" data-goto-shortcuts>${icon('keyboard')}<span>${t('nav.shortcuts')}</span></button>
+            <button class="btn btn-sm" data-goto-about>${icon('info')}<span>${t('nav.about')}</span></button>
+          </div>
+        </div>
         ${row(t('settings.version'), 'ROZH Player', `<span class="badge mono">v${__APP_VERSION__}</span>`)}
         ${row(
           t('settings.platform'),
@@ -451,6 +478,26 @@ export function renderSettings(host: HTMLElement, ctx: AppContext): void {
       apply(on);
     });
   };
+  bindSwitch('data-autoindex', (on) => store.patch({ autoIndex: on }));
+  bindSwitch('data-indexaudio', (on) => {
+    store.patch({ indexAudio: on });
+    void syncDeviceLibrary({ reason: 'manual', silent: true });
+  });
+  $('[data-goto-shortcuts]', host)?.addEventListener('click', () => ctx.navigate('shortcuts'));
+  $('[data-goto-about]', host)?.addEventListener('click', () => ctx.navigate('about'));
+
+  $('[data-devscan]', host)?.addEventListener('click', () => {
+    toast(t('device.scanning'), 'info', 1600);
+    void syncDeviceLibrary({ reason: 'manual' }).then(() => rerender());
+  });
+  $('[data-devfolder]', host)?.addEventListener('click', () => {
+    void pickDeviceFolder().then((status) => {
+      if (status?.state === 'ready') toast(t('device.ready', { n: n(store.deviceCount()) }), 'ok', 2200);
+      else if (status?.state === 'cancelled') toast(t('device.cancelled'), 'info', 1800);
+      rerender();
+    });
+  });
+
   bindSwitch('data-autoplay', (on) => store.patch({ autoplay: on }));
   bindSwitch('data-resume', (on) => store.patch({ resume: on }));
   bindSwitch('data-thumbs', (on) => store.patch({ thumbnails: on }));

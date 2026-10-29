@@ -1,6 +1,7 @@
-# ROZH Player 1.0.3
+# ROZH Player 1.0.4
 
-**Playback that finally works on the phone — plus a real Android TV build.**
+**A phone build that feels like an app, a TV build that feels like a TV, and a
+library that fills itself.**
 
 Windows · macOS · Linux · Android · Android TV · Web
 
@@ -8,15 +9,15 @@ Windows · macOS · Linux · Android · Android TV · Web
 
 | Platform | File |
 | --- | --- |
-| **Windows 10/11 (x64)** | `ROZH.Player_1.0.3_x64-setup.exe` |
-| **macOS — Apple Silicon (M1–M4)** | `ROZH.Player_1.0.3_aarch64.dmg` |
-| **macOS — Intel** | `ROZH.Player_1.0.3_x64.dmg` |
-| **Linux (Debian/Ubuntu)** | `ROZH.Player_1.0.3_amd64.deb` |
-| **Linux (Fedora/RHEL/openSUSE)** | `ROZH.Player-1.0.3-1.x86_64.rpm` |
-| **Linux (any distribution)** | `ROZH.Player_1.0.3_amd64.AppImage` |
-| **Android 7.0+ (phones, tablets)** | `ROZH-Player-1.0.3.apk` |
-| **Android TV (dedicated build)** | `ROZH-Player-TV-1.0.3.apk` |
-| **Google Play bundles** | `ROZH-Player-1.0.3.aab`, `ROZH-Player-TV-1.0.3.aab` |
+| **Windows 10/11 (x64)** | `ROZH.Player_1.0.4_x64-setup.exe` |
+| **macOS — Apple Silicon (M1–M4)** | `ROZH.Player_1.0.4_aarch64.dmg` |
+| **macOS — Intel** | `ROZH.Player_1.0.4_x64.dmg` |
+| **Linux (Debian/Ubuntu)** | `ROZH.Player_1.0.4_amd64.deb` |
+| **Linux (Fedora/RHEL/openSUSE)** | `ROZH.Player-1.0.4-1.x86_64.rpm` |
+| **Linux (any distribution)** | `ROZH.Player_1.0.4_amd64.AppImage` |
+| **Android 7.0+ (phones, tablets)** | `ROZH-Player-1.0.4.apk` |
+| **Android TV (dedicated build)** | `ROZH-Player-TV-1.0.4.apk` |
+| **Google Play bundles** | `ROZH-Player-1.0.4.aab`, `ROZH-Player-TV-1.0.4.aab` |
 | **Web / PWA** | `rozh-player-web.zip` — unzip and serve from any static host |
 
 ## Install
@@ -29,111 +30,93 @@ because the build carries no commercial code-signing certificate; choose
 Gatekeeper may refuse an unidentified developer; right-click the app and choose
 **Open** (or allow it in System Settings → Privacy & Security).
 
-**Linux** — `sudo apt install ./ROZH.Player_1.0.3_amd64.deb`, or `chmod +x` the
+**Linux** — `sudo apt install ./ROZH.Player_1.0.4_amd64.deb`, or `chmod +x` the
 AppImage and run it.
 
-**Android** — sideload `ROZH-Player-1.0.3.apk`. Allow "install unknown apps" for
-your file manager when Android asks.
+**Android** — sideload `ROZH-Player-1.0.4.apk`. Allow "install unknown apps" for
+your file manager when Android asks. On first launch Android asks for media
+access — grant it and the library fills itself.
 
-**Android TV / Fire TV** — sideload `ROZH-Player-TV-1.0.3.apk` (or install it
-through a USB stick / `adb install`). It is a separate package
-(`…rozh.player.tv`), so it can sit next to the phone app, it appears in the
-launcher's apps row with its own banner, and it starts straight into the 10-foot
-interface. Use *Send files to TV* or `adb` if you have no browser on the TV.
+**Android TV / Fire TV** — sideload `ROZH-Player-TV-1.0.4.apk` (USB stick,
+`adb install`, or a file manager on the box). It is a separate package
+(`…rozh.player.tv`), so it can sit next to the phone app, and it declares
+`LEANBACK_LAUNCHER`, so it appears in the TV launcher with its own banner.
 
-Both APKs are signed with an ephemeral CI key, so a later release may ask you to
-uninstall the previous version first.
+## What is new
 
-**Web** — serve the unzipped folder from any static web server (`npx serve`,
-nginx, …). It is a PWA, so Chrome and Edge can install it.
+### The device library indexes itself
 
-## What's new in 1.0.3
+Every time the phone or the TV app starts, ROZH asks Android for the media index
+and adds everything it finds — videos and (optionally) music — to the library:
 
-### Android: nothing played — now everything does
+- **MediaStore scan** of all video and audio on internal storage and SD cards,
+  with name, size, duration, folder and a system-generated thumbnail.
+- **Folder picker** for anything the system index does not know about. ROZH
+  remembers the folder across launches (persisted SAF grant) and re-indexes it
+  next time.
+- **Stays in sync**: entries removed from the device disappear from the library;
+  nothing is duplicated on the next launch.
+- The permission prompt appears once. If access is refused, the library shows a
+  card explaining how to grant it instead of an empty grid.
+- Controls: **Settings → Device library** (auto-index on/off, include audio,
+  scan now, add folder) and the device strip at the top of the library.
 
-Four separate root causes were found and fixed; each of them alone was enough to
-make the phone build silent.
+### Two new interfaces
 
-- **Local files.** The Android file dialog returns `content://` URIs, which no
-  asset protocol can stream and which `<video>` cannot open — every file you
-  picked turned into an empty `File` and a dead player. The mobile build now uses
-  the webview's own file chooser, which hands back real `File` objects backed by
-  the same content providers (Downloads, Google Photos, SD card, USB-OTG, SMB
-  apps…). Seeking works because Chromium streams from the provider handle.
-- **`http://` streams.** Android 9+ blocks cleartext traffic unless the manifest
-  opts in. Most IPTV and mirror links are plain `http`, so they failed on the
-  phone while working on the desktop. `usesCleartextTraffic` is now enabled, and
-  `INTERNET` / `ACCESS_NETWORK_STATE` are declared explicitly.
-- **Cross-origin (CORS) manifests.** Many panels do not send
-  `Access-Control-Allow-Origin`, and hls.js reads playlists with `fetch`, so the
-  manifest never loaded. HLS now retries through the native Rust HTTP layer
-  (Tauri HTTP plugin), which is not bound by the webview's origin rules — on
-  Android, Windows and Linux alike.
-- **IPTV `.ts` / `.flv` links.** Chromium-based webviews cannot demux raw
-  MPEG-TS or HTTP-FLV. A bundled software demuxer (mpegts.js) now feeds Media
-  Source Extensions, so those channels play on every platform, phone included.
+The desktop shell was being stretched onto phones and televisions. It is not any
+more — both platforms now have their own layout:
 
-Playback failures are no longer a black screen: the error card shows the engine,
-the `MediaError` code and whether the source was a local file or the network, so a
-bug report is one screenshot away.
+**Phones** — a real mobile app:
+- compact app bar with the logo, current destination and the three actions that
+  matter; the destination list lives in a drawer and a bottom tab bar
+- thumb-sized controls, 48 px tab targets, safe-area padding on notched phones
+- two-column library (three on tablets), horizontal filter chips, no hover-only
+  affordances, no 300 px sidebar eating a third of the screen
+- the player is edge to edge, ignores browser scroll chaining, and survives
+  rotation and landscape (chrome hides, video keeps the full frame)
 
-### New: dedicated Android TV build
+**Android TV** — a 10-foot interface:
+- one horizontal top bar (brand · Player · Library · Live & links · Recent ·
+  Settings · Open link · Open file) instead of a desktop side rail
+- overscan-safe margins, larger type, larger cards, larger transport buttons
+- every control shows a focus ring; nothing depends on hover
+- **spatial D-pad navigation** with a corridor-aware neighbour search: arrows
+  move to the control the viewer is looking at, OK activates, Back closes the
+  topmost sheet or returns to the player
+- remote transport keys (`MediaPlayPause`), timeline scrubbing from the video
+  surface, and the first focus lands on something usable after every route
+  change
 
-`ROZH-Player-TV-1.0.3.apk` is built from the same source with the television
-experience baked in, not merely detected:
+### Also in this release
 
-- **Real D-pad navigation.** Spatial navigation replaces Tab order: the arrows
-  move to the nearest control in that direction, the ring is drawn with a glow
-  and a focus animation, and the highlight follows programmatic focus too.
-- **Remote-first player.** On the video surface: ◀ ▶ seek, ◀▶ hold-style steps
-  are the configured seek steps, **OK** plays/pauses, **▲ ▼** raise the control
-  bar and put the ring on it, **Back** hides the controls, then leaves the player.
-- **10-foot interface.** Everything scales up (cards, buttons, sliders,
-  typography), the media grid uses fewer, larger cells, sheets widen, and
-  overscan-safe margins keep content away from the bezel.
-- **TV package details.** `leanback` required, touchscreen not required,
-  sensor-landscape orientation, its own 320×180 launcher banner, and a separate
-  `applicationId` so the phone app stays installed.
-- The phone APK also appears in Android TV launcher rows (`LEANBACK_LAUNCHER`,
-  optional touchscreen), so either package works on a box.
+- Typography: Latin text and numbers now use the platform UI font, so an English
+  interface never shows Persian-shaped digits; Persian still uses Vazirmatn
+- `hidden` is now authoritative — elements marked hidden can no longer be forced
+  visible by a component rule (sleep chip, stats panel, lock veil)
+- Empty player no longer shows drop targets and codec badges on TV/phone
+- Shortcuts and About are reachable from Settings (needed on TV, handy on phone)
+- CI asserts the Android bridge wiring (manifest permissions, `MediaBridge.java`,
+  `MainActivity` hooks) before the APK is built, next to the existing manifest
+  and TV-package checks
 
-### Player & UI
+## Formats
 
-- New `tv.css` layer: focus rings, larger transport controls, bigger stage title
-  and empty-state artwork, no scrollbars on screens without a pointer.
-- The video surface is now focusable, so a remote or a keyboard can drive
-  playback without touching the controls first.
-- `mpegts` is code-split, so it costs nothing until a `.ts`/`.flv` link is opened.
+Everything the platform decodes, plus:
 
-### Engineering
+- **Containers** MP4, MKV, WebM, MOV, AVI, TS, M2TS, FLV, WMV, 3GP, OGG
+- **Codecs** H.264, H.265/HEVC, VP8/VP9, AV1, MPEG-2/4, AAC, MP3, FLAC, Opus,
+  Vorbis, WAV, AC-3 and more — subject to the platform decoder
+- **Streams** HLS (`.m3u8`), DASH (`.mpd`), MPEG-TS / FLV over HTTP with the
+  bundled software demuxer
+- **Subtitles** SRT, WebVTT, ASS/SSA (libass), embedded text tracks
+- Desktop adds an FFmpeg fallback that remuxes or transcodes anything the
+  webview refuses (MKV with AC-3, AVI, old MPEG-4 …)
 
-- `scripts/patch-android-tv.mjs` now also fixes cleartext traffic, permissions,
-  hardware acceleration and heap size — every Android release gets them.
-- New `scripts/make-tv-variant.mjs` produces the TV package (applicationId,
-  label, banner, orientation, leanback features).
-- CI builds **two** Android packages per release: phone + TV, APK and AAB, both
-  signed and attached.
+Android plays what the system decoder supports; exotic codecs that only FFmpeg
+can open are available in the desktop builds.
 
-## Known limitations
+## Notes
 
-- Builds are **unsigned** commercially (no Windows/macOS certificate in CI).
-- **iOS** is not built; it needs an Apple developer account and provisioning.
-- FFmpeg is not bundled (size + GPL); the desktop builds play virtually every
-  container through the system webview and the remux fallback.
-- In the web build MKV/AVI cannot be demuxed by the browser — use a desktop build.
-- DRM (Widevine/PlayReady) content is not supported.
-
----
-
-### Technical
-
-Built from source at the commit tagged `v1.0.3`:
-
-- UI: TypeScript + Vite, zero framework, ~70 kB gzip
-- Shell: Tauri 2 (Rust) — WebView2 / WKWebView / WebKitGTK / Android WebView
-- Streaming: hls.js, dash.js, mpegts.js (code-split), native Rust HTTP fallback
-- Android: NDK r27, minSdk 24, arm64-v8a + armeabi-v7a + x86_64
-- CI: GitHub Actions matrix (Windows · macOS universal · Linux · Android · Android TV · Web)
-
-`npm run tauri:build` reproduces these packages on your own machine; see
-`docs/BUILD.md`.
+- Builds are unsigned; Windows SmartScreen and macOS Gatekeeper will ask once.
+- No account, no telemetry, no server: the library lives on your device.
+- ROZH Player is MIT licensed.

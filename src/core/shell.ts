@@ -7,6 +7,7 @@ import { mountPlayer, type Playable } from './player';
 import { applySettings, store, type MediaItem } from './store';
 import { onNativeCommand, probeFile, urlForFile } from './native';
 import { openDrawer, toast } from './ui';
+import { isAndroidDevice, syncDeviceLibrary } from './device';
 import { focusView, initTv } from './tv';
 import { $, $$, escapeHtml, isTextEntry, pickFiles, platform } from './util';
 import { renderHistory } from '../views/history';
@@ -31,38 +32,17 @@ const session = new Map<string, { url: string; name: string; size: number }>();
 
 /* ------------------------------------------------------------------ */
 
-function shellTemplate(): string {
-  const navGroups: { key: string; label: string }[] = [
+function navMarkup(primaryOnly = false): string {
+  const groups: { key: string; label: string }[] = [
     { key: 'play', label: t('nav.group.play') },
     { key: 'you', label: t('nav.group.you') },
     { key: 'app', label: t('nav.group.app') },
   ];
-
-  return `
-  <div class="shell" data-sidebar="${platform.mobile ? 'closed' : store.settings.sidebar}">
-    <div class="bg-aura" aria-hidden="true"></div>
-    <div class="embers" aria-hidden="true">${Array.from({ length: 14 }, () => '<i></i>').join('')}</div>
-
-    <div class="scrim" hidden></div>
-
-    <aside class="sidebar" aria-label="ROZH Player">
-      <div class="brand">
-        <span class="brand-mark"><img class="brand-logo" src="/icons/rozh-logo.png" alt="" /></span>
-        <div class="brand-text">
-          <div class="brand-name">ROZH</div>
-          <div class="brand-sub">PLAYER</div>
-        </div>
-        <button class="iconbtn sidebar-fold" data-act="fold" data-tip="${t('nav.collapse')}" aria-label="${t(
-          'nav.collapse',
-        )}">${icon('chevron-left')}</button>
-      </div>
-
-      <nav class="nav">
-        ${navGroups
-          .map(
-            (g) => `
+  return groups
+    .map(
+      (g) => `
           <div class="nav-title">${escapeHtml(g.label)}</div>
-          ${VIEWS.filter((v) => v.group === g.key)
+          ${VIEWS.filter((v) => v.group === g.key && (!primaryOnly || v.mobile))
             .map(
               (v) => `<button class="nav-item" data-view="${v.id}">
                 <span class="nav-ico">${icon(v.icon)}</span>
@@ -72,9 +52,86 @@ function shellTemplate(): string {
               </button>`,
             )
             .join('')}`,
-          )
-          .join('')}
-      </nav>
+    )
+    .join('');
+}
+
+function brandMarkup(fold: boolean): string {
+  return `
+      <div class="brand">
+        <span class="brand-mark"><img class="brand-logo" src="/icons/rozh-logo.png" alt="" /></span>
+        <div class="brand-text">
+          <div class="brand-name">ROZH</div>
+          <div class="brand-sub">PLAYER</div>
+        </div>
+        ${
+          fold
+            ? `<button class="iconbtn sidebar-fold" data-act="fold" data-tip="${t('nav.collapse')}" aria-label="${t(
+                'nav.collapse',
+              )}">${icon('chevron-left')}</button>`
+            : ''
+        }
+      </div>`;
+}
+
+function viewsMarkup(): string {
+  return `
+      <main class="views">
+        <section class="view" data-view="player"><div class="player-host" style="height:100%"></div></section>
+        <section class="view" data-view="library"></section>
+        <section class="view" data-view="streams"></section>
+        <section class="view" data-view="history"></section>
+        <section class="view" data-view="settings"></section>
+        <section class="view" data-view="shortcuts"></section>
+        <section class="view" data-view="about"></section>
+      </main>`;
+}
+
+const ambientMarkup = (): string => `
+    <div class="bg-aura" aria-hidden="true"></div>
+    <div class="embers" aria-hidden="true">${Array.from({ length: 14 }, () => '<i></i>').join('')}</div>`;
+
+/**
+ * The 10-foot shell. A television is not a laptop: no permanent rail, no
+ * hover-only chrome, no tiny text. Everything lives in one top bar (brand,
+ * destinations, actions) and the content owns the rest of the screen.
+ */
+function tvTemplate(): string {
+  return `
+  <div class="shell shell-tv" data-tv-shell="true">
+    ${ambientMarkup()}
+    <header class="tvbar">
+      ${brandMarkup(false)}
+      <nav class="nav" aria-label="ROZH Player">${navMarkup(true)}</nav>
+      <div class="tvbar-actions">
+        <button class="btn btn-ghost" data-act="url">${icon('link')}<span>${escapeHtml(
+          t('player.openUrl'),
+        )}</span></button>
+        <button class="btn btn-primary" data-act="open">${icon('folder-open')}<span>${escapeHtml(
+          t('player.openFile'),
+        )}</span></button>
+      </div>
+    </header>
+    <div class="main">${viewsMarkup()}</div>
+  </div>
+  <div class="toasts" role="status" aria-live="polite" hidden></div>`;
+}
+
+function shellTemplate(): string {
+  if (document.documentElement.dataset.tv === 'true') return tvTemplate();
+
+  return `
+  <div class="shell" data-sidebar="${
+    platform.mobile || window.innerWidth <= 900 ? 'closed' : store.settings.sidebar
+  }">
+    ${ambientMarkup()}
+
+    <div class="scrim" hidden></div>
+
+    <aside class="sidebar" aria-label="ROZH Player">
+      ${brandMarkup(true)}
+
+      <nav class="nav">${navMarkup()}</nav>
 
       <div class="sidebar-foot">
         <button class="btn btn-primary open-btn" data-act="open">${icon('folder-open')}<span>${t(
@@ -108,15 +165,7 @@ function shellTemplate(): string {
         </div>
       </header>
 
-      <main class="views">
-        <section class="view" data-view="player"><div class="player-host" style="height:100%"></div></section>
-        <section class="view" data-view="library"></section>
-        <section class="view" data-view="streams"></section>
-        <section class="view" data-view="history"></section>
-        <section class="view" data-view="settings"></section>
-        <section class="view" data-view="shortcuts"></section>
-        <section class="view" data-view="about"></section>
-      </main>
+      ${viewsMarkup()}
     </div>
 
     <nav class="tabbar" aria-label="Primary">
@@ -551,14 +600,26 @@ export async function bootApp(): Promise<void> {
     else if (cmd === 'queue') player.showUi();
   });
 
+  // Android phone + Android TV: index everything on the device at every launch.
+  // This is what makes the library useful on a phone without any file picking.
+  if (isAndroidDevice()) {
+    void syncDeviceLibrary({ reason: 'launch' }).then((res) => {
+      if (!res.added && !res.removed) return;
+      refreshNav();
+      if (activeView === 'library' || activeView === 'history') renderActiveView();
+    });
+  }
+
   // TV mode: spatial navigation, back-button handling and a sane first focus
   initTv();
   if (document.documentElement.dataset.tv === 'true') {
     $('.nav-item.is-active')?.focus();
   }
 
-  // first-run niceties
-  if (!store.settings.seenWelcome && store.media.length === 0) {
+  // First-run niceties. Not on Android (the device scan is the onboarding and
+  // the permission dialog owns the first frame) and not on TV (a modal before
+  // the remote has been explained is a trap).
+  if (!store.settings.seenWelcome && store.media.length === 0 && !platform.tv && !isAndroidDevice()) {
     setTimeout(() => {
       openDrawer({
         title: 'ROZH Player',

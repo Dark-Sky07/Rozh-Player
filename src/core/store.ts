@@ -119,6 +119,9 @@ export interface Settings {
   longPressBoost: boolean;
   doubleTapSeek: boolean;
   frameStepMs: number;
+  /* --- Android device library --- */
+  autoIndex: boolean;
+  indexAudio: boolean;
 }
 
 /** Bookmarked positions, grouped by playable key. */
@@ -146,6 +149,10 @@ export interface MediaItem {
   ext: string;
   inLibrary: boolean;
   plays: number;
+  /** `content://` URI of a file indexed from the device (Android only). */
+  deviceUri?: string;
+  /** Folder / album the device file came from. */
+  bucket?: string;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -195,6 +202,8 @@ const DEFAULT_SETTINGS: Settings = {
   longPressBoost: true,
   doubleTapSeek: true,
   frameStepMs: 40,
+  autoIndex: true,
+  indexAudio: true,
 };
 
 /* ------------------------------------------------------------------ */
@@ -325,6 +334,9 @@ class Store {
     if (existing) {
       if (item.thumb && !existing.thumb) existing.thumb = item.thumb;
       if (item.duration) existing.duration = item.duration;
+      if (item.url && item.url !== existing.url) existing.url = item.url;
+      if (item.deviceUri) existing.deviceUri = item.deviceUri;
+      if (item.bucket) existing.bucket = item.bucket;
       existing.inLibrary = existing.inLibrary || !!item.inLibrary;
       this.persist();
       this.emit();
@@ -347,11 +359,33 @@ class Store {
       ext: item.ext ?? (item.name.split('.').pop() ?? '').toLowerCase(),
       inLibrary: item.inLibrary ?? true,
       plays: 0,
+      deviceUri: item.deviceUri,
+      bucket: item.bucket,
     };
     this.media.unshift(created);
     this.persist();
     this.emit();
     return created;
+  }
+
+  /**
+   * Drop device-indexed entries that are no longer on the device. Entries the
+   * user opened by hand (no `deviceUri`) are never touched.
+   */
+  pruneDevice(keep: Set<string>): number {
+    const before = this.media.length;
+    this.media = this.media.filter((m) => !m.deviceUri || keep.has(m.deviceUri));
+    const removed = before - this.media.length;
+    if (removed) {
+      this.persist();
+      this.emit();
+    }
+    return removed;
+  }
+
+  /** How many library entries came from the device index. */
+  deviceCount(): number {
+    return this.media.filter((m) => !!m.deviceUri).length;
   }
 
   updateMedia(id: string, patch: Partial<MediaItem>): void {

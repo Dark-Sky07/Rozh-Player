@@ -5,11 +5,16 @@ import { icon, hydrateIcons } from '../core/icons';
 import type { NativeFile } from '../core/native';
 import { t, n } from '../core/i18n';
 import { store, type MediaItem } from '../core/store';
+import { applyDeviceStatus, isAndroidDevice, onDeviceSync, pickDeviceFolder, syncDeviceLibrary, type DeviceStatus } from '../core/device';
 import { confirmDialog, toast } from '../core/ui';
 import { escapeHtml, fmtBytes, fmtTime, fmtRelative, isAudioFile, pickFiles, $, $$ } from '../core/util';
 
 let filter: 'all' | 'video' | 'audio' | 'stream' = 'all';
 let query = '';
+/** Last device-scan report, kept so a redraw does not lose the progress bar. */
+let deviceStatus: DeviceStatus | null = null;
+let deviceBound = false;
+let lastCtx: AppContext | null = null;
 
 /** Grab a poster frame from a local file without touching the main player. */
 export async function generateThumb(file: File): Promise<string | undefined> {
@@ -97,7 +102,68 @@ function card(item: MediaItem): string {
     </div>`;
 }
 
+/**
+ * Android-only strip above the grid: what the last scan found, a button to run
+ * it again, the folder picker, and the permission prompt when access is missing.
+ */
+function devicePanel(): string {
+  if (!isAndroidDevice()) return '';
+  const st = deviceStatus?.state;
+  const busy = st === 'scanning' || st === 'picking' || st === 'starting';
+  const denied = st === 'permission' || st === 'denied';
+  const count = store.deviceCount();
+  const status =
+    st === 'scanning'
+      ? t('device.scanning')
+      : st === 'picking'
+        ? t('device.picking')
+        : st === 'denied'
+          ? t('device.denied')
+          : count
+            ? t('device.count', { n: n(count) })
+            : t('device.sub');
+
+  return `
+    <div class="device-bar ${denied ? 'is-warn' : ''} ${busy ? 'is-busy' : ''}" data-device-bar>
+      <span class="db-ico">${icon(denied ? 'shield' : busy ? 'rotateccw' : 'smartphone')}</span>
+      <div class="db-text">
+        <b>${escapeHtml(denied ? t('device.permission') : t('device.title'))}</b>
+        <small>${escapeHtml(denied ? t('device.permissionSub') : status)}</small>
+      </div>
+      <div class="db-actions">
+        ${
+          denied
+            ? `<button class="btn btn-primary btn-sm" data-grant>${icon('shield')}<span>${escapeHtml(t('device.grant'))}</span></button>`
+            : `<button class="btn btn-sm" data-scan ${busy ? 'disabled' : ''}>${icon('rotateccw')}<span>${escapeHtml(
+                t('device.scan'),
+              )}</span></button>`
+        }
+        <button class="btn btn-sm" data-folder ${busy ? 'disabled' : ''}>${icon('folder')}<span>${escapeHtml(
+          t('device.folder'),
+        )}</span></button>
+      </div>
+    </div>`;
+}
+
+async function runDeviceSync(host: HTMLElement, ctx: AppContext, kind: 'scan' | 'folder'): Promise<void> {
+  const done = kind === 'scan' ? await syncDeviceLibrary({ reason: 'manual' }) : applyDeviceStatus(await pickDeviceFolder());
+  if (done.status?.state === 'cancelled') {
+    toast(t('device.cancelled'), 'info', 1800);
+  } else if (done.status?.state === 'error') {
+    toast(t('device.error'), 'bad', 2400);
+  } else if (done.status?.state === 'permission' || done.status?.state === 'denied') {
+    // the prompt is on screen; the panel explains what to do next
+  } else if (done.added || done.removed) {
+    toast(t('device.ready', { n: n(store.deviceCount()) }), 'ok', 2200);
+  } else {
+    toast(t('device.empty'), 'info', 1800);
+  }
+  renderLibrary(host, ctx);
+  ctx.refreshNav();
+}
+
 export function renderLibrary(host: HTMLElement, ctx: AppContext): void {
+  lastCtx = ctx;
   const items = store.library();
   const filtered = items.filter((item) => {
     const k = kindOf(item);
@@ -128,6 +194,8 @@ export function renderLibrary(host: HTMLElement, ctx: AppContext): void {
         <button class="btn btn-primary" data-add>${icon('plus')}<span>${t('library.add')}</span></button>
       </div>
     </div>
+
+    ${devicePanel()}
 
     <div class="toolbar">
       <div class="filter-scroll">
@@ -163,6 +231,25 @@ export function renderLibrary(host: HTMLElement, ctx: AppContext): void {
     }`;
 
   hydrateIcons(host);
+
+  if (isAndroidDevice() && !deviceBound) {
+    deviceBound = true;
+    onDeviceSync((status) => {
+      deviceStatus = status;
+      const live = document.querySelector<HTMLElement>('.view[data-view="library"].is-active');
+      if (live && lastCtx) renderLibrary(live, lastCtx);
+    });
+  }
+
+  $$('[data-scan]', host).forEach((btn) =>
+    btn.addEventListener('click', () => void runDeviceSync(host, ctx, 'scan')),
+  );
+  $$('[data-grant]', host).forEach((btn) =>
+    btn.addEventListener('click', () => void runDeviceSync(host, ctx, 'scan')),
+  );
+  $$('[data-folder]', host).forEach((btn) =>
+    btn.addEventListener('click', () => void runDeviceSync(host, ctx, 'folder')),
+  );
 
   $$('[data-filter]', host).forEach((chip) =>
     chip.addEventListener('click', () => {

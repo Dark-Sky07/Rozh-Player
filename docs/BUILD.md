@@ -62,7 +62,36 @@ hardware acceleration and adds the LEANBACK launcher category:
 
 ```bash
 node scripts/patch-android-tv.mjs
+node scripts/patch-android-native.mjs   # device media library
 ```
+
+### Device media library
+
+The phone and TV builds index the whole device instead of waiting to be handed
+files. Two Android APIs do the work, both unreachable from the webview, so a
+small Java class is generated into the project by the second patch script:
+
+```bash
+node scripts/patch-android-native.mjs
+```
+
+It does three things:
+
+1. copies `scripts/android/MediaBridge.java` into the generated project, using
+   the package the Tauri template actually produced (read from
+   `MainActivity.kt`, never hard-coded);
+2. wires `MainActivity` — `MediaBridge.attach(this)` in `onCreate` plus
+   `onRequestPermissionsResult` and `onActivityResult` forwarding;
+3. declares `READ_MEDIA_VIDEO`, `READ_MEDIA_AUDIO` and (Android 12 and older)
+   `READ_EXTERNAL_STORAGE`.
+
+`MediaBridge` queries **MediaStore** for videos and audio, resolves thumbnails,
+and enumerates any folder the user picked with `ACTION_OPEN_DOCUMENT_TREE`
+(persisted with `takePersistableUriPermission`). Results are written to a JSON
+state file in the app cache directory; Rust (`android_media_scan`,
+`android_media_status`, `android_media_pick_folder`) is only the mailbox that
+carries it to the UI. No JNI, no reflection, no binder from the Rust side — a
+failed scan can never take the player down.
 
 ### Dedicated Android TV package
 
@@ -71,6 +100,7 @@ interface compiled in (`VITE_TV_BUILD=1`) instead of detected at runtime:
 
 ```bash
 node scripts/patch-android-tv.mjs
+node scripts/patch-android-native.mjs
 VITE_TV_BUILD=1 npx tauri android build --apk --aab   # phone package
 node scripts/make-tv-variant.mjs                      # own applicationId + banner
 VITE_TV_BUILD=1 npx tauri android build --apk --aab   # TV package

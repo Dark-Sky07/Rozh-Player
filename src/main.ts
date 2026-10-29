@@ -5,6 +5,7 @@ import './styles/app.css';
 import './styles/overlays.css';
 import './styles/player-extras.css';
 import './styles/studio.css';
+import './styles/responsive.css';
 import './styles/tv.css';
 import { bootApp } from './core/shell';
 

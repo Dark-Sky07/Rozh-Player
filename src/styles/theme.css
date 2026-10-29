@@ -10,6 +10,19 @@
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
+  /* Persian/Arabic only. Vazirmatn draws ASCII digits with Persian shapes, so
+     letting it own Latin text would print "۱:۳۰:۰۰" inside an English UI. The
+     Arabic blocks below keep the Persian interface in its own typeface while
+     every Latin glyph falls through to the platform UI font. */
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+0640, U+200C-200D, U+FB50-FDFF, U+FE70-FEFF;
+}
+/* The wordmark is the one place the full Latin cut is wanted. */
+@font-face {
+  font-family: 'Vazirmatn Wordmark';
+  src: url('/fonts/Vazirmatn.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
 }
 
 :root {
@@ -177,11 +190,22 @@ html {
   font-size: calc(16px * var(--ui-scale));
   -webkit-text-size-adjust: 100%;
 }
+/* Wordmark: the only element that keeps Vazirmatn's Latin cut. */
+.brand-name,
+.boot-name {
+  font-family: 'Vazirmatn Wordmark', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* `hidden` must win over component display rules (sleep chip, sheets, …). */
+[hidden] {
+  display: none !important;
+}
+
 body {
   /* Vazirmatn covers Persian/Arabic/Latin; the rest of the world's scripts fall
      back to whatever the OS already ships, so a 47-language picker never shows
      blank cells. */
-  font-family: 'Vazirmatn', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Vazirmatn',
     'Noto Sans', 'Noto Sans Devanagari', 'Nirmala UI', 'Mangal', 'Noto Sans Bengali', 'Noto Sans Tamil',
     'Noto Sans Telugu', 'Noto Sans Thai', 'Noto Sans Hebrew', 'Noto Sans Georgian', 'Noto Sans Armenian',
     'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Meiryo', 'Microsoft YaHei', 'PingFang SC',

@@ -112,6 +112,7 @@ export function nextInDirection(dir: Dir): HTMLElement | null {
   const ax = a.left + a.width / 2;
   const ay = a.top + a.height / 2;
   const horizontal = dir === 'left' || dir === 'right';
+  // how far off-axis a jump may drift, as a share of the screen
   const maxPerpendicular = (horizontal ? window.innerHeight : window.innerWidth) * 0.5;
 
   /** Score a candidate; returns null when it is not in that direction. */
@@ -124,19 +125,24 @@ export function nextInDirection(dir: Dir): HTMLElement | null {
     const primary = dir === 'left' ? -dx : dir === 'right' ? dx : dir === 'up' ? -dy : dy;
     if (primary < 6) return null;
     const secondary = horizontal ? Math.abs(dy) : Math.abs(dx);
+    // overlap on the perpendicular axis: what "same row / same column" means
     const overlap = horizontal
       ? Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top))
       : Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
     if (strict) {
-      // stay inside the row/column corridor: overlap, or a centre that falls
-      // inside the other element's span
+      // Stay inside the corridor: the two boxes share a band, or at least one
+      // centre projects into the other's span. Without this a press of "up"
+      // teleports from the sidebar to a title-bar icon 1300 px to the right.
       const aligned =
-        overlap > 0 || (horizontal ? ax >= b.left && ax <= b.right : ay >= b.top && ay <= b.bottom) ||
-        (horizontal ? bx >= a.left && bx <= a.right : by >= a.top && by <= a.bottom);
+        overlap > 0 ||
+        (horizontal ? ay >= b.top && ay <= b.bottom : ax >= b.left && ax <= b.right) ||
+        (horizontal ? by >= a.top && by <= a.bottom : bx >= a.left && bx <= a.right);
       if (!aligned) return null;
-      // a 14 px vertical offset must not drag the focus across the screen
+      // a 14 px offset must not drag the focus across the screen
       if (secondary > primary * 6 + 240) return null;
     } else if (secondary > maxPerpendicular) {
+      // second chance: anywhere in that direction, but not on the far side of
+      // the display — a remote should never lose the ring in a corner
       return null;
     }
     return primary + secondary * 2.6 - overlap * 1.6 + Math.hypot(dx, dy) * 0.12;
@@ -187,15 +193,24 @@ export function focusView(view: string): void {
     // keep the current focus when it already lives inside this view
     if (current()?.closest('.view') === host) return;
     const scoped = Array.from(host.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(visible);
-    if (scoped[0]) {
-      focusEl(scoped[0]);
+    // Land on something a remote user can actually act on: a card or a button,
+    // not the search box that happens to be first in the DOM.
+    const preferred =
+      scoped.find((el) => el.matches('.media-card, .stream-card, .opt-row')) ??
+      scoped.find((el) => el.matches('.chip, .lang-cell, .nav-item')) ??
+      scoped.find((el) => el.matches('button, a[href]')) ??
+      scoped[0];
+    if (preferred) {
+      focusEl(preferred);
       return;
     }
     // views fade in, so the first probe can legitimately find nothing
-    if (tries > 0) window.setTimeout(() => attempt(tries - 1), 160);
+    if (tries > 0) window.setTimeout(() => attempt(tries - 1), 180);
     else focusEl(document.querySelector<HTMLElement>('.nav-item.is-active'));
   };
-  requestAnimationFrame(() => attempt(3));
+  // the view animates in over ~200 ms; probing too early finds only faded,
+  // non-focusable boxes, so the first probe waits for the first paint
+  window.setTimeout(() => attempt(4), 120);
 }
 
 /**

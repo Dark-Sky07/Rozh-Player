@@ -232,6 +232,113 @@ async fn probe_file(app: tauri::AppHandle, path: String) -> Result<serde_json::V
     Ok(serde_json::json!({ "duration": duration, "video": video, "audio": audio }))
 }
 
+/* ------------------------------------------------------------------ */
+/* Android: device media index                                         */
+/* ------------------------------------------------------------------ */
+/*
+ * The phone and TV builds have to show everything that is already on the
+ * device, and they have to do it on every launch. The Android side of that is
+ * a MediaStore query plus the Storage Access Framework, which only exists in
+ * Java — so `MediaBridge.java` (injected by scripts/patch-android-native.mjs)
+ * does the talking and this module is the mailbox between it and the webview:
+ *
+ *     JS  ──invoke──▶  command.json   ──polled by MediaBridge──▶  MediaStore
+ *     JS  ◀──state.json──────────────  MediaBridge writes  ◀────── SAF / permissions
+ *
+ * A file mailbox instead of JNI keeps the Rust side free of the JavaVM, class
+ * loaders and thread attachment rules — and it keeps working on every Android
+ * version from 7 to 16 without a single unsafe block.
+ */
+
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicU32, Ordering};
+
+static MEDIA_TOKEN: AtomicU32 = AtomicU32::new(1);
+
+const MEDIA_DIR: &str = "rozh-media";
+
+#[allow(unused_variables)]
+fn media_candidates(app: &tauri::AppHandle) -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = Vec::new();
+    if let Ok(dir) = app.path().app_cache_dir() {
+        out.push(dir.join(MEDIA_DIR));
+    }
+    // `app_cache_dir` comes from the Java context; keep the well-known layouts
+    // as a fallback so a resolver change cannot break the bridge. The Java side
+    // can also fall back to its files dir, so both are probed.
+    let id = app.config().identifier.replace('-', "_");
+    for base in [
+        format!("/data/user/0/{id}/cache"),
+        format!("/data/data/{id}/cache"),
+        format!("/data/user/0/{id}/files"),
+        format!("/data/data/{id}/files"),
+    ] {
+        out.push(PathBuf::from(format!("{base}/{MEDIA_DIR}")));
+    }
+    out
+}
+
+/// Directory the injected Java bridge is actually using.
+#[allow(unused_variables)]
+fn media_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    let candidates = media_candidates(app);
+    for dir in &candidates {
+        if dir.join("hello.json").is_file() || dir.join("state.json").is_file() {
+            return Ok(dir.clone());
+        }
+    }
+    let first = candidates.first().cloned().ok_or("no cache directory")?;
+    let _ = std::fs::create_dir_all(&first);
+    Ok(first)
+}
+
+#[allow(unused_variables)]
+fn read_media_state(app: &tauri::AppHandle) -> serde_json::Value {
+    let Ok(dir) = media_dir(app) else {
+        return serde_json::json!({ "state": "error", "message": "no cache directory" });
+    };
+    match std::fs::read_to_string(dir.join("state.json")) {
+        Ok(raw) => serde_json::from_str(&raw).unwrap_or_else(|_| {
+            serde_json::json!({ "state": "error", "message": "state file is not valid json" })
+        }),
+        Err(_) => serde_json::json!({ "state": "starting" }),
+    }
+}
+
+#[allow(unused_variables)]
+fn send_media_command(app: &tauri::AppHandle, cmd: &str, audio: bool) -> Result<serde_json::Value, String> {
+    let dir = media_dir(app)?;
+    let token = MEDIA_TOKEN.fetch_add(1, Ordering::SeqCst);
+    let payload = serde_json::json!({ "cmd": cmd, "token": token, "audio": audio });
+    std::fs::write(
+        dir.join("command.json"),
+        serde_json::to_vec(&payload).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(read_media_state(app))
+}
+
+/// Kick a full device scan (MediaStore video + optional audio).
+///
+/// Returns the current state immediately; the caller polls `android_media_status`
+/// until it reports `ready`, `denied` or `error`.
+#[tauri::command]
+fn android_media_scan(app: tauri::AppHandle, audio: Option<bool>) -> Result<serde_json::Value, String> {
+    send_media_command(&app, "scan", audio.unwrap_or(true))
+}
+
+/// Read-only poll — no command is sent, so a running scan is never restarted.
+#[tauri::command]
+fn android_media_status(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    Ok(read_media_state(&app))
+}
+
+/// Ask the system for a folder (SAF tree) and index everything inside it.
+#[tauri::command]
+fn android_media_pick_folder(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    send_media_command(&app, "pick", true)
+}
+
 /// Open a file/folder in the OS file manager.
 #[tauri::command]
 fn reveal_in_folder(path: String) -> Result<(), String> {
@@ -277,7 +384,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             remux_file,
             probe_file,
-            reveal_in_folder
+            reveal_in_folder,
+            android_media_scan,
+            android_media_status,
+            android_media_pick_folder
         ]);
 
     builder = builder.setup(|app| {
