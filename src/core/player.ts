@@ -106,7 +106,7 @@ const TEMPLATE = `
       </div>
 
       <div class="stage-top">
-        <div class="now-mini">
+        <div class="now-mini is-empty">
           <div class="nm-title">&nbsp;</div>
           <div class="nm-sub">&nbsp;</div>
         </div>
@@ -2076,8 +2076,12 @@ export class Player {
   private updateNowMini(): void {
     const title = $('.nm-title', this.root);
     const sub = $('.nm-sub', this.root);
+    const mini = $('.now-mini', this.root);
     if (title) title.textContent = this.current?.title ?? '';
     if (sub) sub.textContent = this.current?.isStream ? this.current.url : this.current?.name ?? '';
+    // hide the pill entirely when nothing is loaded — an empty rounded box
+    // floating over the stage reads as a broken control
+    mini?.classList.toggle('is-empty', !this.current);
   }
 
   private setText(title: string, badge: string): void {

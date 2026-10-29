@@ -152,7 +152,8 @@ const DEFAULT_SETTINGS: Settings = {
   accent: 'ember',
   glass: 'balanced',
   motion: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'reduced' : 'full',
-  lang: 'fa',
+  /** Interface language. English is the default for every platform. */
+  lang: 'en',
   sidebar: 'open',
   volume: 0.9,
   muted: false,

@@ -178,8 +178,14 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 body {
+  /* Vazirmatn covers Persian/Arabic/Latin; the rest of the world's scripts fall
+     back to whatever the OS already ships, so a 47-language picker never shows
+     blank cells. */
   font-family: 'Vazirmatn', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    'Noto Sans', sans-serif;
+    'Noto Sans', 'Noto Sans Devanagari', 'Nirmala UI', 'Mangal', 'Noto Sans Bengali', 'Noto Sans Tamil',
+    'Noto Sans Telugu', 'Noto Sans Thai', 'Noto Sans Hebrew', 'Noto Sans Georgian', 'Noto Sans Armenian',
+    'Hiragino Sans', 'Hiragino Kaku Gothic ProN', 'Yu Gothic UI', 'Meiryo', 'Microsoft YaHei', 'PingFang SC',
+    'Noto Sans CJK SC', 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans CJK KR', sans-serif;
   font-weight: 400;
   color: var(--text-1);
   background: var(--bg-0);
