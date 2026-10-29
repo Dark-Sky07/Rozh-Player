@@ -63,7 +63,10 @@ Every version ships ready-to-install builds for all platforms on the
 | ![Settings](docs/screenshots/03-settings.jpg) | ![Tools](docs/screenshots/04-tools.jpg) |
 
 <div align="center">
-  <img src="docs/screenshots/05-mobile.jpg" width="300" alt="ROZH Player on a phone" />
+  <img src="docs/screenshots/05-mobile.jpg" width="270" alt="ROZH Player on a phone" />
+  <img src="docs/screenshots/06-android-tv.jpg" width="560" alt="ROZH Player on Android TV, driven with a remote" />
+  <br />
+  <sub>Phone and the dedicated Android TV build — big focus rings, D-pad transport.</sub>
 </div>
 
 ## Why ROZH
