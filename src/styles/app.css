@@ -520,6 +520,7 @@ html[dir='rtl'] .nav-item.is-active::before {
 
 /* top overlay */
 .stage-top {
+  visibility: hidden;
   position: absolute;
   inset-block-start: 0;
   inset-inline: 0;
@@ -541,6 +542,7 @@ html[dir='rtl'] .nav-item.is-active::before {
 .stage-wrap[data-idle='false'] .stage-top,
 .stage-wrap[data-fs='true']:hover .stage-top {
   opacity: 1;
+  visibility: visible;
   transform: translateY(0);
 }
 .now-mini {
@@ -604,6 +606,7 @@ html[dir='rtl'] .nav-item.is-active::before {
   z-index: 5;
 }
 .big-play {
+  pointer-events: none;
   grid-area: 1 / 1;
   width: 92px;
   height: 92px;
@@ -629,6 +632,7 @@ html[dir='rtl'] .nav-item.is-active::before {
 }
 .big-play.show {
   opacity: 1;
+  pointer-events: auto;
   transform: scale(1);
 }
 .big-play:hover {
@@ -808,6 +812,7 @@ html[dir='rtl'] .gesture-hud.show {
    bottom controls
    ============================================================ */
 .stage-bottom {
+  visibility: hidden;
   position: absolute;
   inset-block-end: 0;
   inset-inline: 0;
@@ -822,6 +827,7 @@ html[dir='rtl'] .gesture-hud.show {
 .stage-wrap[data-fs='true']:hover .stage-bottom,
 .stage-wrap[data-idle='false'] .stage-bottom {
   opacity: 1;
+  visibility: visible;
   transform: translateY(0);
 }
 .stage[data-state='empty'] ~ .stage-bottom,

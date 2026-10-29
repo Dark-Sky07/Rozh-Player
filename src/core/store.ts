@@ -185,15 +185,28 @@ class Store {
   }
 
   /* ---------------- settings ---------------- */
+  private saveTimer = 0;
+
+  /** Coalesce localStorage writes — volume drags fire dozens of patches a second. */
+  private persistSettings(): void {
+    if (this.saveTimer) return;
+    this.saveTimer = window.setTimeout(() => {
+      this.saveTimer = 0;
+      storage.set('settings', this.settings);
+    }, 220);
+  }
+
   patch(patch: Partial<Settings>): void {
     this.settings = { ...this.settings, ...patch };
-    storage.set('settings', this.settings);
+    this.persistSettings();
     applySettings(this.settings);
     this.emit();
   }
 
   resetSettings(): void {
     this.settings = { ...DEFAULT_SETTINGS, lang: this.settings.lang };
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = 0;
     storage.set('settings', this.settings);
     applySettings(this.settings);
     this.emit();
@@ -313,15 +326,27 @@ class Store {
 
 export const store = new Store();
 
-/** Push settings into CSS custom properties + document attributes. */
+const applied: Record<string, string> = {};
+
+/** Push settings into CSS custom properties + document attributes (only when they change). */
 export function applySettings(s: Settings): void {
   const root = document.documentElement;
-  root.dataset.accent = s.accent;
-  root.dataset.glass = s.glass;
-  root.dataset.motion = s.motion;
-  root.dataset.tv = s.tv === 'on' ? 'true' : s.tv === 'off' ? 'false' : platform.tv ? 'true' : 'false';
-  root.lang = s.lang;
-  root.dir = s.lang === 'fa' ? 'rtl' : 'ltr';
-  root.style.setProperty('--sub-size', `${s.subSize}%`);
-  root.style.setProperty('--sub-color', s.subColor);
+  const set = (key: string, value: string, apply: (v: string) => void): void => {
+    if (applied[key] === value) return;
+    applied[key] = value;
+    apply(value);
+  };
+
+  set('accent', s.accent, (v) => (root.dataset.accent = v));
+  set('glass', s.glass, (v) => (root.dataset.glass = v));
+  set('motion', s.motion, (v) => (root.dataset.motion = v));
+  set('tv', s.tv === 'on' ? 'true' : s.tv === 'off' ? 'false' : platform.tv ? 'true' : 'false', (v) => {
+    root.dataset.tv = v;
+  });
+  set('lang', s.lang, (v) => {
+    root.lang = v;
+    root.dir = v === 'fa' ? 'rtl' : 'ltr';
+  });
+  set('subSize', String(s.subSize), (v) => root.style.setProperty('--sub-size', `${v}%`));
+  set('subColor', s.subColor, (v) => root.style.setProperty('--sub-color', v));
 }
