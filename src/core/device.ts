@@ -15,6 +15,7 @@
  * blocking on a binder call. Everything degrades to a no-op in the browser.
  */
 
+import { convertFileSrc } from '@tauri-apps/api/core';
 import { store } from './store';
 import { platform } from './util';
 import { t, n } from './i18n';
@@ -134,11 +135,11 @@ export async function pickDeviceFolder(): Promise<DeviceStatus | null> {
 
 function thumbUrl(path?: string): string | undefined {
   if (!path) return undefined;
-  // Tauri's asset protocol is how a native file becomes an <img src>.
+  // The asset protocol is how a native file becomes an <img src>. Let Tauri
+  // build the URL: it is `asset://` on some platforms and `http://asset.localhost`
+  // on others, and both are allowed by the CSP.
   try {
-    return (window as unknown as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__
-      ? `asset://localhost/${encodeURIComponent(path)}`
-      : undefined;
+    return convertFileSrc(path);
   } catch {
     return undefined;
   }
