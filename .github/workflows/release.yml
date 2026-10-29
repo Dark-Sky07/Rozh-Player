@@ -27,7 +27,9 @@ env:
   # Updater signing. The key lives in the repository because the release
   # pipeline has to sign every bundle; rotating it would break updates for
   # everyone already on a release, so it must never change.
-  TAURI_SIGNING_PRIVATE_KEY: src-tauri/updater/rozh-updater.key
+  #
+  # Tauri reads TAURI_SIGNING_PRIVATE_KEY as the key *content*, so the key file
+  # is exported into it by the "Load the updater signing key" step below.
   TAURI_SIGNING_PRIVATE_KEY_PASSWORD: rozh-updater-key
 
 jobs:
@@ -55,16 +57,19 @@ jobs:
             platform: macos-latest
             args: --target aarch64-apple-darwin
             rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+            expect: darwin-aarch64,darwin-x86_64
           - key: linux
             label: Linux · deb / rpm / AppImage
             platform: ubuntu-22.04
             args: ''
             rust-targets: ''
+            expect: linux-x86_64
           - key: windows
             label: Windows · x64
             platform: windows-latest
             args: --bundles nsis
             rust-targets: ''
+            expect: windows-x86_64
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -91,6 +96,13 @@ jobs:
             libayatana-appindicator3-dev librsvg2-dev patchelf rpm
 
       - run: npm ci
+
+      - name: Load the updater signing key
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s src-tauri/updater/rozh-updater.key || { echo '::error title=updater key::src-tauri/updater/rozh-updater.key is missing'; exit 1; }
+          echo "TAURI_SIGNING_PRIVATE_KEY=$(cat src-tauri/updater/rozh-updater.key)" >> "$GITHUB_ENV"
 
       - name: Fetch FFmpeg (optional native engine)
         continue-on-error: true
@@ -127,6 +139,7 @@ jobs:
         shell: bash
         env:
           ARTIFACT_KEY: ${{ matrix.key }}
+          EXPECTED_PLATFORMS: ${{ matrix.expect }}
         run: |
           node scripts/collect-desktop-artifacts.mjs
           ls -lh out

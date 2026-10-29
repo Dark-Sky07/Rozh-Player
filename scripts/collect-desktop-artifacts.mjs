@@ -124,7 +124,13 @@ for (const file of files) {
   }
 }
 
-const required = ['windows-x86_64', 'darwin-x86_64', 'darwin-aarch64', 'linux-x86_64'];
+// Each runner only builds its own targets, so the expectation comes from the
+// workflow (`EXPECTED_PLATFORMS`); without it every platform is required.
+const expected = (process.env.EXPECTED_PLATFORMS ?? '')
+  .split(',')
+  .map((v) => v.trim())
+  .filter(Boolean);
+const required = expected.length ? expected : ['windows-x86_64', 'darwin-x86_64', 'darwin-aarch64', 'linux-x86_64'];
 const missing = required.filter((k) => !platforms[k]);
 if (missing.length) {
   console.error(`::error title=updater artifacts::missing ${missing.join(', ')} (no signed bundle found)`);
