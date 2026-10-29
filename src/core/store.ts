@@ -122,6 +122,8 @@ export interface Settings {
   /* --- Android device library --- */
   autoIndex: boolean;
   indexAudio: boolean;
+  /* --- updates --- */
+  autoUpdate: boolean;
 }
 
 /** Bookmarked positions, grouped by playable key. */
@@ -204,6 +206,7 @@ const DEFAULT_SETTINGS: Settings = {
   frameStepMs: 40,
   autoIndex: true,
   indexAudio: true,
+  autoUpdate: true,
 };
 
 /* ------------------------------------------------------------------ */

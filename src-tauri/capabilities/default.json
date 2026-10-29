@@ -27,6 +27,8 @@
           "url": "https://**"
         }
       ]
-    }
+    },
+    "process:default",
+    "process:allow-restart"
   ]
 }

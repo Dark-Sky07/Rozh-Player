@@ -24,6 +24,11 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
   TAG: ${{ github.event.inputs.tag || github.ref_name }}
+  # Updater signing. The key lives in the repository because the release
+  # pipeline has to sign every bundle; rotating it would break updates for
+  # everyone already on a release, so it must never change.
+  TAURI_SIGNING_PRIVATE_KEY: src-tauri/updater/rozh-updater.key
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: rozh-updater-key
 
 jobs:
   # ---------------------------------------------------------------- desktop
@@ -118,14 +123,14 @@ jobs:
             exit "$code"
           fi
 
-      - name: Collect bundles
+      - name: Collect bundles + updater signatures
         shell: bash
+        env:
+          ARTIFACT_KEY: ${{ matrix.key }}
         run: |
-          mkdir -p out
-          find src-tauri/target -path '*bundle*' -type f \
-            \( -name '*.exe' -o -name '*.msi' -o -name '*.dmg' -o -name '*.deb' \
-               -o -name '*.rpm' -o -name '*.AppImage' \) -exec cp {} out/ \;
+          node scripts/collect-desktop-artifacts.mjs
           ls -lh out
+          ls -lh manifest
 
       - uses: softprops/action-gh-release@v2
         with:
@@ -136,6 +141,15 @@ jobs:
           prerelease: false
           overwrite_files: true
           files: out/*
+
+      # One manifest per runner; the `latest` job merges them into latest.json.
+      - name: Keep the updater manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: updater-manifest-${{ matrix.key }}
+          path: manifest/*.json
+          if-no-files-found: error
+          retention-days: 1
 
   # -------------------------------------------------------------------- web
   web:
@@ -240,21 +254,36 @@ jobs:
             || { echo '::error title=manifest::media permissions missing'; exit 1; }
           echo 'manifest ok'
 
-      - name: Signing key (ephemeral, CI only)
+      # Every release is signed with the same committed key, so Android treats a
+      # new version as an upgrade of the installed app instead of a different
+      # application (which is what forces the "uninstall the previous version"
+      # dialog). Never regenerate this file.
+      - name: Release signing key
         shell: bash
+        env:
+          KEYSTORE: src-tauri/keystore/rozh-release.p12
         run: |
-          mkdir -p src-tauri/keystore
-          keytool -genkeypair -v \
-            -keystore src-tauri/keystore/rozh-ci.jks \
-            -alias rozh \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass rozhplayer -keypass rozhplayer \
-            -dname "CN=ROZH Player, OU=ROZH, O=ROZH, L=Tehran, C=IR"
+          set -euo pipefail
+          KS="$GITHUB_WORKSPACE/$KEYSTORE"
+          test -f "$KS" || { echo '::error title=keystore::src-tauri/keystore/rozh-release.p12 missing'; exit 1; }
+          keytool -list -keystore "$KS" -storepass rozhplayer > /tmp/keys.txt
+          cat /tmp/keys.txt
+          ALIAS=$(grep -i 'PrivateKeyEntry' /tmp/keys.txt | head -1 | cut -d, -f1 | tr -d '[:space:]')
+          test -n "$ALIAS" || { echo '::error title=keystore::no private key entry'; exit 1; }
+          echo "ROZH_KEY_ALIAS=$ALIAS" >> "$GITHUB_ENV"
           cat > src-tauri/gen/android/keystore.properties <<EOF
           password=rozhplayer
-          keyAlias=rozh
-          storeFile=$GITHUB_WORKSPACE/src-tauri/keystore/rozh-ci.jks
+          keyAlias=$ALIAS
+          storeFile=$KS
           EOF
+          # Tauri's Android template reads these when present.
+          {
+            echo "KEYSTORE_PATH=$KS"
+            echo "KEYSTORE_PASSWORD=rozhplayer"
+            echo "KEY_ALIAS=$ALIAS"
+            echo "KEY_PASSWORD=rozhplayer"
+            echo "TAURI_KEY_PASSWORD=rozhplayer"
+          } >> "$GITHUB_ENV"
 
       - name: Build APK + AAB
         shell: bash
@@ -274,20 +303,21 @@ jobs:
           set -euo pipefail
           VERSION="$(node -p "require('./package.json').version")"
           echo "Building Android artefacts for $VERSION"
-          KS="$GITHUB_WORKSPACE/src-tauri/keystore/rozh-ci.jks"
+          KS="$GITHUB_WORKSPACE/src-tauri/keystore/rozh-release.p12"
           BT="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)"
           mkdir -p out
           unsigned=$(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' | head -1)
           echo "unsigned: $unsigned"
           "$BT/zipalign" -f -p 4 "$unsigned" out/unsigned-aligned.apk
-          "$BT/apksigner" sign --ks "$KS" --ks-pass pass:rozhplayer --key-pass pass:rozhplayer \
+          "$BT/apksigner" sign --ks "$KS" --ks-key-alias "$ROZH_KEY_ALIAS" \
+            --ks-pass pass:rozhplayer --key-pass pass:rozhplayer \
             --out out/"ROZH-Player-$VERSION.apk" out/unsigned-aligned.apk
           "$BT/apksigner" verify --print-certs out/"ROZH-Player-$VERSION.apk" | head -5
           aab=$(find src-tauri/gen/android/app/build/outputs/bundle -name '*.aab' | head -1)
           if [ -n "$aab" ]; then
             cp "$aab" out/"ROZH-Player-$VERSION.aab"
-            jarsigner -keystore "$KS" -storepass rozhplayer -keypass rozhplayer \
-              out/"ROZH-Player-$VERSION.aab" rozh
+            jarsigner -keystore "$KS" -storetype PKCS12 -storepass rozhplayer -keypass rozhplayer \
+              out/"ROZH-Player-$VERSION.aab" "$ROZH_KEY_ALIAS"
           fi
           rm -f out/unsigned-aligned.apk
           ls -lh out
@@ -335,19 +365,20 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="$(node -p "require('./package.json').version")"
-          KS="$GITHUB_WORKSPACE/src-tauri/keystore/rozh-ci.jks"
+          KS="$GITHUB_WORKSPACE/src-tauri/keystore/rozh-release.p12"
           BT="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)"
           unsigned=$(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' | head -1)
           echo "unsigned TV apk: $unsigned"
           "$BT/zipalign" -f -p 4 "$unsigned" out/unsigned-tv-aligned.apk
-          "$BT/apksigner" sign --ks "$KS" --ks-pass pass:rozhplayer --key-pass pass:rozhplayer \
+          "$BT/apksigner" sign --ks "$KS" --ks-key-alias "$ROZH_KEY_ALIAS" \
+            --ks-pass pass:rozhplayer --key-pass pass:rozhplayer \
             --out out/"ROZH-Player-TV-$VERSION.apk" out/unsigned-tv-aligned.apk
-          "$BT/apksigner" verify out/"ROZH-Player-TV-$VERSION.apk"
+          "$BT/apksigner" verify --print-certs out/"ROZH-Player-TV-$VERSION.apk" | head -3
           aab=$(find src-tauri/gen/android/app/build/outputs/bundle -name '*.aab' | head -1)
           if [ -n "$aab" ]; then
             cp "$aab" out/"ROZH-Player-TV-$VERSION.aab"
-            jarsigner -keystore "$KS" -storepass rozhplayer -keypass rozhplayer \
-              out/"ROZH-Player-TV-$VERSION.aab" rozh
+            jarsigner -keystore "$KS" -storetype PKCS12 -storepass rozhplayer -keypass rozhplayer \
+              out/"ROZH-Player-TV-$VERSION.aab" "$ROZH_KEY_ALIAS"
           fi
           rm -f out/unsigned-tv-aligned.apk
           ls -lh out
@@ -361,3 +392,42 @@ jobs:
           prerelease: false
           overwrite_files: true
           files: out/*
+
+  # ------------------------------------------------------------- latest.json
+  # Tauri's updater polls `releases/latest/download/latest.json`. The desktop
+  # jobs each sign their own bundles, so this job merges their manifests, points
+  # every platform at the uploaded asset and publishes the file the app reads.
+  latest:
+    name: Updater manifest
+    needs: [desktop]
+    if: |-
+      always() && needs.desktop.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: updater-manifest-*
+          path: manifest
+          merge-multiple: true
+
+      - name: Build latest.json
+        run: |
+          ls -la manifest
+          node scripts/build-latest-json.mjs manifest latest.json
+          cat latest.json
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: 'ROZH Player ${{ env.TAG }}'
+          body_path: docs/RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+          overwrite_files: true
+          files: latest.json

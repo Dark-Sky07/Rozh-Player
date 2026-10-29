@@ -28,6 +28,7 @@ import {
   saveBlob,
   ext,
 } from './util';
+import { streamableUrl, openInSystemPlayer, canHandOff } from './mediaServer';
 
 interface MpegtsNamespace {
   isSupported?: () => boolean;
@@ -374,11 +375,15 @@ export class Player {
     this.updateMeta(item);
     this.renderChapters([]);
 
-    const url = item.url;
-    const clean = url.split('#')[0].split('?')[0].toLowerCase();
+    // The media reference (a path, a content:// URI or a network URL) decides how
+    // the file is played; the *source* may be a loopback stream when the webview
+    // cannot read the reference itself.
+    const reference = item.url;
+    const clean = reference.split('#')[0].split('?')[0].toLowerCase();
     const isHls = /\.m3u8$/.test(clean);
     const isDash = /\.mpd$/.test(clean);
     const isMpegTs = /\.(ts|m2ts|mts|flv|f4v)$/.test(clean);
+    const url = await streamableUrl(reference);
     this.hlsAttempt = 0;
 
     // resume position (set before we attach so loadedmetadata sees it)
@@ -1736,6 +1741,9 @@ export class Player {
         case 'url':
           this.openUrlDialog();
           break;
+        case 'external':
+          void this.openExternally();
+          break;
         case 'demo':
           this.playDemo();
           break;
@@ -2051,6 +2059,14 @@ export class Player {
     }
   }
 
+  /** Android: let the device's own player decode what the webview refuses. */
+  private async openExternally(): Promise<void> {
+    const url = this.current?.url;
+    if (!url) return;
+    const ok = await openInSystemPlayer(url, this.current?.name ?? '');
+    if (ok) this.pause();
+  }
+
   private showError(message: string, detail = ''): void {
     const code = this.video.error?.code ?? 0;
     const codeText = code ? `MEDIA_ERR_${['', 'ABORTED', 'NETWORK', 'DECODE', 'SRC_NOT_SUPPORTED'][code] ?? code}` : '';
@@ -2074,9 +2090,16 @@ export class Player {
           : ''
       }
       <div class="empty-actions">
-        <button class="btn btn-primary btn-lg" data-act="open">${icon('folder-open')}<span>${escapeHtml(
-          t('player.openFile'),
-        )}</span></button>
+        ${
+          canHandOff(this.current?.url)
+            ? `<button class="btn btn-primary btn-lg" data-act="external">${icon('play')}<span>${escapeHtml(
+                t('player.external'),
+              )}</span></button>`
+            : ''
+        }
+        <button class="btn ${canHandOff(this.current?.url) ? '' : 'btn-primary'} btn-lg" data-act="open">${icon(
+          'folder-open',
+        )}<span>${escapeHtml(t('player.openFile'))}</span></button>
         <button class="btn btn-lg" data-act="url">${icon('link')}<span>${escapeHtml(t('player.openUrl'))}</span></button>
       </div>`;
     this.events.onError?.(message);

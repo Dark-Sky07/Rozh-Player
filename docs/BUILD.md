@@ -75,23 +75,49 @@ small Java class is generated into the project by the second patch script:
 node scripts/patch-android-native.mjs
 ```
 
-It does three things:
+It does four things:
 
 1. copies `scripts/android/MediaBridge.java` into the generated project, using
    the package the Tauri template actually produced (read from
    `MainActivity.kt`, never hard-coded);
 2. wires `MainActivity` — `MediaBridge.attach(this)` in `onCreate` plus
    `onRequestPermissionsResult` and `onActivityResult` forwarding;
-3. declares `READ_MEDIA_VIDEO`, `READ_MEDIA_AUDIO` and (Android 12 and older)
-   `READ_EXTERNAL_STORAGE`.
+3. declares `READ_MEDIA_VIDEO`, `READ_MEDIA_AUDIO`, `REQUEST_INSTALL_PACKAGES`
+   and (Android 12 and older) `READ_EXTERNAL_STORAGE`;
+4. adds a `FileProvider` (`@xml/rozh_file_paths`) so the downloaded update APK
+   can be handed to the package installer as a `content://` URI instead of a
+   `file://` URI, which Android 7+ refuses.
 
 `MediaBridge` queries **MediaStore** for videos and audio, resolves thumbnails,
 and enumerates any folder the user picked with `ACTION_OPEN_DOCUMENT_TREE`
 (persisted with `takePersistableUriPermission`). Results are written to a JSON
 state file in the app cache directory; Rust (`android_media_scan`,
-`android_media_status`, `android_media_pick_folder`) is only the mailbox that
-carries it to the UI. No JNI, no reflection, no binder from the Rust side — a
-failed scan can never take the player down.
+`android_media_status`, `android_media_pick_folder`, `android_open_external`,
+`android_media_server`, `android_update_install`, `android_update_status`) is only
+the mailbox that carries it to the UI. No JNI, no reflection, no binder from the
+Rust side — a failed scan can never take the player down.
+
+Mailbox ids come from `next_token()`, which mixes wall-clock milliseconds with a
+counter: a fresh process must never reuse an id a previous run left on disk, or
+the bridge would ignore the first commands of the session.
+
+### Loopback media server
+
+`content://` URIs are readable by the app but not by `<video src>` in a WebView,
+and no JS player can fetch them. `MediaBridge` therefore opens a `ServerSocket`
+on `127.0.0.1` (random port, written to `server.json`) and serves any URI the app
+can open:
+
+```
+GET http://127.0.0.1:<port>/s/<base64url(uri)>/<name>   200 | 206 + Range
+```
+
+`src/core/mediaServer.ts` rewrites device-library URLs through it and leaves
+`http(s)://` sources untouched. The file name stays in the path so the player
+still recognises the container. When even the server cannot help — AC-3, DTS or
+VC-1 that the device decoder has no support for — the player offers **Play in
+system player** (`android_open_external`), which hands the URI to the device's
+own player or VLC.
 
 ### Dedicated Android TV package
 
@@ -101,10 +127,13 @@ interface compiled in (`VITE_TV_BUILD=1`) instead of detected at runtime:
 ```bash
 node scripts/patch-android-tv.mjs
 node scripts/patch-android-native.mjs
-VITE_TV_BUILD=1 npx tauri android build --apk --aab   # phone package
+npx tauri android build --apk --aab                   # phone package
 node scripts/make-tv-variant.mjs                      # own applicationId + banner
 VITE_TV_BUILD=1 npx tauri android build --apk --aab   # TV package
 ```
+
+`VITE_TV_BUILD=1` is set only for the second build: the phone package must not
+bake the 10-foot interface in.
 
 `make-tv-variant.mjs` changes `applicationId` to `…rozh.player.tv`, sets the
 label to **ROZH Player TV**, installs `icons/tv-banner.png` as the 320×180
@@ -134,9 +163,52 @@ pushed and attaches everything to a published release (`draft: false`):
 | Linux | `ubuntu-22.04` | `.deb`, `.rpm`, `.AppImage` |
 | Android | `ubuntu-latest` + NDK 27 | `.apk`, `.aab` (phone **and** `-TV-` variants) |
 | Web | `ubuntu-latest` | `rozh-player-web.zip` |
+| Manifest | `ubuntu-latest` (after desktop) | `latest.json` |
 
 The release workflow can also be started by hand
 (`workflow_dispatch` with a `tag` and an optional `only` filter).
+
+## 5. Signing and in-app updates
+
+Three keys matter, and none of them may ever be regenerated:
+
+| File | Purpose | Password |
+| --- | --- | --- |
+| `src-tauri/updater/rozh-updater.key` | signs desktop update artefacts | `rozh-updater-key` |
+| `src-tauri/keystore/rozh-release.p12` (alias `rozh`) | signs every Android APK/AAB | `rozhplayer` |
+
+The updater public key is inlined in `src-tauri/tauri.conf.json`
+(`plugins.updater.pubkey`). The APK key is what makes Android treat a new version
+as an *upgrade*: a different certificate means "App not installed", and a lower
+`versionCode` (`bundle.android.versionCode` in `tauri.conf.json`, currently
+`1000005`) means the installer silently refuses.
+
+Desktop bundles are produced with `createUpdaterArtifacts: true`, which writes a
+`.sig` next to every updater artifact. `scripts/collect-desktop-artifacts.mjs`
+renames them deterministically (the macOS `.app.tar.gz` name collides across
+architectures), and the `latest` job merges the per-runner manifests into the
+`latest.json` the app polls:
+
+```json
+{
+  "version": "1.0.5",
+  "notes": "…",
+  "pub_date": "…",
+  "platforms": {
+    "windows-x86_64": { "signature": "…", "url": "https://github.com/…" }
+  }
+}
+```
+
+Rotating either key breaks updates for everyone already on a release, so rotate
+only with a deliberate migration plan. `src-tauri/updater/*.key` and
+`src-tauri/keystore/*.p12` are committed on purpose — the pipeline has no access
+to repository secrets.
+
+Android updates go through the system: `android_update_install(url)` writes a
+`command.json`, `MediaBridge` enqueues the APK in `DownloadManager`, polls the
+progress into `update.json`, then opens the installer through the `FileProvider`.
+`src/core/updateUI.ts` renders the card in Settings → Updates.
 
 Installers are **unsigned** — add the usual Tauri signing keys as repository
 secrets before shipping to end users. The Android job creates an ephemeral

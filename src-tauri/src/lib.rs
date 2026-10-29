@@ -252,7 +252,21 @@ async fn probe_file(app: tauri::AppHandle, path: String) -> Result<serde_json::V
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
-static MEDIA_TOKEN: AtomicU32 = AtomicU32::new(1);
+static MEDIA_TOKEN: AtomicU32 = AtomicU32::new(0);
+
+/// A fresh mailbox id for every command.
+///
+/// Java ignores a command whose token equals the last one it handled, so the id
+/// only has to be unique — but it must also be *newer* than anything a previous
+/// run left on disk, otherwise the first commands after a relaunch are dropped.
+/// Wall-clock milliseconds + a counter gives that for free.
+fn next_token() -> u32 {
+    let ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u32)
+        .unwrap_or(0);
+    MEDIA_TOKEN.fetch_add(1, Ordering::SeqCst).wrapping_add(ms).max(1)
+}
 
 const MEDIA_DIR: &str = "rozh-media";
 
@@ -307,7 +321,7 @@ fn read_media_state(app: &tauri::AppHandle) -> serde_json::Value {
 #[allow(unused_variables)]
 fn send_media_command(app: &tauri::AppHandle, cmd: &str, audio: bool) -> Result<serde_json::Value, String> {
     let dir = media_dir(app)?;
-    let token = MEDIA_TOKEN.fetch_add(1, Ordering::SeqCst);
+    let token = next_token();
     let payload = serde_json::json!({ "cmd": cmd, "token": token, "audio": audio });
     std::fs::write(
         dir.join("command.json"),
@@ -336,6 +350,65 @@ fn android_media_status(app: tauri::AppHandle) -> Result<serde_json::Value, Stri
 #[tauri::command]
 fn android_media_pick_folder(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
     send_media_command(&app, "pick", true)
+}
+
+/// Android: hand a media URI to the device's own player.
+#[tauri::command]
+fn android_open_external(app: tauri::AppHandle, uri: String, mime: String) -> Result<(), String> {
+    let dir = media_dir(&app)?;
+    let token = next_token();
+    let payload = serde_json::json!({ "cmd": "play", "token": token, "uri": uri, "mime": mime });
+    std::fs::write(
+        dir.join("command.json"),
+        serde_json::to_vec(&payload).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())
+}
+
+/// Port of the loopback media server started by `MediaBridge.java` (0 = none).
+#[tauri::command]
+fn android_media_server(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let Ok(dir) = media_dir(&app) else {
+        return Ok(serde_json::json!({ "port": 0 }));
+    };
+    match std::fs::read_to_string(dir.join("server.json")) {
+        Ok(raw) => {
+            let parsed: serde_json::Value =
+                serde_json::from_str(&raw).unwrap_or_else(|_| serde_json::json!({ "port": 0 }));
+            Ok(serde_json::json!({ "port": parsed.get("port").and_then(|p| p.as_u64()).unwrap_or(0) }))
+        }
+        Err(_) => Ok(serde_json::json!({ "port": 0 })),
+    }
+}
+
+/// Read the download/install progress the Java bridge wrote for the APK update.
+#[tauri::command]
+fn android_update_status(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let Ok(dir) = media_dir(&app) else {
+        return Ok(serde_json::json!({ "state": "idle" }));
+    };
+    match std::fs::read_to_string(dir.join("update.json")) {
+        Ok(raw) => Ok(serde_json::from_str(&raw)
+            .unwrap_or_else(|_| serde_json::json!({ "state": "idle" }))),
+        Err(_) => Ok(serde_json::json!({ "state": "idle" })),
+    }
+}
+
+/// Download an APK through the system download manager and open the installer.
+#[tauri::command]
+fn android_update_install(app: tauri::AppHandle, url: String) -> Result<serde_json::Value, String> {
+    let dir = media_dir(&app)?;
+    let token = next_token();
+    let payload = serde_json::json!({ "cmd": "install", "token": token, "url": url });
+    std::fs::write(
+        dir.join("command.json"),
+        serde_json::to_vec(&payload).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
+    // give the bridge a moment to pick the command up so the caller sees the
+    // first real status instead of a stale one
+    std::thread::sleep(std::time::Duration::from_millis(120));
+    android_update_status(app)
 }
 
 /// Open a file/folder in the OS file manager.
@@ -380,14 +453,26 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             remux_file,
             probe_file,
             reveal_in_folder,
             android_media_scan,
             android_media_status,
-            android_media_pick_folder
+            android_media_pick_folder,
+            android_open_external,
+            android_media_server,
+            android_update_status,
+            android_update_install
         ]);
+
+    // The updater only exists on desktop: Android updates itself through the
+    // package installer (see MediaBridge), not through Tauri's updater.
+    #[cfg(desktop)]
+    {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
 
     builder = builder.setup(|app| {
         // ---- tray: quick transport for the desktop build ----------------

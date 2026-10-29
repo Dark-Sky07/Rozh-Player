@@ -8,6 +8,7 @@ import { applySettings, store, type MediaItem } from './store';
 import { onNativeCommand, probeFile, urlForFile } from './native';
 import { openDrawer, toast } from './ui';
 import { isAndroidDevice, syncDeviceLibrary } from './device';
+import { autoCheckForUpdates } from './updateUI';
 import { focusView, initTv } from './tv';
 import { $, $$, escapeHtml, isTextEntry, pickFiles, platform } from './util';
 import { renderHistory } from '../views/history';
@@ -609,6 +610,9 @@ export async function bootApp(): Promise<void> {
       if (activeView === 'library' || activeView === 'history') renderActiveView();
     });
   }
+
+  // Ask the release channel once per launch, without getting in the way.
+  autoCheckForUpdates();
 
   // TV mode: spatial navigation, back-button handling and a sane first focus
   initTv();

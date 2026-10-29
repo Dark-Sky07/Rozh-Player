@@ -1,7 +1,6 @@
-# ROZH Player 1.0.4
+# ROZH Player 1.0.5
 
-**A phone build that feels like an app, a TV build that feels like a TV, and a
-library that fills itself.**
+**Updates that install over the old version — on every platform.**
 
 Windows · macOS · Linux · Android · Android TV · Web
 
@@ -9,15 +8,15 @@ Windows · macOS · Linux · Android · Android TV · Web
 
 | Platform | File |
 | --- | --- |
-| **Windows 10/11 (x64)** | `ROZH.Player_1.0.4_x64-setup.exe` |
-| **macOS — Apple Silicon (M1–M4)** | `ROZH.Player_1.0.4_aarch64.dmg` |
-| **macOS — Intel** | `ROZH.Player_1.0.4_x64.dmg` |
-| **Linux (Debian/Ubuntu)** | `ROZH.Player_1.0.4_amd64.deb` |
-| **Linux (Fedora/RHEL/openSUSE)** | `ROZH.Player-1.0.4-1.x86_64.rpm` |
-| **Linux (any distribution)** | `ROZH.Player_1.0.4_amd64.AppImage` |
-| **Android 7.0+ (phones, tablets)** | `ROZH-Player-1.0.4.apk` |
-| **Android TV (dedicated build)** | `ROZH-Player-TV-1.0.4.apk` |
-| **Google Play bundles** | `ROZH-Player-1.0.4.aab`, `ROZH-Player-TV-1.0.4.aab` |
+| **Windows 10/11 (x64)** | `ROZH-Player_1.0.5_x64-setup.exe` |
+| **macOS — Apple Silicon (M1–M4)** | `ROZH-Player_1.0.5_aarch64.dmg` |
+| **macOS — Intel** | `ROZH-Player_1.0.5_x64.dmg` |
+| **Linux (Debian/Ubuntu)** | `ROZH-Player_1.0.5_amd64.deb` |
+| **Linux (Fedora/RHEL/openSUSE)** | `ROZH-Player-1.0.5-1.x86_64.rpm` |
+| **Linux (any distribution)** | `ROZH-Player_1.0.5_amd64.AppImage` |
+| **Android 7.0+ (phones, tablets)** | `ROZH-Player-1.0.5.apk` |
+| **Android TV (dedicated build)** | `ROZH-Player-TV-1.0.5.apk` |
+| **Google Play bundles** | `ROZH-Player-1.0.5.aab`, `ROZH-Player-TV-1.0.5.aab` |
 | **Web / PWA** | `rozh-player-web.zip` — unzip and serve from any static host |
 
 ## Install
@@ -28,95 +27,88 @@ because the build carries no commercial code-signing certificate; choose
 
 **macOS** — open the `dmg` and drag ROZH Player into Applications. On first launch
 Gatekeeper may refuse an unidentified developer; right-click the app and choose
-**Open** (or allow it in System Settings → Privacy & Security).
+**Open**.
 
-**Linux** — `sudo apt install ./ROZH.Player_1.0.4_amd64.deb`, or `chmod +x` the
+**Linux** — `sudo apt install ./ROZH-Player_1.0.5_amd64.deb`, or `chmod +x` the
 AppImage and run it.
 
-**Android** — sideload `ROZH-Player-1.0.4.apk`. Allow "install unknown apps" for
-your file manager when Android asks. On first launch Android asks for media
-access — grant it and the library fills itself.
+**Android** — open `ROZH-Player-1.0.5.apk`, allow "install unknown apps" once, and
+the package installer updates the app in place.
 
-**Android TV / Fire TV** — sideload `ROZH-Player-TV-1.0.4.apk` (USB stick,
-`adb install`, or a file manager on the box). It is a separate package
-(`…rozh.player.tv`), so it can sit next to the phone app, and it declares
-`LEANBACK_LAUNCHER`, so it appears in the TV launcher with its own banner.
+**Android TV / Fire TV** — sideload `ROZH-Player-TV-1.0.5.apk`. It is a separate
+package (`…rozh.player.tv`) with its own `LEANBACK_LAUNCHER` entry and banner.
 
 ## What is new
 
-### The device library indexes itself
+### Update from inside the app
 
-Every time the phone or the TV app starts, ROZH asks Android for the media index
-and adds everything it finds — videos and (optionally) music — to the library:
+Settings → **Updates** now checks, downloads and installs the next version
+without leaving ROZH. The card shows the new version, the download size, a real
+progress bar, and a **Restart now** button when the update is ready.
 
-- **MediaStore scan** of all video and audio on internal storage and SD cards,
-  with name, size, duration, folder and a system-generated thumbnail.
-- **Folder picker** for anything the system index does not know about. ROZH
-  remembers the folder across launches (persisted SAF grant) and re-indexes it
-  next time.
-- **Stays in sync**: entries removed from the device disappear from the library;
-  nothing is duplicated on the next launch.
-- The permission prompt appears once. If access is refused, the library shows a
-  card explaining how to grant it instead of an empty grid.
-- Controls: **Settings → Device library** (auto-index on/off, include audio,
-  scan now, add folder) and the device strip at the top of the library.
+- **Windows, macOS, Linux** — the release ships a signed updater manifest. ROZH
+  downloads the new build in the background, verifies its signature against the
+  embedded public key and starts it; the app relaunches into the new version
+  itself. Nothing to uninstall, nothing to find in a downloads folder.
+- **Android and Android TV** — ROZH reads the newest release, picks the APK that
+  matches the package (the TV build never downloads the phone build and vice
+  versa), hands the download to Android's download manager and opens the package
+  installer when it completes. The installed app is replaced, not duplicated.
+- **Automatic** — a quiet check runs a few seconds after launch. If a newer
+  version exists, a toast points to Settings. The check can be turned off, and
+  it is a plain HTTPS request to the public release feed: no account, no ping.
 
-### Two new interfaces
+### Upgrades are in place, permanently
 
-The desktop shell was being stretched onto phones and televisions. It is not any
-more — both platforms now have their own layout:
+Android only updates an app in place when the new APK is signed with the **same**
+key and reports a **higher** version code. From this release on:
 
-**Phones** — a real mobile app:
-- compact app bar with the logo, current destination and the three actions that
-  matter; the destination list lives in a drawer and a bottom tab bar
-- thumb-sized controls, 48 px tab targets, safe-area padding on notched phones
-- two-column library (three on tablets), horizontal filter chips, no hover-only
-  affordances, no 300 px sidebar eating a third of the screen
-- the player is edge to edge, ignores browser scroll chaining, and survives
-  rotation and landscape (chrome hides, video keeps the full frame)
+- every APK is signed with one long-lived release key (valid to 2055);
+- the version code is pinned in the build config and climbs with every version
+  (`1.0.5` → `1000005`), so the store and the installer always agree.
 
-**Android TV** — a 10-foot interface:
-- one horizontal top bar (brand · Player · Library · Live & links · Recent ·
-  Settings · Open link · Open file) instead of a desktop side rail
-- overscan-safe margins, larger type, larger cards, larger transport buttons
-- every control shows a focus ring; nothing depends on hover
-- **spatial D-pad navigation** with a corridor-aware neighbour search: arrows
-  move to the control the viewer is looking at, OK activates, Back closes the
-  topmost sheet or returns to the player
-- remote transport keys (`MediaPlayPause`), timeline scrubbing from the video
-  surface, and the first focus lands on something usable after every route
-  change
+**One-time note for 1.0.4 users:** 1.0.4 was signed with a throwaway key that no
+longer exists, so Android refuses to upgrade across it. Uninstall 1.0.4 once,
+install 1.0.5, and every future version will install straight over the top.
 
-### Also in this release
+### A local media server for the files Android's decoder refuses
 
-- Typography: Latin text and numbers now use the platform UI font, so an English
-  interface never shows Persian-shaped digits; Persian still uses Vazirmatn
-- `hidden` is now authoritative — elements marked hidden can no longer be forced
-  visible by a component rule (sleep chip, stats panel, lock veil)
-- Empty player no longer shows drop targets and codec badges on TV/phone
-- Shortcuts and About are reachable from Settings (needed on TV, handy on phone)
-- CI asserts the Android bridge wiring (manifest permissions, `MediaBridge.java`,
-  `MainActivity` hooks) before the APK is built, next to the existing manifest
-  and TV-package checks
+Files that live behind `content://` cannot be played by a WebView at all, and
+MKV/AC-3/DTS files are outside what the device decoder accepts. ROZH now starts a
+tiny HTTP server inside its own process:
 
-## Formats
+- streams any file the app is allowed to read over `127.0.0.1` with real HTTP
+  `Range` support, so seeking works and JS players can fetch byte ranges;
+- serves the exact `content://` URI the device library hands over, so nothing has
+  to be copied to a temporary folder first;
+- if a container still cannot be decoded by the webview, the player offers
+  **Play in system player** and hands the file to the device's own player or VLC
+  instead of showing a dead end.
 
-Everything the platform decodes, plus:
+The server is loopback-only, needs no permission, and stops with the app.
 
-- **Containers** MP4, MKV, WebM, MOV, AVI, TS, M2TS, FLV, WMV, 3GP, OGG
-- **Codecs** H.264, H.265/HEVC, VP8/VP9, AV1, MPEG-2/4, AAC, MP3, FLAC, Opus,
-  Vorbis, WAV, AC-3 and more — subject to the platform decoder
-- **Streams** HLS (`.m3u8`), DASH (`.mpd`), MPEG-TS / FLV over HTTP with the
-  bundled software demuxer
-- **Subtitles** SRT, WebVTT, ASS/SSA (libass), embedded text tracks
-- Desktop adds an FFmpeg fallback that remuxes or transcodes anything the
-  webview refuses (MKV with AC-3, AVI, old MPEG-4 …)
+### Fixes
 
-Android plays what the system decoder supports; exotic codecs that only FFmpeg
-can open are available in the desktop builds.
+- **Android commands no longer go missing after a restart.** The native bridge
+  ignores a command whose id matches the last one it saw, and ids restarted at 1
+  on every launch — so the first commands of a session (including the launch
+  scan) were dropped. Ids are now monotonic across launches.
+- **Android library files play.** Device items are routed through the loopback
+  server, which fixes the silent "nothing happens" on media that the webview
+  could not open at all.
+- Windows installs stay per-machine, so 1.0.5 replaces 1.0.4 in the same folder.
+  The updater may ask for administrator permission once while it swaps the files.
 
-## Notes
+## How updates are delivered
 
-- Builds are unsigned; Windows SmartScreen and macOS Gatekeeper will ask once.
-- No account, no telemetry, no server: the library lives on your device.
-- ROZH Player is MIT licensed.
+| Platform | Mechanism | Restart |
+| --- | --- | --- |
+| Windows | Signed NSIS installer, run silently by the updater | automatic |
+| macOS | Signed `.app.tar.gz`, exchanged in place | automatic |
+| Linux (AppImage) | Signed `.AppImage.tar.gz`, exchanged in place | automatic |
+| Linux (deb / rpm) | Detected and reported; install with your package manager | manual |
+| Android / Android TV | System download manager + package installer | automatic |
+
+Signing keys for the updater and for Android live in the repository because the
+release pipeline has to sign every artefact unattended; rotating them would break
+updates for everyone already running a release, so they never change.
