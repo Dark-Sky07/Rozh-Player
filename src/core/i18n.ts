@@ -49,6 +49,7 @@ const fa: Dict = {
   'player.empty.dropSub': 'یا از دکمه‌های زیر استفاده کنید',
   'player.openFile': 'باز کردن فایل',
   'player.openUrl': 'باز کردن لینک',
+  'player.reveal': 'نمایش در پوشه',
   'player.sample': 'پخش نمونه',
   'player.formats': 'پشتیبانی از ۴۰+ فرمت',
 
@@ -325,6 +326,7 @@ const en: Dict = {
   'player.empty.dropSub': 'or use the buttons below',
   'player.openFile': 'Open file',
   'player.openUrl': 'Open link',
+  'player.reveal': 'Show in folder',
   'player.sample': 'Play sample',
   'player.formats': '40+ formats supported',
 

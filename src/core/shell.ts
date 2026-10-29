@@ -5,7 +5,7 @@ import { icon, hydrateIcons } from './icons';
 import { t, n } from './i18n';
 import { mountPlayer, type Playable } from './player';
 import { applySettings, store, type MediaItem } from './store';
-import { urlForFile } from './native';
+import { onNativeCommand, probeFile, urlForFile } from './native';
 import { openDrawer, toast } from './ui';
 import { $, $$, escapeHtml, isTextEntry, pickFiles, platform } from './util';
 import { renderHistory } from '../views/history';
@@ -297,6 +297,15 @@ function ingestFiles(files: File[], opts: { autoplay?: boolean } = {}): Playable
     const playable = toPlayable(item);
     if (playable) playables.push({ ...playable, file });
 
+    const nativePath = (file as { __path?: string }).__path;
+    if (nativePath) {
+      void probeFile(nativePath).then((probe) => {
+        if (!probe) return;
+        if (probe.duration > 0) store.updateMedia(item.id, { duration: probe.duration });
+        if (activeView === 'library' || activeView === 'history') renderActiveView();
+      });
+    }
+
     if (!item.thumb) {
       void generateThumb(file).then((thumb) => {
         if (!thumb) return;
@@ -529,6 +538,13 @@ export async function bootApp(): Promise<void> {
 
   paint();
   bindChrome();
+
+  // tray / menu-bar transport (desktop only; the promise resolves to a no-op on web)
+  void onNativeCommand((cmd) => {
+    if (cmd === 'toggle') player.toggle();
+    else if (cmd === 'open') void openLocalFiles();
+    else if (cmd === 'queue') player.showUi();
+  });
 
   // TV mode: focus the first nav item so a remote can drive immediately
   if (document.documentElement.dataset.tv === 'true') {

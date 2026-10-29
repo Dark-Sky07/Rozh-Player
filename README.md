@@ -38,7 +38,7 @@
 | مک — Apple Silicon | `ROZH.Player_1.0.0_aarch64.dmg` |
 | مک — Intel | `ROZH.Player_1.0.0_x64.dmg` |
 | لینوکس | `.deb` · `.rpm` · `.AppImage` |
-| اندروید / اندروید تی‌وی | `app-universal-release.apk` |
+| اندروید / اندروید تی‌وی | `ROZH-Player-1.0.0.apk` |
 | وب / PWA | `rozh-player-web.zip` |
 
 <div dir="ltr">

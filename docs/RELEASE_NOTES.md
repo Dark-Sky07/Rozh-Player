@@ -12,7 +12,7 @@
 | **Linux (Debian/Ubuntu)** | `ROZH.Player_1.0.0_amd64.deb` |
 | **Linux (Fedora/RHEL/openSUSE)** | `ROZH.Player-1.0.0-1.x86_64.rpm` |
 | **Linux (هر توزیع دیگری)** | `ROZH.Player_1.0.0_amd64.AppImage` |
-| **Android 7.0+ / Android TV** | `app-universal-release.apk` |
+| **Android 7.0+ / Android TV** | `ROZH-Player-1.0.0.apk` |
 | **وب / PWA** | `rozh-player-web.zip` — از حالت فشرده خارج کنید و روی هر هاست استاتیک بگذارید |
 
 ## نصب / Install

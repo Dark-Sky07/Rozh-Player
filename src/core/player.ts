@@ -12,7 +12,7 @@ import { t, n } from './i18n';
 import { store, type Fit, type LoopMode } from './store';
 import { openDrawer, openPopover, toast, type PopItem } from './ui';
 import { openUrlModal } from '../views/streams';
-import { remuxToPlayable, type NativeFile } from './native';
+import { remuxToPlayable, revealInFolder, type NativeFile } from './native';
 import {
   $,
   $$,
@@ -197,6 +197,13 @@ const TEMPLATE = `
         <button class="iconbtn" data-act="url" data-tip="${t('player.openUrl')}" aria-label="${t('player.openUrl')}">${icon(
           'link',
         )}</button>
+        ${
+          platform.tauri
+            ? `<button class="iconbtn" data-act="reveal" data-tip="${t('player.reveal')}" aria-label="${t(
+                'player.reveal',
+              )}">${icon('folder')}</button>`
+            : ''
+        }
         <button class="iconbtn" data-act="queue" data-tip="${t('player.queue')}" aria-label="${t('player.queue')}">${icon(
           'list',
         )}</button>
@@ -1027,6 +1034,11 @@ export class Player {
         case 'mute':
           this.toggleMute();
           break;
+        case 'reveal': {
+          const path = (this.current?.file as NativeFile | undefined)?.__path;
+          if (path) void revealInFolder(path);
+          break;
+        }
         case 'queue':
           this.openQueueDrawer();
           break;
