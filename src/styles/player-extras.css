@@ -1,0 +1,153 @@
+/* ============================================================
+   ROZH Player — player extras: fullscreen, badges, libass, TV
+   ============================================================ */
+
+.mobile-menu {
+  display: none;
+}
+@media (max-width: 900px) {
+  .mobile-menu {
+    display: inline-grid;
+  }
+  .sidebar-fold {
+    display: none;
+  }
+}
+
+/* queue badge on the queue buttons */
+.iconbtn.has-badge {
+  position: relative;
+}
+.q-count {
+  position: absolute;
+  inset-block-start: 2px;
+  inset-inline-end: 0;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 99px;
+  background: var(--accent-grad);
+  color: var(--accent-ink);
+  font-size: 0.58rem;
+  font-weight: 800;
+  line-height: 15px;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  direction: ltr;
+}
+
+/* libass (ASS/SSA) overlay */
+.jassub-canvas {
+  position: absolute !important;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  z-index: 3;
+  pointer-events: none;
+}
+.stage video::cue {
+  /* fallback; the real values are injected by the player */
+  font-family: 'Vazirmatn', system-ui, sans-serif;
+}
+
+/* fullscreen: stage fills the screen, chrome floats above the video */
+.stage-wrap:fullscreen,
+.stage-wrap:-webkit-full-screen {
+  background: #000;
+  padding: 0 !important;
+  display: flex;
+  flex-direction: column;
+}
+.stage-wrap:fullscreen .stage,
+.stage-wrap:-webkit-full-screen .stage {
+  border-radius: 0;
+  box-shadow: none;
+  flex: 1;
+  height: 100%;
+}
+.stage-wrap:fullscreen .stage-meta,
+.stage-wrap:-webkit-full-screen .stage-meta {
+  display: none;
+}
+.stage-wrap:fullscreen .stage-top,
+.stage-wrap:-webkit-full-screen .stage-top,
+.stage-wrap:fullscreen .stage-bottom,
+.stage-wrap:-webkit-full-screen .stage-bottom {
+  position: absolute;
+  inset-inline: 0;
+}
+.stage-wrap[data-fs='true'] .stage {
+  border-radius: 0;
+}
+
+/* CSS-only fallback fullscreen for browsers without the API */
+.stage-wrap.fs-fallback {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: #000;
+  padding: 0;
+}
+.stage-wrap.fs-fallback .stage {
+  border-radius: 0;
+  box-shadow: none;
+}
+.stage-wrap.fs-fallback .stage-meta {
+  display: none;
+}
+
+/* big play + spinner stacking in the centre */
+.stage-center .big-play,
+.stage-center .spinner {
+  grid-area: 1 / 1;
+}
+
+/* the empty-state buttons shouldn't inherit the player's dark button colour */
+.stage-empty .btn-primary {
+  color: var(--accent-ink);
+}
+
+/* keep the scrub knob visible when the track is thin */
+.scrub.dragging .scrub-track {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+/* tighter meta on very short windows */
+@media (max-height: 640px) {
+  .stage-meta {
+    min-height: 52px;
+    padding: 8px 2px 10px;
+  }
+  .meta-sub {
+    display: none;
+  }
+}
+
+/* TV: keep focus rings visible over video */
+:root[data-tv='true'] .stage :focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* highlight the whole stage while dragging files */
+body[data-dragging='true'] .stage {
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.7), 0 40px 90px -40px rgba(0, 0, 0, 0.95);
+}
+
+/* sidebar fold button */
+.sidebar-fold {
+  margin-inline-start: auto;
+  width: 30px;
+  height: 30px;
+  color: var(--text-3);
+}
+.sidebar-fold .ico {
+  width: 16px;
+  height: 16px;
+}
+.shell[data-sidebar='collapsed'] .sidebar-fold {
+  position: absolute;
+  inset-block-start: 62px;
+  inset-inline-end: 6px;
+  z-index: 3;
+}

@@ -1,1 +1,284 @@
-# Rozh-Player
+# ROZH Player
+
+<div align="center">
+  <img src="public/icons/rozh-256.png" width="132" alt="ROZH Player" />
+
+  **A lightweight, beautiful, universal media player**
+  **Windows · macOS · Linux · Android · Android TV · Web**
+
+  [![CI](https://img.shields.io/badge/build-passing-4ecf9a?style=flat-square)](.github/workflows/ci.yml)
+  [![Release](https://img.shields.io/badge/release-v1.0.2-f8da7e?style=flat-square)](../../releases/latest)
+  [![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square)](https://tauri.app)
+  [![License](https://img.shields.io/badge/license-MIT-f8a24a?style=flat-square)](LICENSE)
+  [![Languages](https://img.shields.io/badge/languages-47-6ba8ff?style=flat-square)](#languages)
+</div>
+
+<div align="center">
+  <img src="docs/screenshots/02-playing.jpg" width="880" alt="ROZH Player playing a demo reel" />
+</div>
+
+---
+
+## Contents
+
+- [Download](#download)
+- [Why ROZH](#why-rozh)
+- [Features](#features)
+- [Run and install](#run-and-install)
+- [Formats](#formats)
+- [Keyboard shortcuts](#keyboard-shortcuts)
+- [Languages](#languages)
+- [Automated releases (CI)](#automated-releases-ci)
+- [Project layout](#project-layout)
+- [License](#license)
+
+---
+
+## Download
+
+Every version ships ready-to-install builds for all platforms on the
+[Releases](../../releases/latest) page:
+
+| Platform | File |
+| --- | --- |
+| **Windows 10/11 (x64)** | `ROZH.Player_1.0.2_x64-setup.exe` |
+| **macOS — Apple Silicon (M1–M4)** | `ROZH.Player_1.0.2_aarch64.dmg` |
+| **macOS — Intel** | `ROZH.Player_1.0.2_x64.dmg` |
+| **Linux (Debian/Ubuntu)** | `ROZH.Player_1.0.2_amd64.deb` |
+| **Linux (Fedora/RHEL/openSUSE)** | `ROZH.Player-1.0.2-1.x86_64.rpm` |
+| **Linux (any distribution)** | `ROZH.Player_1.0.2_amd64.AppImage` |
+| **Android 7.0+ / Android TV** | `ROZH-Player-1.0.2.apk` |
+| **Web / PWA** | `rozh-player-web.zip` — unzip and serve as static files |
+
+> Builds are unsigned: Windows may show SmartScreen and macOS Gatekeeper needs a
+> right-click → **Open** on first launch. Details in the
+> [release notes](docs/RELEASE_NOTES.md).
+
+## Screenshots
+
+| | |
+| --- | --- |
+| ![Player](docs/screenshots/01-player.jpg) | ![Playback](docs/screenshots/02-playing.jpg) |
+| ![Settings](docs/screenshots/03-settings.jpg) | ![Tools](docs/screenshots/04-tools.jpg) |
+
+<div align="center">
+  <img src="docs/screenshots/05-mobile.jpg" width="300" alt="ROZH Player on a phone" />
+</div>
+
+## Why ROZH
+
+**ROZH** comes from *rozh* — dawn, first light. The logo is the same burning
+sun, and the whole interface is built from that palette: ember gold on
+midnight black. Three simple rules:
+
+1. **Lightweight** — no UI framework, just TypeScript and hand-written CSS.
+   The app itself is ~130 kB of JavaScript (HLS and DASH players are lazy
+   loaded and only fetched when a stream needs them).
+2. **Universal** — video, audio, live streams, subtitles, equalizer, queue,
+   resume, remote-control navigation, and a native FFmpeg fallback on desktop.
+3. **Beautiful** — layered glass surfaces, soft depth, restrained motion, and
+   full respect for `prefers-reduced-motion`.
+
+## Features
+
+### Playback
+- Custom player surface on top of `<video>` with a complete control set
+- **HLS** (`.m3u8`) and **DASH** (`.mpd`) with lazy loading and manual/auto quality
+- Open local media by drag-and-drop, the native file dialog, or the Open button
+- **Queue**, shuffle, repeat (one / all)
+- **Resume where you left off** — every file restarts at the second you stopped
+- Playback speed 0.25×–4× with pitch preservation
+- **A-B loop**, 5 s / 30 s seeks, frame stepping (`, .` or `Alt + ←/→`)
+- Aspect ratio (auto / 16:9 / 4:3 / 21:9 / fill), rotate, horizontal & vertical flip,
+  picture effects (brightness, contrast, saturation, gamma)
+- Sleep timer, screen lock, scene bookmarks, technical stats panel, subtitle sync
+- **Frame capture** (PNG/JPEG) with automatic naming
+- Picture-in-picture, Cast/AirPlay, OS media keys and media session metadata
+- Progress bar with buffered ranges, time tooltip, auto-hiding controls
+
+### Subtitles
+- SRT, WebVTT and **ASS/SSA rendered by libass** (JASSUB — accurate styling)
+- Drop a `.srt`/`.vtt`/`.ass` file onto the player to load it
+- Size, colour and edge style (outline / shadow / box) with a live preview
+- Per-file sync offset (±10 s) for text tracks
+
+### Audio
+- Real **six-band equalizer** (Web Audio, Biquad filters) plus Bass/Voice presets
+- The audio graph is only built while the equalizer is on, so cross-origin
+  streams are never silenced; volume and mute are owned by one code path
+- Spinning artwork view for audio-only files
+- Volume slider, mute, per-source normalization
+
+### Library and history
+- Local library with **automatic poster frames** captured off the playback path
+- Search and filters (video / audio / network)
+- Playback history with progress percentage and "continue from…"
+- Everything stays on your device: no account, no server, no telemetry
+
+### Experience
+- **47 languages** with a searchable picker and automatic RTL/LTR direction;
+  English is the default, Persian and Kurdish are fully translated
+- Five accent colours, three glass levels
+- **TV mode (10-foot UI)**: larger type, visible focus ring, remote navigation
+- Mobile tab bar, collapsing desktop rail, touch gestures (swipe for volume and
+  brightness, double-tap to seek, hold for 2× speed)
+- Ambient embers, soft transitions, full reduced-motion support
+
+## Run and install
+
+### Web (fastest path)
+
+```bash
+npm install
+npm run dev        # http://localhost:5173
+npm run build      # static output in dist/
+```
+
+The web build is a PWA — use "Install" in your browser to run it like a
+standalone app.
+
+### Desktop — Windows, macOS, Linux
+
+Prerequisites: [Rust](https://rustup.rs), Node 18+, and the Tauri system
+packages (on Linux: `libwebkit2gtk-4.1-dev build-essential curl wget file
+libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev`).
+
+```bash
+npm install
+node scripts/fetch-ffmpeg.mjs     # native engine for exotic formats (optional, recommended)
+npm run tauri:dev                 # run the desktop app
+npm run tauri:build               # build installers
+```
+
+Outputs:
+
+| System | File |
+| --- | --- |
+| Windows | `src-tauri/target/release/bundle/nsis/*.exe` (and `.msi`) |
+| macOS | `.../bundle/dmg/*.dmg` |
+| Linux | `.../bundle/deb/*.deb`, `.../bundle/appimage/*.AppImage` |
+
+### Android and Android TV
+
+```bash
+npm run tauri android init            # first time only
+node scripts/patch-android-tv.mjs     # add the LEANBACK category
+npm run tauri android dev             # run on a device or emulator
+npm run tauri android build -- --apk
+```
+
+For **Android TV**, make sure the generated manifest contains:
+
+```xml
+<category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+```
+
+and that `<uses-feature android:name="android.hardware.touchscreen"
+android:required="false" />` is set. The app detects TV devices itself and
+scales the interface up.
+
+## Formats
+
+| Runtime | Video | Audio | Subtitles | Streaming |
+| --- | --- | --- | --- | --- |
+| Web / desktop (WebView) | MP4 (H.264/H.265*), WebM (VP8/VP9/AV1), Ogg | MP3, AAC/M4A, FLAC, WAV, Opus, Ogg | SRT, VTT, ASS/SSA | HLS, DASH |
+| Desktop with native FFmpeg | **MKV, AVI, MOV, TS, M2TS, WMV, FLV, 3GP, ProRes…** | AC3, DTS, EAC3, ALAC, WMA, APE… | all | all |
+
+\* H.265/HEVC depends on the codec installed in the operating system.
+
+On desktop, if the webview cannot decode a file, ROZH automatically remuxes it
+with FFmpeg — or transcodes when necessary — without asking you anything.
+
+## Keyboard shortcuts
+
+| Key | Action |
+| --- | --- |
+| `Space` / `K` | Play / pause |
+| `←` `→` | Seek 5 s back/forward (`Shift`: 30 s) |
+| `↑` `↓` | Volume |
+| `J` / `L` | Seek 10 s back/forward |
+| `M` | Mute |
+| `F` | Fullscreen |
+| `P` | Picture-in-picture |
+| `V` | Subtitles |
+| `C` | Capture frame |
+| `N` / `B` | Next / previous |
+| `E` / `I` / `A` | Effects / stats / aspect ratio |
+| `Z` / `D` | Sleep timer / subtitle sync |
+| `Ctrl/⌘ + B` | Bookmark the current scene |
+| `Q` | Queue |
+| `[` / `]` | Playback speed |
+| `,` / `.` or `Alt + ←/→` | Frame step |
+| `0`–`9` | Jump to 10 %–90 % |
+| `Ctrl/⌘ + O` | Open a file |
+| `Ctrl/⌘ + L` | Open a link |
+| `Ctrl/⌘ + ,` | Settings |
+
+## Languages
+
+47 interface languages, all reachable from **Settings → Appearance**. English,
+Persian (فارسی) and Kurdish (کوردی) carry complete translations; the rest cover
+the navigation, transport and settings vocabulary and fall back key by key to
+English, so the UI never shows a raw key.
+
+Persian, Kurdish, Arabic, Hebrew, Urdu and Pashto switch the whole layout to RTL
+automatically.
+
+## Automated releases (CI)
+
+Pushing a tag that matches `v*` builds the full matrix and publishes a new
+GitHub release with every asset attached:
+
+```bash
+git tag v1.0.2 && git push origin v1.0.2
+```
+
+| Job | Tooling | Output |
+| --- | --- | --- |
+| Windows | `windows-latest` + NSIS | `*-setup.exe` |
+| macOS | `macos-latest`, both architectures | `aarch64.dmg` · `x64.dmg` |
+| Linux | `ubuntu-22.04` | `deb` · `rpm` · `AppImage` |
+| Android | JDK 17 + NDK 27 | `apk` · `aab` |
+| Web | `ubuntu-latest` | `rozh-player-web.zip` |
+
+The release body is generated from [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md).
+
+---
+
+## Project layout
+
+```
+rozh-player/
+├── index.html                 # HTML shell + boot screen
+├── src/
+│   ├── main.ts                # entry point
+│   ├── core/
+│   │   ├── player.ts          # playback engine, controls, subtitles, equalizer
+│   │   ├── shell.ts           # app shell, routing, library
+│   │   ├── store.ts           # settings (localStorage) + library (IndexedDB)
+│   │   ├── native.ts          # Tauri bridge (asset protocol, FFmpeg engine)
+│   │   ├── langs.ts           # language registry and partial dictionaries
+│   │   ├── i18n.ts            # translation dictionary + helpers
+│   │   ├── ui.ts              # toasts, drawers, modals, popovers
+│   │   ├── icons.ts           # inline SVG icon set
+│   │   └── util.ts            # helpers and platform detection
+│   ├── views/                 # library, live, history, settings, about
+│   └── styles/                # theme / app / overlays / player-extras / studio
+├── src-tauri/                 # native Rust shell + Tauri config
+│   └── src/lib.rs             # tray, FFmpeg remux, probe, reveal-in-folder
+├── public/                    # font, icons, demo media, libass
+├── scripts/                   # libass copy, FFmpeg fetch, Android TV patch
+└── docs/                      # architecture, build, third-party, release notes
+```
+
+More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
+[docs/BUILD.md](docs/BUILD.md).
+
+## License
+
+Project code is [MIT](LICENSE). Third-party components keep their own licences —
+see [docs/THIRD-PARTY.md](docs/THIRD-PARTY.md).
+
+<div align="center">
+  <sub>Crafted with ❤ for people who love film and music.</sub>
+</div>

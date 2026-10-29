@@ -1,0 +1,286 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to attach assets to
+        required: true
+        default: v1.0.2
+      only:
+        description: Which platform to build (all, windows, macos, linux, web, android)
+        required: true
+        default: all
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}-${{ github.event.inputs.only || 'all' }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  # ---------------------------------------------------------------- desktop
+  desktop:
+    name: ${{ matrix.label }}
+    # NOTE: the matrix context is not available to a job-level `if`, so the
+    # desktop matrix always runs for a tag; the `only` input just selects the
+    # single-target jobs. (Step-level `if`s may use matrix.key.)
+    if: |
+      github.event_name == 'push' ||
+      github.event.inputs.only == 'all' ||
+      github.event.inputs.only == 'windows' ||
+      github.event.inputs.only == 'macos' ||
+      github.event.inputs.only == 'linux'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # One macOS runner builds both architectures: the hosted macOS pool
+          # queues a second job unpredictably, and a queued job that never
+          # starts is cancelled after 15 minutes.
+          - key: macos
+            label: macOS · Universal
+            platform: macos-latest
+            args: --target aarch64-apple-darwin
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+          - key: linux
+            label: Linux · deb / rpm / AppImage
+            platform: ubuntu-22.04
+            args: ''
+            rust-targets: ''
+          - key: windows
+            label: Windows · x64
+            platform: windows-latest
+            args: --bundles nsis
+            rust-targets: ''
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: ${{ matrix.label }}
+
+      - name: Linux dependencies
+        if: matrix.key == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev \
+            libayatana-appindicator3-dev librsvg2-dev patchelf rpm
+
+      - run: npm ci
+
+      - name: Fetch FFmpeg (optional native engine)
+        continue-on-error: true
+        run: node scripts/fetch-ffmpeg.mjs
+
+      - name: Build installers (macOS — both architectures)
+        if: matrix.key == 'macos'
+        shell: bash
+        run: |
+          set +e
+          ( npm run tauri build -- --target aarch64-apple-darwin \
+            && npm run tauri build -- --target x86_64-apple-darwin ) 2>&1 | tee /tmp/build.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            summary=$(sed -e 's/\x1b\[[0-9;]*m//g' -e 's/%/%25/g' -e 's/\r//g' /tmp/build.log | grep -aiE "error|fail|panic|invalid" | tail -n 30 | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Bundle failed::$summary"
+            exit "$code"
+          fi
+
+      - name: Build installers
+        if: matrix.key != 'macos'
+        shell: bash
+        run: |
+          set +e
+          npm run tauri build -- ${{ matrix.args }} 2>&1 | tee /tmp/build.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            summary=$(sed -e 's/\x1b\[[0-9;]*m//g' -e 's/%/%25/g' -e 's/\r//g' /tmp/build.log | grep -aiE "error|fail|panic|invalid|wix|nsis|light.exe|candle.exe" | tail -n 30 | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Bundle failed::$summary"
+            exit "$code"
+          fi
+
+      - name: Collect bundles
+        shell: bash
+        run: |
+          mkdir -p out
+          find src-tauri/target -path '*bundle*' -type f \
+            \( -name '*.exe' -o -name '*.msi' -o -name '*.dmg' -o -name '*.deb' \
+               -o -name '*.rpm' -o -name '*.AppImage' \) -exec cp {} out/ \;
+          ls -lh out
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: 'ROZH Player ${{ env.TAG }}'
+          body_path: docs/RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+          overwrite_files: true
+          files: out/*
+
+  # -------------------------------------------------------------------- web
+  web:
+    name: Web · PWA bundle
+    if: |
+      github.event_name == 'push' ||
+      github.event.inputs.only == 'all' ||
+      github.event.inputs.only == 'web'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: |
+          cd dist && zip -qr ../rozh-player-web.zip . && cd ..
+          ls -la rozh-player-web.zip
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: 'ROZH Player ${{ env.TAG }}'
+          body_path: docs/RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+          overwrite_files: true
+          files: rozh-player-web.zip
+
+  # ---------------------------------------------------------------- android
+  android:
+    name: Android · APK + AAB
+    if: |
+      github.event_name == 'push' ||
+      github.event.inputs.only == 'all' ||
+      github.event.inputs.only == 'android'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android SDK + NDK
+        shell: bash
+        run: |
+          set -e
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          echo "NDK=$SDK/ndk/27.1.12297006" >> "$GITHUB_ENV"
+          ls "$SDK"
+          PATH="$SDK/cmdline-tools/latest/bin:$PATH"
+          yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$SDK/cmdline-tools/latest/bin/sdkmanager" --install "ndk;27.1.12297006" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: NDK env
+        run: |
+          echo "ANDROID_NDK_HOME=$NDK" >> "$GITHUB_ENV"
+          echo "NDK_HOME=$NDK" >> "$GITHUB_ENV"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          key: android
+
+      - run: npm ci
+
+      - name: Scaffold Android project
+        shell: bash
+        run: npx tauri android init --ci
+
+      - name: Patch manifest for Android TV
+        run: node scripts/patch-android-tv.mjs
+
+      - name: Signing key (ephemeral, CI only)
+        shell: bash
+        run: |
+          mkdir -p src-tauri/keystore
+          keytool -genkeypair -v \
+            -keystore src-tauri/keystore/rozh-ci.jks \
+            -alias rozh \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass rozhplayer -keypass rozhplayer \
+            -dname "CN=ROZH Player, OU=ROZH, O=ROZH, L=Tehran, C=IR"
+          cat > src-tauri/gen/android/keystore.properties <<EOF
+          password=rozhplayer
+          keyAlias=rozh
+          storeFile=$GITHUB_WORKSPACE/src-tauri/keystore/rozh-ci.jks
+          EOF
+
+      - name: Build APK + AAB
+        shell: bash
+        run: |
+          set +e
+          npx tauri android build --apk --aab 2>&1 | tee /tmp/android.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            summary=$(tail -n 80 /tmp/android.log | sed -e 's/%/%25/g' -e 's/\r//g' | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Android build failed::$summary"
+            exit "$code"
+          fi
+
+      - name: Sign APK + AAB
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          echo "Building Android artefacts for $VERSION"
+          KS="$GITHUB_WORKSPACE/src-tauri/keystore/rozh-ci.jks"
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)"
+          mkdir -p out
+          unsigned=$(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' | head -1)
+          echo "unsigned: $unsigned"
+          "$BT/zipalign" -f -p 4 "$unsigned" out/unsigned-aligned.apk
+          "$BT/apksigner" sign --ks "$KS" --ks-pass pass:rozhplayer --key-pass pass:rozhplayer \
+            --out out/"ROZH-Player-$VERSION.apk" out/unsigned-aligned.apk
+          "$BT/apksigner" verify --print-certs out/"ROZH-Player-$VERSION.apk" | head -5
+          aab=$(find src-tauri/gen/android/app/build/outputs/bundle -name '*.aab' | head -1)
+          if [ -n "$aab" ]; then
+            cp "$aab" out/"ROZH-Player-$VERSION.aab"
+            jarsigner -keystore "$KS" -storepass rozhplayer -keypass rozhplayer \
+              out/"ROZH-Player-$VERSION.aab" rozh
+          fi
+          rm -f out/unsigned-aligned.apk
+          ls -lh out
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: 'ROZH Player ${{ env.TAG }}'
+          body_path: docs/RELEASE_NOTES.md
+          draft: false
+          prerelease: false
+          overwrite_files: true
+          files: out/*
