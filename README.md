@@ -34,7 +34,7 @@
 
 | پلتفرم | فایل |
 | --- | --- |
-| ویندوز ۱۰/۱۱ | `ROZH Player_1.0.0_x64-setup.exe` |
+| ویندوز ۱۰/۱۱ | `ROZH.Player_1.0.0_x64-setup.exe` |
 | مک — Apple Silicon | `ROZH.Player_1.0.0_aarch64.dmg` |
 | مک — Intel | `ROZH.Player_1.0.0_x64.dmg` |
 | لینوکس | `.deb` · `.rpm` · `.AppImage` |

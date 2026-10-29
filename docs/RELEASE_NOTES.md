@@ -6,7 +6,7 @@
 
 | پلتفرم | فایل |
 | --- | --- |
-| **Windows 10/11 (x64)** | `ROZH Player_1.0.0_x64-setup.exe` |
+| **Windows 10/11 (x64)** | `ROZH.Player_1.0.0_x64-setup.exe` |
 | **macOS — Apple Silicon (M1/M2/M3/M4)** | `ROZH.Player_1.0.0_aarch64.dmg` |
 | **macOS — Intel** | `ROZH.Player_1.0.0_x64.dmg` |
 | **Linux (Debian/Ubuntu)** | `ROZH.Player_1.0.0_amd64.deb` |
