@@ -1,0 +1,25 @@
+{
+  "name": "ROZH Player",
+  "short_name": "ROZH",
+  "description": "A fast, beautiful, universal media player.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#06080e",
+  "theme_color": "#07090f",
+  "lang": "fa",
+  "dir": "rtl",
+  "categories": ["entertainment", "video", "music", "utilities"],
+  "icons": [
+    { "src": "/icons/rozh-128.png", "sizes": "128x128", "type": "image/png" },
+    { "src": "/icons/rozh-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/rozh-256.png", "sizes": "256x256", "type": "image/png" },
+    { "src": "/icons/rozh-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Library", "url": "/#library", "icons": [{ "src": "/icons/rozh-192.png", "sizes": "192x192" }] },
+    { "name": "Open stream", "url": "/#streams", "icons": [{ "src": "/icons/rozh-192.png", "sizes": "192x192" }] }
+  ]
+}

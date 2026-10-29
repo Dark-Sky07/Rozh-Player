@@ -1,0 +1,327 @@
+/**
+ * ROZH Player — reactive state.
+ * Settings live in localStorage (tiny, synchronous); the media library and
+ * history live in IndexedDB so thumbnails and resume points survive reloads.
+ */
+
+import { storage, uid, platform } from './util';
+
+export type Accent = 'ember' | 'crimson' | 'azure' | 'jade' | 'violet';
+export type Glass = 'soft' | 'balanced' | 'bold';
+export type LoopMode = 'off' | 'all' | 'one';
+export type Fit = 'contain' | 'cover' | 'fill' | 'zoom';
+export type Lang = 'fa' | 'en';
+
+export interface Settings {
+  accent: Accent;
+  glass: Glass;
+  motion: 'full' | 'reduced';
+  lang: Lang;
+  sidebar: 'open' | 'collapsed';
+  volume: number;
+  muted: boolean;
+  rate: number;
+  autoplay: boolean;
+  resume: boolean;
+  loop: LoopMode;
+  shuffle: boolean;
+  fit: Fit;
+  seekStep: number;
+  volumeStep: number;
+  seekStepLong: number;
+  subSize: number;
+  subColor: string;
+  subShadow: number;
+  subBg: number;
+  subFontStyle: 'outline' | 'shadow' | 'box';
+  eqEnabled: boolean;
+  eq: number[];
+  tv: 'auto' | 'on' | 'off';
+  thumbnails: boolean;
+  screenshotFormat: 'png' | 'jpeg';
+  confirmExit: boolean;
+  hlsQuality: number; // -1 = auto
+  audioOnlyQuality: 'auto' | 'high' | 'data';
+  sdrBoost: boolean;
+  showEmbers: boolean;
+  seenWelcome: boolean;
+}
+
+export type MediaKind = 'video' | 'audio' | 'stream';
+
+export interface MediaItem {
+  id: string;
+  name: string;
+  title: string;
+  kind: MediaKind;
+  source: 'local' | 'url' | 'demo';
+  url?: string;
+  size: number;
+  duration: number;
+  position: number;
+  addedAt: number;
+  playedAt: number;
+  thumb?: string;
+  ext: string;
+  inLibrary: boolean;
+  plays: number;
+}
+
+const DEFAULT_SETTINGS: Settings = {
+  accent: 'ember',
+  glass: 'balanced',
+  motion: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'reduced' : 'full',
+  lang: 'fa',
+  sidebar: 'open',
+  volume: 0.9,
+  muted: false,
+  rate: 1,
+  autoplay: true,
+  resume: true,
+  loop: 'off',
+  shuffle: false,
+  fit: 'contain',
+  seekStep: 5,
+  volumeStep: 0.05,
+  seekStepLong: 30,
+  subSize: 100,
+  subColor: '#ffffff',
+  subShadow: 40,
+  subBg: 55,
+  subFontStyle: 'outline',
+  eqEnabled: false,
+  eq: [0, 0, 0, 0, 0, 0],
+  tv: platform.tv ? 'on' : 'auto',
+  thumbnails: true,
+  screenshotFormat: 'png',
+  confirmExit: true,
+  hlsQuality: -1,
+  audioOnlyQuality: 'auto',
+  sdrBoost: false,
+  showEmbers: true,
+  seenWelcome: false,
+};
+
+/* ------------------------------------------------------------------ */
+/* IndexedDB (tiny promise wrapper)                                    */
+/* ------------------------------------------------------------------ */
+
+const DB_NAME = 'rozh-player';
+const DB_VERSION = 1;
+const STORE = 'state';
+
+let dbPromise: Promise<IDBDatabase> | null = null;
+
+function db(): Promise<IDBDatabase> {
+  if (dbPromise) return dbPromise;
+  dbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = () => {
+      const d = req.result;
+      if (!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE);
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return dbPromise;
+}
+
+async function idbGet<T>(key: string): Promise<T | undefined> {
+  try {
+    const d = await db();
+    return await new Promise<T | undefined>((resolve, reject) => {
+      const tx = d.transaction(STORE, 'readonly');
+      const req = tx.objectStore(STORE).get(key);
+      req.onsuccess = () => resolve(req.result as T | undefined);
+      req.onerror = () => reject(req.error);
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+async function idbSet(key: string, value: unknown): Promise<void> {
+  try {
+    const d = await db();
+    await new Promise<void>((resolve, reject) => {
+      const tx = d.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).put(value, key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {
+    /* storage unavailable (private mode) — state stays in memory */
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* store                                                               */
+/* ------------------------------------------------------------------ */
+
+type Listener = () => void;
+
+class Store {
+  settings: Settings = { ...DEFAULT_SETTINGS, ...storage.get<Partial<Settings>>('settings', {}) };
+  media: MediaItem[] = [];
+  resumeMap: Record<string, { pos: number; at: number }> = storage.get('resume', {});
+  ready = false;
+
+  private listeners = new Set<Listener>();
+
+  async init(): Promise<void> {
+    const media = await idbGet<MediaItem[]>('media');
+    if (Array.isArray(media)) this.media = media;
+    this.ready = true;
+    this.emit();
+  }
+
+  subscribe(fn: Listener): () => void {
+    this.listeners.add(fn);
+    return () => this.listeners.delete(fn);
+  }
+
+  emit(): void {
+    this.listeners.forEach((fn) => fn());
+  }
+
+  /* ---------------- settings ---------------- */
+  patch(patch: Partial<Settings>): void {
+    this.settings = { ...this.settings, ...patch };
+    storage.set('settings', this.settings);
+    applySettings(this.settings);
+    this.emit();
+  }
+
+  resetSettings(): void {
+    this.settings = { ...DEFAULT_SETTINGS, lang: this.settings.lang };
+    storage.set('settings', this.settings);
+    applySettings(this.settings);
+    this.emit();
+  }
+
+  /* ---------------- media ---------------- */
+  private persist = (() => {
+    let timer: number | undefined;
+    return (): void => {
+      if (timer) clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        void idbSet('media', this.media);
+      }, 350);
+    };
+  })();
+
+  addMedia(item: Partial<MediaItem> & { name: string }): MediaItem {
+    const existing = this.media.find(
+      (m) => m.name === item.name && m.size === (item.size ?? 0) && m.source === (item.source ?? 'local'),
+    );
+    if (existing) {
+      if (item.thumb && !existing.thumb) existing.thumb = item.thumb;
+      if (item.duration) existing.duration = item.duration;
+      existing.inLibrary = existing.inLibrary || !!item.inLibrary;
+      this.persist();
+      this.emit();
+      return existing;
+    }
+    const now = Date.now();
+    const created: MediaItem = {
+      id: uid('m'),
+      name: item.name,
+      title: item.title ?? item.name,
+      kind: item.kind ?? 'video',
+      source: item.source ?? 'local',
+      url: item.url,
+      size: item.size ?? 0,
+      duration: item.duration ?? 0,
+      position: 0,
+      addedAt: now,
+      playedAt: 0,
+      thumb: item.thumb,
+      ext: item.ext ?? (item.name.split('.').pop() ?? '').toLowerCase(),
+      inLibrary: item.inLibrary ?? true,
+      plays: 0,
+    };
+    this.media.unshift(created);
+    this.persist();
+    this.emit();
+    return created;
+  }
+
+  updateMedia(id: string, patch: Partial<MediaItem>): void {
+    const item = this.media.find((m) => m.id === id);
+    if (!item) return;
+    Object.assign(item, patch);
+    this.persist();
+    this.emit();
+  }
+
+  removeMedia(id: string): void {
+    this.media = this.media.filter((m) => m.id !== id);
+    this.persist();
+    this.emit();
+  }
+
+  clearLibrary(): void {
+    this.media = [];
+    this.persist();
+    this.emit();
+  }
+
+  clearHistory(): void {
+    this.media.forEach((m) => {
+      m.playedAt = 0;
+      m.position = 0;
+      m.plays = 0;
+    });
+    this.resumeMap = {};
+    storage.set('resume', {});
+    this.persist();
+    this.emit();
+  }
+
+  library(): MediaItem[] {
+    return this.media.filter((m) => m.inLibrary);
+  }
+
+  recent(limit = 40): MediaItem[] {
+    return this.media
+      .filter((m) => m.playedAt > 0)
+      .sort((a, b) => b.playedAt - a.playedAt)
+      .slice(0, limit);
+  }
+
+  /* ---------------- resume ---------------- */
+  fingerprint(name: string, size: number): string {
+    return `${name}::${size}`;
+  }
+
+  getResume(name: string, size: number): number {
+    if (!this.settings.resume) return 0;
+    const rec = this.resumeMap[this.fingerprint(name, size)];
+    if (!rec) return 0;
+    // ignore resume points in the last 20 seconds, or ancient ones
+    if (Date.now() - rec.at > 1000 * 60 * 60 * 24 * 60) return 0;
+    return rec.pos;
+  }
+
+  setResume(name: string, size: number, pos: number): void {
+    if (!this.settings.resume) return;
+    if (pos < 5) return;
+    this.resumeMap[this.fingerprint(name, size)] = { pos, at: Date.now() };
+    storage.set('resume', this.resumeMap);
+  }
+}
+
+export const store = new Store();
+
+/** Push settings into CSS custom properties + document attributes. */
+export function applySettings(s: Settings): void {
+  const root = document.documentElement;
+  root.dataset.accent = s.accent;
+  root.dataset.glass = s.glass;
+  root.dataset.motion = s.motion;
+  root.dataset.tv = s.tv === 'on' ? 'true' : s.tv === 'off' ? 'false' : platform.tv ? 'true' : 'false';
+  root.lang = s.lang;
+  root.dir = s.lang === 'fa' ? 'rtl' : 'ltr';
+  root.style.setProperty('--sub-size', `${s.subSize}%`);
+  root.style.setProperty('--sub-color', s.subColor);
+}

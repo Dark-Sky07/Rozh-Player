@@ -1,0 +1,30 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+dist-ssr/
+*.local
+
+# rust / tauri
+src-tauri/target/
+src-tauri/gen/
+src-tauri/bin/ffmpeg
+src-tauri/bin/ffmpeg.exe
+src-tauri/WixTools/
+
+# libass runtime assets (copied from node_modules by scripts/copy-libass.mjs)
+public/jassub/
+
+# editor / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# logs
+*.log
+npm-debug.log*
