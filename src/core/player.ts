@@ -9,7 +9,7 @@
 
 import { icon, hydrateIcons } from './icons';
 import { t, n } from './i18n';
-import { store, type Fit, type LoopMode } from './store';
+import { store, type Aspect, type Fit, type LoopMode } from './store';
 import { openDrawer, openPopover, toast, type PopItem } from './ui';
 import { openUrlModal } from '../views/streams';
 import { remuxToPlayable, revealInFolder, type NativeFile } from './native';
@@ -98,6 +98,12 @@ const TEMPLATE = `
       </div>
 
       <div class="gesture-hud"><span class="gh-ico">${icon('volume-2')}</span><span class="gh-text"></span></div>
+      <div class="sleep-chip" hidden></div>
+      <div class="stats-panel mono" hidden></div>
+      <div class="lock-veil" hidden>
+        <span class="lv-ico">${icon('lock')}</span>
+        <span class="lv-text">${t('player.locked')}</span>
+      </div>
 
       <div class="stage-top">
         <div class="now-mini">
@@ -111,6 +117,9 @@ const TEMPLATE = `
           <button class="iconbtn" data-act="capture" data-tip="${t('player.capture')}" aria-label="${t(
             'player.capture',
           )}">${icon('camera')}</button>
+          <button class="iconbtn" data-act="tools" data-tip="${t('player.settings')}" aria-label="${t(
+            'player.settings',
+          )}">${icon('sliders')}</button>
           <button class="iconbtn" data-act="pip" data-tip="${t('player.pip')}" aria-label="${t('player.pip')}">${icon(
             'pip',
           )}</button>
@@ -120,7 +129,7 @@ const TEMPLATE = `
           )}">${icon('subtitles')}</button>
           <button class="iconbtn" data-act="eq" data-tip="${t('player.equalizer')}" aria-label="${t(
             'player.equalizer',
-          )}">${icon('sliders')}</button>
+          )}">${icon('audio-wave')}</button>
         </div>
       </div>
 
@@ -168,6 +177,9 @@ const TEMPLATE = `
           <button class="iconbtn" data-act="fit" data-tip="${t('player.fit')}" aria-label="${t('player.fit')}">${icon(
             'eye',
           )}</button>
+          <button class="iconbtn" data-act="tools" data-tip="${t('player.settings')}" aria-label="${t(
+            'player.settings',
+          )}">${icon('sliders')}</button>
           <button class="iconbtn" data-act="pip" data-tip="${t('player.pip')}" aria-label="${t('player.pip')}">${icon(
             'pip',
           )}</button>
@@ -240,10 +252,17 @@ export class Player {
   private dashLevels: { height?: number; bitrate?: number; index: number }[] = [];
   private jassub: { destroy: () => void } | null = null;
   private objectUrls: string[] = [];
-  private userSubs: { label: string; url: string; track: HTMLTrackElement }[] = [];
+  private userSubs: { label: string; url: string; track: HTMLTrackElement; cues?: SubCue[] }[] = [];
+  private statsTimer = 0;
+  private sleepAt = 0;
+  private locked = false;
+  private engine: 'native' | 'hls' | 'dash' = 'native';
+  private pressTimer = 0;
+  private boostFrom = 1;
   private audioCtx: AudioContext | null = null;
   private eqNodes: BiquadFilterNode[] = [];
   private masterGain: GainNode | null = null;
+  private audioGraphWarned = false;
   private eqGainDb: number[] = [...store.settings.eq];
 
   private hideTimer = 0;
@@ -273,7 +292,37 @@ export class Player {
     this.syncShuffle(store.settings.shuffle);
     this.applySubtitleStyle();
     this.video.playbackRate = store.settings.rate;
+    this.applyEffects();
+    this.syncStats();
     this.startIdleLoop();
+
+    // the sleep timer and the subtitle clock share one cheap tick
+    const tick = window.setInterval(() => {
+      this.syncSleepChip();
+      if (this.sleepAt && Date.now() >= this.sleepAt) {
+        this.sleepAt = 0;
+        store.patch({ sleepTimer: 0 });
+        this.pause();
+        this.syncSleepChip();
+        toast(t('player.sleepEnd'), 'info', 2600);
+      }
+    }, 1000);
+    this.disposers.push(() => clearInterval(tick));
+
+    // forced aspect ratios need the stage size
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => this.applyAspect());
+      ro.observe(this.stage);
+      this.disposers.push(() => ro.disconnect());
+    }
+
+    this.locked = store.settings.lock;
+    $('.lock-veil', this.root)?.toggleAttribute('hidden', !this.locked);
+    $('.lock-veil', this.root)?.addEventListener('click', () => {
+      this.locked = false;
+      store.patch({ lock: false });
+      $('.lock-veil', this.root)?.toggleAttribute('hidden', true);
+    });
   }
 
   /* ================================================================ */
@@ -291,9 +340,7 @@ export class Player {
     this.stage.dataset.state = isAudio ? 'audio' : 'video';
     this.wrap.dataset.empty = 'false';
     this.video.poster = item.thumb ?? '';
-    this.video.style.filter = `brightness(${this.brightness}) contrast(${
-      store.settings.sdrBoost ? 1.06 : 1
-    }) saturate(${store.settings.sdrBoost ? 1.12 : 1})`;
+    this.applyEffects();
 
     this.setText(item.title, item.isStream ? t('player.stream') : isAudio ? t('player.audioOnly') : t('player.local'));
     this.updateMeta(item);
@@ -313,6 +360,7 @@ export class Player {
     this.video.src = '';
     this.video.removeAttribute('src');
 
+    this.engine = 'native';
     try {
       if (isHls) await this.attachHls(url);
       else if (isDash) await this.attachDash(url);
@@ -341,6 +389,7 @@ export class Player {
   private pendingStart = 0;
 
   private async attachHls(url: string): Promise<void> {
+    this.engine = 'hls';
     const mod = (await import('hls.js')) as unknown as {
       default: { isSupported(): boolean; new (cfg: Record<string, unknown>): HlsLike } & {
         Events: Record<string, string>;
@@ -377,6 +426,7 @@ export class Player {
   }
 
   private async attachDash(url: string): Promise<void> {
+    this.engine = 'dash';
     const mod = (await import('dashjs')) as unknown as {
       MediaPlayer?: () => { create(): Record<string, unknown> };
       default?: { MediaPlayer?: () => { create(): Record<string, unknown> } };
@@ -487,19 +537,29 @@ export class Player {
     this.seek((p / 100) * this.duration);
   }
 
+  /**
+   * Nudge by a single frame, the way VLC/PotPlayer do. The interval comes from
+   * the `frameStepMs` setting so badly tagged files still behave predictably.
+   */
   stepFrame(dir: 1 | -1): void {
     if (!this.current) return;
+    const ms = clamp(store.settings.frameStepMs || 40, 4, 1000);
+    const dur = Number.isFinite(this.video.duration) ? this.video.duration : Number.POSITIVE_INFINITY;
     this.pause();
-    this.seek(this.video.currentTime + dir / 30);
+    this.video.currentTime = clamp(this.video.currentTime + (dir * ms) / 1000, 0, dur);
+    this.flashHud(dir > 0 ? 'forward' : 'back', `${dir > 0 ? '+' : '−'}${n(ms)} ms`);
+    this.showUi();
   }
 
-  setRate(rate: number): void {
+  setRate(rate: number, silent = false): void {
     const r = clamp(rate, 0.25, 4);
     store.patch({ rate: r });
     this.video.playbackRate = r;
-    (this.video as HTMLVideoElement & { preservesPitch?: boolean }).preservesPitch = true;
+    const v = this.video as HTMLVideoElement & { preservesPitch?: boolean; mozPreservesPitch?: boolean };
+    v.preservesPitch = store.settings.pitch;
+    v.mozPreservesPitch = store.settings.pitch;
     this.syncRateChip();
-    toast(`${t('player.speed')} · ${r}×`, 'info', 1200);
+    if (!silent) toast(`${t('player.speed')} · ${n(r)}×`, 'info', 1200);
   }
 
   setVolume(v: number): void {
@@ -509,16 +569,26 @@ export class Player {
     this.applyVolume();
   }
 
+  /**
+   * Single source of truth for loudness.
+   *
+   * The equalizer moves audio into a Web Audio graph, which detaches it from
+   * the element's own volume control — so when a graph exists the gain node
+   * carries the level and the element stays at 1. When it does not (the normal
+   * case, and the only case on Firefox/Safari where a tainted source would be
+   * silenced) the element handles volume and mute itself.
+   */
   private applyVolume(): void {
     const s = store.settings;
-    const eff = s.muted ? 0 : s.volume;
-    if (this.masterGain) {
+    const eff = clamp(s.muted ? 0 : s.volume, 0, 1);
+    this.video.muted = s.muted;
+    if (this.masterGain && this.audioCtx) {
       this.video.volume = 1;
-      this.masterGain.gain.value = eff;
+      this.masterGain.gain.setTargetAtTime(eff, this.audioCtx.currentTime, 0.01);
+      if (eff > 0 && this.audioCtx.state === 'suspended') void this.audioCtx.resume();
     } else {
       this.video.volume = eff;
     }
-    this.video.muted = s.muted && !this.masterGain;
     this.syncVolumeUi();
   }
 
@@ -664,16 +734,21 @@ export class Player {
       toast(`${t('player.subLoaded')} · ${escapeHtml(file.name)}`, 'ok');
       return;
     }
-    const text = await file.text();
-    const vtt = e === 'vtt' ? text : srtToVtt(text);
-    const blob = new Blob([vtt], { type: 'text/vtt' });
-    const url = URL.createObjectURL(blob);
+    const raw = await file.text();
+    const cues = parseCues(e === 'vtt' ? raw : srtToVtt(raw));
+    if (!cues.length) {
+      toast(`${t('player.error')} · ${escapeHtml(file.name)}`, 'warn');
+      return;
+    }
+    const url = URL.createObjectURL(
+      new Blob([buildVtt(cues, store.settings.subOffsetMs)], { type: 'text/vtt' }),
+    );
     this.objectUrls.push(url);
-    this.attachTextTrack(url, file.name, true);
+    this.attachTextTrack(url, file.name, true, cues);
     toast(`${t('player.subLoaded')} · ${escapeHtml(file.name)}`, 'ok');
   }
 
-  private attachTextTrack(url: string, label: string, show: boolean): void {
+  private attachTextTrack(url: string, label: string, show: boolean, cues?: SubCue[]): void {
     const track = document.createElement('track');
     track.kind = 'subtitles';
     track.label = label;
@@ -685,7 +760,7 @@ export class Player {
       if (show) this.showTrack(track);
     });
     if (show) this.showTrack(track);
-    this.userSubs.push({ label, url, track });
+    this.userSubs.push({ label, url, track, cues });
   }
 
   private showTrack(target: HTMLTrackElement): void {
@@ -806,13 +881,32 @@ export class Player {
 
   private async ensureAudioGraph(): Promise<void> {
     if (this.audioCtx) {
-      if (this.audioCtx.state === 'suspended') await this.audioCtx.resume();
+      if (this.audioCtx.state !== 'running') {
+        try {
+          await this.audioCtx.resume();
+        } catch {
+          /* the next gesture retries */
+        }
+      }
       return;
     }
     const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!Ctx) return;
+    // A tainted (cross-origin, no CORS) media element produces silence once it
+    // is routed through Web Audio. Leave the native pipeline alone in that case.
+    if (!this.canAttachAudioGraph()) {
+      this.warnAudioGraphBlocked();
+      return;
+    }
     const ctx = new Ctx();
-    const src = ctx.createMediaElementSource(this.video);
+    let src: MediaElementAudioSourceNode;
+    try {
+      src = ctx.createMediaElementSource(this.video);
+    } catch {
+      // Already attached (or a CORS-tainted source): leave the element alone.
+      await ctx.close().catch(() => undefined);
+      return;
+    }
     const freqs = [60, 170, 400, 1000, 3500, 10000];
     const types: BiquadFilterType[] = ['lowshelf', 'peaking', 'peaking', 'peaking', 'peaking', 'highshelf'];
     const nodes: BiquadFilterNode[] = freqs.map((f, i) => {
@@ -835,8 +929,28 @@ export class Player {
     this.audioCtx = ctx;
     this.eqNodes = nodes;
     this.masterGain = gain;
-    this.video.volume = 1;
-    if (ctx.state === 'suspended') await ctx.resume();
+    if (ctx.state !== 'running') await ctx.resume().catch(() => undefined);
+    // applyVolume() now owns the level: element at unity, gain carries volume
+    // *and* mute, so a muted user is not un-muted by building the graph.
+    this.applyVolume();
+  }
+
+  /** Same-origin or blob/media-stream sources are safe to route through Web Audio. */
+  private canAttachAudioGraph(): boolean {
+    const src = this.video.currentSrc || this.video.src;
+    if (!src || src.startsWith('blob:') || src.startsWith('data:') || src.startsWith('mediastream:')) return true;
+    try {
+      return new URL(src, location.href).origin === location.origin;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Explain once why the equalizer cannot process a remote stream. */
+  private warnAudioGraphBlocked(): void {
+    if (this.audioGraphWarned) return;
+    this.audioGraphWarned = true;
+    toast(t('player.eqCors'), 'warn', 4200);
   }
 
   async setEqBand(index: number, db: number): Promise<void> {
@@ -855,9 +969,489 @@ export class Player {
       this.eqNodes.forEach((node, i) => (node.gain.value = this.eqGainDb[i] ?? 0));
       this.applyVolume();
     } else {
+      // 0 dB is unity for shelf/peak filters — the chain stays transparent
       this.eqNodes.forEach((node) => (node.gain.value = 0));
+      this.eqGainDb = [0, 0, 0, 0, 0, 0];
     }
     this.applyVolume();
+  }
+
+  /* ================================================================ */
+  /* tools: VLC / PotPlayer style extras                              */
+  /* ================================================================ */
+
+  private openToolsDrawer(): void {
+    const tiles: [string, string, string][] = [
+      ['effects', 'sliders', t('player.effects')],
+      ['playback', 'monitor', t('player.aspect')],
+      ['sync', 'type', t('player.sync')],
+      ['sleep', 'clock', t('player.sleep')],
+      ['bookmarks', 'bookmark', t('player.bookmarks')],
+      ['stats', 'gauge', t('player.stats')],
+      ['lock', 'lock', t('player.lock')],
+    ];
+    openDrawer({
+      title: t('player.settings'),
+      icon: 'sliders',
+      body: `<div class="tool-grid">${tiles
+        .map(
+          ([id, ico, label]) =>
+            `<button class="tool-tile" data-tool="${id}"><span class="tt-ico">${icon(
+              ico,
+            )}</span><span class="tt-label">${label}</span></button>`,
+        )
+        .join('')}</div>`,
+      onMount: (body, close) => {
+        $$('[data-tool]', body).forEach((btn) =>
+          btn.addEventListener('click', () => {
+            const tool = (btn as HTMLElement).dataset.tool;
+            close();
+            setTimeout(() => {
+              if (tool === 'effects') this.openEffectsDrawer();
+              else if (tool === 'playback') this.openPlaybackDrawer();
+              else if (tool === 'sync') this.openSyncDrawer();
+              else if (tool === 'sleep') this.openSleepDrawer();
+              else if (tool === 'bookmarks') this.openBookmarksDrawer();
+              else if (tool === 'stats') {
+                this.toggleStats();
+                toast(store.settings.stats ? t('settings.on') : t('settings.off'), 'info', 1200);
+              } else if (tool === 'lock') this.toggleLock();
+            }, 180);
+          }),
+        );
+      },
+    });
+  }
+
+  private openEffectsDrawer(): void {
+    const presets: [string, Partial<typeof store.settings.effects>][] = [
+      ['none', { brightness: 1, contrast: 1, saturation: 1, hue: 0, blur: 0, grayscale: 0 }],
+      ['cinema', { brightness: 0.96, contrast: 1.16, saturation: 0.92, hue: -6, blur: 0, grayscale: 0 }],
+      ['vivid', { brightness: 1.06, contrast: 1.14, saturation: 1.34, hue: 4, blur: 0, grayscale: 0 }],
+      ['soft', { brightness: 1.02, contrast: 0.94, saturation: 1.05, hue: 0, blur: 0.7, grayscale: 0 }],
+      ['mono', { brightness: 1.02, contrast: 1.12, saturation: 1, hue: 0, blur: 0, grayscale: 1 }],
+    ];
+    const e = store.settings.effects;
+    const rows: [keyof typeof e, string, number, number, number, string][] = [
+      ['brightness', t('player.brightness'), 0.4, 1.8, 0.02, ''],
+      ['contrast', t('player.contrast'), 0.5, 1.8, 0.02, ''],
+      ['saturation', t('player.saturation'), 0, 2.4, 0.02, ''],
+      ['hue', t('player.hue'), -180, 180, 1, '°'],
+      ['blur', t('player.blur'), 0, 4, 0.1, 'px'],
+      ['grayscale', t('player.grayscale'), 0, 1, 0.05, ''],
+    ];
+    openDrawer({
+      title: t('player.effects'),
+      icon: 'sliders',
+      body: `
+        <p class="drawer-note">${t('player.effectsSub')}</p>
+        <div class="fx-presets">
+          ${presets
+            .map(
+              ([id]) =>
+                `<button class="chip" data-preset="${id}">${t(`player.preset.${id}`)}</button>`,
+            )
+            .join('')}
+        </div>
+        <div class="fx-list">
+          ${rows
+            .map(
+              ([key, label, min, max, step, unit]) => `
+            <label class="fx-row">
+              <span class="fx-label">${label}</span>
+              <input class="range fx-range" type="range" data-fx="${key}" min="${min}" max="${max}" step="${step}" value="${e[key]}" />
+              <span class="fx-val mono" data-val="${key}">${e[key]}${unit}</span>
+            </label>`,
+            )
+            .join('')}
+        </div>
+        <div class="drawer-foot"><button class="btn btn-sm btn-ghost" data-reset>${t('player.resetAll')}</button></div>`,
+      onMount: (body) => {
+        const setValue = (key: string, value: number): void => {
+          const out = $(`[data-val="${key}"]`, body);
+          const unit = key === 'hue' ? '°' : key === 'blur' ? 'px' : '';
+          if (out) out.textContent = `${value}${unit}`;
+        };
+        $$('input[data-fx]', body).forEach((el) => {
+          const input = el as HTMLInputElement;
+          const key = input.dataset.fx as keyof typeof e;
+          input.addEventListener('input', () => {
+            const value = Number(input.value);
+            store.patch({ effects: { ...store.settings.effects, [key]: value } });
+            this.applyEffects();
+            setValue(key, value);
+          });
+        });
+        $$('[data-preset]', body).forEach((el) =>
+          el.addEventListener('click', () => {
+            const id = (el as HTMLElement).dataset.preset as string;
+            const preset = presets.find(([p]) => p === id)?.[1];
+            if (!preset) return;
+            store.patch({ effects: { ...store.settings.effects, ...preset } });
+            this.applyEffects();
+            $$('input[data-fx]', body).forEach((node) => {
+              const input = node as HTMLInputElement;
+              const key = input.dataset.fx as keyof typeof preset;
+              const value = preset[key];
+              if (typeof value === 'number') {
+                input.value = String(value);
+                setValue(key as string, value);
+              }
+            });
+            $$('[data-preset]', body).forEach((n) => n.classList.remove('is-on'));
+            el.classList.add('is-on');
+          }),
+        );
+        $('[data-reset]', body)?.addEventListener('click', () => {
+          store.patch({
+            effects: { brightness: 1, contrast: 1, saturation: 1, hue: 0, blur: 0, grayscale: 0 },
+            sdrBoost: false,
+          });
+          this.applyEffects();
+          this.openEffectsDrawer();
+        });
+      },
+    });
+  }
+
+  private openPlaybackDrawer(): void {
+    const s = store.settings;
+    const aspects: Aspect[] = ['auto', '16:9', '4:3', '21:9', 'fill', 'stretch'];
+    openDrawer({
+      title: t('player.aspect'),
+      icon: 'monitor',
+      body: `
+        <p class="drawer-note">${t('settings.videoSub')}</p>
+        <div class="chips-label">${t('player.aspect')}</div>
+        <div class="chip-grid">
+          ${aspects
+            .map(
+              (a) =>
+                `<button class="chip ${s.aspect === a ? 'is-on' : ''}" data-aspect="${a}">${t(
+                  `player.aspect.${a}`,
+                )}</button>`,
+            )
+            .join('')}
+        </div>
+        <div class="chips-label">${t('player.rotate')} · ${t('player.zoom')}</div>
+        <div class="row-btns">
+          <button class="btn btn-sm" data-act-tool="rotate">${icon('rotate')}${n(90)}°</button>
+          <button class="btn btn-sm ${s.flipH ? 'is-on' : ''}" data-act-tool="flipH">${icon(
+            'layers',
+          )}${t('player.flipH')}</button>
+          <button class="btn btn-sm ${s.flipV ? 'is-on' : ''}" data-act-tool="flipV">${icon(
+            'layers',
+          )}${t('player.flipV')}</button>
+        </div>
+        <div class="chips-label">${t('player.speed')}</div>
+        <div class="chip-grid">
+          ${[0.5, 0.75, 1, 1.25, 1.5, 2]
+            .map(
+              (r) =>
+                `<button class="chip ${Math.abs(s.rate - r) < 0.01 ? 'is-on' : ''}" data-rate="${r}">${n(
+                  r,
+                )}×</button>`,
+            )
+            .join('')}
+        </div>
+        <div class="row-btns" style="margin-top:14px">
+          <button class="btn btn-sm ${s.pitch ? 'is-on' : ''}" data-act-tool="pitch">${icon('music')}${t(
+            'player.pitch',
+          )}</button>
+        </div>`,
+      onMount: (body) => {
+        $$('[data-aspect]', body).forEach((el) =>
+          el.addEventListener('click', () => {
+            $$('[data-aspect]', body).forEach((n2) => n2.classList.remove('is-on'));
+            el.classList.add('is-on');
+            this.setAspect(((el as HTMLElement).dataset.aspect as Aspect) ?? 'auto');
+          }),
+        );
+        $$('[data-rate]', body).forEach((el) =>
+          el.addEventListener('click', () => {
+            const rate = Number((el as HTMLElement).dataset.rate);
+            this.setRate(rate);
+            $$('[data-rate]', body).forEach((n2) => n2.classList.remove('is-on'));
+            el.classList.add('is-on');
+          }),
+        );
+        $$('[data-act-tool]', body).forEach((el) =>
+          el.addEventListener('click', () => {
+            const tool = (el as HTMLElement).dataset.actTool;
+            if (tool === 'rotate') this.rotate();
+            else if (tool === 'flipH') {
+              this.toggleFlip('h');
+              el.classList.toggle('is-on');
+            } else if (tool === 'flipV') {
+              this.toggleFlip('v');
+              el.classList.toggle('is-on');
+            } else if (tool === 'pitch') {
+              const on = !store.settings.pitch;
+              store.patch({ pitch: on });
+              (this.video as HTMLVideoElement & { preservesPitch?: boolean }).preservesPitch = on;
+              el.classList.toggle('is-on', on);
+            }
+          }),
+        );
+      },
+    });
+  }
+
+  private openSyncDrawer(): void {
+    openDrawer({
+      title: t('player.sync'),
+      icon: 'type',
+      body: `
+        <p class="drawer-note">${t('player.subDelay')}</p>
+        <label class="fx-row">
+          <span class="fx-label">${t('player.subDelay')}</span>
+          <input class="range" id="sub-delay" type="range" min="-5000" max="5000" step="100" value="${store.settings.subOffsetMs}" />
+          <span class="fx-val mono" id="sub-delay-val">${(store.settings.subOffsetMs / 1000).toFixed(1)}s</span>
+        </label>
+        <div class="row-btns" style="margin-top:12px">
+          <button class="btn btn-sm" id="sub-minus">− ${n(0.1)}s</button>
+          <button class="btn btn-sm" id="sub-plus">+ ${n(0.1)}s</button>
+          <button class="btn btn-sm btn-ghost" id="sub-zero">${t('common.default')}</button>
+        </div>
+        <p class="drawer-note" style="margin-top:18px">${t('player.assNote')}</p>`,
+      onMount: (body) => {
+        const range = $('#sub-delay', body) as HTMLInputElement;
+        const out = $('#sub-delay-val', body)!;
+        const apply = (ms: number): void => {
+          range.value = String(ms);
+          out.textContent = `${(ms / 1000).toFixed(1)}s`;
+          this.setSubOffset(ms);
+        };
+        range.addEventListener('input', () => apply(Number(range.value)));
+        $('#sub-minus', body)?.addEventListener('click', () => apply(Number(range.value) - 100));
+        $('#sub-plus', body)?.addEventListener('click', () => apply(Number(range.value) + 100));
+        $('#sub-zero', body)?.addEventListener('click', () => apply(0));
+      },
+    });
+  }
+
+  private openSleepDrawer(): void {
+    const options = [0, 15, 30, 45, 60, 90, 120];
+    openDrawer({
+      title: t('player.sleep'),
+      icon: 'clock',
+      body: `
+        <p class="drawer-note">${t('settings.sleepSub')}</p>
+        <div class="chip-grid">
+          ${options
+            .map(
+              (m) =>
+                `<button class="chip ${store.settings.sleepTimer === m ? 'is-on' : ''}" data-sleep="${m}">${
+                  m === 0 ? t('player.sleepOff') : `${n(m)} ${t('settings.minutes')}`
+                }</button>`,
+            )
+            .join('')}
+        </div>`,
+      onMount: (body, close) => {
+        $$('[data-sleep]', body).forEach((el) =>
+          el.addEventListener('click', () => {
+            this.setSleep(Number((el as HTMLElement).dataset.sleep));
+            close();
+          }),
+        );
+      },
+    });
+  }
+
+  private openBookmarksDrawer(): void {
+    const key = this.current?.key ?? '';
+    const render = (): string => {
+      const marks = store.marks(key);
+      if (!marks.length) return `<div class="empty-panel"><span class="ico-wrap">${icon('bookmark')}</span><p>${t('player.bookmarksEmpty')}</p></div>`;
+      return `<div class="q-list">${marks
+        .map(
+          (m) =>
+            `<div class="q-item is-active" data-jump="${m.t}">
+              <span class="q-idx">${icon('bookmark')}</span>
+              <span class="q-meta"><span class="q-name">${escapeHtml(m.label)}</span><span class="q-sub mono">${fmtTime(
+                m.t,
+              )}</span></span>
+              <button class="iconbtn btn-sm" data-drop="${m.at}" aria-label="${t('common.remove')}">${icon('trash')}</button>
+            </div>`,
+        )
+        .join('')}</div>`;
+    };
+    openDrawer({
+      title: t('player.bookmarks'),
+      icon: 'bookmark',
+      body: `<div class="drawer-actions"><button class="btn btn-sm" data-add>${icon('plus')}${t(
+        'player.bookmark',
+      )}</button></div><div id="marks">${render()}</div>`,
+      onMount: (body, close) => {
+        const host = $('#marks', body)!;
+        const bind = (): void => {
+          $$('[data-jump]', host).forEach((el) =>
+            el.addEventListener('click', (ev) => {
+              if ((ev.target as HTMLElement).closest('[data-drop]')) return;
+              this.seek(Number((el as HTMLElement).dataset.jump));
+              close();
+            }),
+          );
+          $$('[data-drop]', host).forEach((btn) =>
+            btn.addEventListener('click', (ev) => {
+              ev.stopPropagation();
+              store.removeMark(key, Number((btn as HTMLElement).dataset.drop));
+              host.innerHTML = render();
+              bind();
+            }),
+          );
+        };
+        bind();
+        $('[data-add]', body)?.addEventListener('click', () => {
+          if (!this.current) return;
+          store.addMark(key, this.video.currentTime, '');
+          toast(t('player.bookmarkAdded'), 'ok', 1600);
+          host.innerHTML = render();
+          bind();
+        });
+      },
+    });
+  }
+
+  /** Shift every loaded text track by `ms` without re-parsing the file. */
+  setSubOffset(ms: number): void {
+    store.patch({ subOffsetMs: ms });
+    for (const sub of this.userSubs) {
+      if (!sub.cues) continue;
+      const vtt = buildVtt(sub.cues, ms);
+      const url = URL.createObjectURL(new Blob([vtt], { type: 'text/vtt' }));
+      this.objectUrls.push(url);
+      sub.url = url;
+      sub.track.src = url;
+      sub.track.track.mode = 'showing';
+    }
+  }
+
+  /* ================================================================ */
+  /* picture: effects, aspect, rotation                               */
+  /* ================================================================ */
+
+  /** Colour grading + mirror/rotate, applied as a single CSS transform stack. */
+  applyEffects(): void {
+    const e = store.settings.effects;
+    const s = store.settings;
+    const filters = [
+      `brightness(${e.brightness})`,
+      `contrast(${e.contrast})`,
+      `saturate(${e.saturation})`,
+      `hue-rotate(${e.hue}deg)`,
+      e.blur > 0 ? `blur(${e.blur}px)` : '',
+      e.grayscale > 0 ? `grayscale(${e.grayscale})` : '',
+      s.sdrBoost ? 'contrast(1.05) saturate(1.1)' : '',
+    ].filter(Boolean);
+    this.video.style.filter = filters.join(' ');
+    const flips = `scaleX(${s.flipH ? -1 : 1}) scaleY(${s.flipV ? -1 : 1})`;
+    this.video.style.transform = `${flips} rotate(${s.rotate}deg)`;
+    this.stage.dataset.rotate = String(s.rotate);
+    this.applyAspect();
+  }
+
+  /** Force a display ratio by sizing the video box inside the stage. */
+  applyAspect(): void {
+    const a = store.settings.aspect;
+    this.stage.dataset.aspect = a;
+    this.video.style.width = '';
+    this.video.style.height = '';
+    if (a === 'auto' || a === 'fill' || a === 'stretch') return;
+    const ratio = a === '16:9' ? 16 / 9 : a === '4:3' ? 4 / 3 : 21 / 9;
+    const rect = this.stage.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    let w = rect.width;
+    let h = w / ratio;
+    if (h > rect.height) {
+      h = rect.height;
+      w = h * ratio;
+    }
+    this.video.style.width = `${Math.round(w)}px`;
+    this.video.style.height = `${Math.round(h)}px`;
+    this.video.style.objectFit = 'fill';
+  }
+
+  setAspect(a: Aspect): void {
+    store.patch({ aspect: a });
+    this.applyAspect();
+  }
+
+  rotate(step = 90): void {
+    const next = (((store.settings.rotate + step) % 360) + 360) % 360;
+    store.patch({ rotate: next as 0 | 90 | 180 | 270 });
+    this.applyEffects();
+    this.flashHud('volume', `${n(next)}°`);
+  }
+
+  toggleFlip(axis: 'h' | 'v'): void {
+    if (axis === 'h') store.patch({ flipH: !store.settings.flipH });
+    else store.patch({ flipV: !store.settings.flipV });
+    this.applyEffects();
+  }
+
+  /* ================================================================ */
+  /* sleep timer, lock, stats                                          */
+  /* ================================================================ */
+
+  setSleep(minutes: number): void {
+    this.sleepAt = minutes > 0 ? Date.now() + minutes * 60_000 : 0;
+    store.patch({ sleepTimer: minutes });
+    this.syncSleepChip();
+    if (minutes > 0) toast(t('player.sleepSet', { m: n(minutes) }), 'ok', 2200);
+  }
+
+  private syncSleepChip(): void {
+    const chip = $('.sleep-chip', this.root);
+    if (!chip) return;
+    if (!this.sleepAt) {
+      chip.setAttribute('hidden', '');
+      return;
+    }
+    const left = Math.max(0, this.sleepAt - Date.now());
+    chip.removeAttribute('hidden');
+    chip.textContent = `${icon('clock')}${fmtTime(Math.ceil(left / 1000))}`;
+  }
+
+  toggleLock(): void {
+    this.locked = !this.locked;
+    const veil = $('.lock-veil', this.root);
+    if (!veil) return;
+    veil.toggleAttribute('hidden', !this.locked);
+    store.patch({ lock: this.locked });
+  }
+
+  toggleStats(): void {
+    const on = !store.settings.stats;
+    store.patch({ stats: on });
+    this.syncStats();
+  }
+
+  private syncStats(): void {
+    const panel = $('.stats-panel', this.root);
+    if (!panel) return;
+    panel.toggleAttribute('hidden', !store.settings.stats);
+    window.clearInterval(this.statsTimer);
+    this.statsTimer = 0;
+    if (!store.settings.stats) return;
+    const paint = (): void => {
+      const v = this.video;
+      const q = v.getVideoPlaybackQuality?.();
+      const buffered = v.buffered.length ? v.buffered.end(v.buffered.length - 1) - v.currentTime : 0;
+      const rows: [string, string][] = [
+        ['size', `${v.videoWidth}×${v.videoHeight}`],
+        ['rate', `${v.playbackRate.toFixed(2)}×`],
+        ['time', `${fmtTime(v.currentTime)} / ${fmtTime(this.duration)}`],
+        ['buffer', `${buffered.toFixed(1)}s`],
+        ['ready', ['nothing', 'metadata', 'current', 'future', 'enough'][v.readyState] ?? '—'],
+        ['volume', `${Math.round((store.settings.muted ? 0 : store.settings.volume) * 100)}%`],
+        ['dropped', q ? `${q.droppedVideoFrames}` : '—'],
+        ['engine', this.engine],
+      ];
+      panel.innerHTML = rows.map(([k, val]) => `<span class="sp-k">${k}</span><span class="sp-v">${val}</span>`).join('');
+    };
+    paint();
+    this.statsTimer = window.setInterval(paint, 500);
   }
 
   /* ================================================================ */
@@ -1039,6 +1633,9 @@ export class Player {
           if (path) void revealInFolder(path);
           break;
         }
+        case 'tools':
+          this.openToolsDrawer();
+          break;
         case 'queue':
           this.openQueueDrawer();
           break;
@@ -1198,7 +1795,10 @@ export class Player {
       this.events.onStateChange?.(true);
       this.startProgressTicker();
       this.scheduleHide();
-      void this.ensureAudioGraph().catch(() => undefined);
+      // Only wire up Web Audio when the equalizer is actually on. Creating a
+      // MediaElementSource for every source silences cross-origin streams that
+      // do not send CORS headers, which is how "no sound" happened.
+      if (store.settings.eqEnabled) void this.ensureAudioGraph().catch(() => undefined);
     });
 
     v.addEventListener('pause', () => {
@@ -1567,6 +2167,14 @@ export class Player {
       const tv = document.documentElement.dataset.tv === 'true';
       const mod = e.ctrlKey || e.metaKey;
 
+      // Ctrl/⌘+B drops a bookmark — plain B stays "previous", like VLC/PotPlayer.
+      if (mod && e.key.toLowerCase() === 'b' && this.current) {
+        e.preventDefault();
+        store.addMark(this.current.key, this.video.currentTime, '');
+        toast(t('player.bookmarkAdded'), 'ok', 1600);
+        return;
+      }
+
       if (mod) return;
 
       const k = e.key;
@@ -1595,13 +2203,15 @@ export class Player {
         case 'ArrowRight':
           if (tv) return;
           handled();
-          this.seekBy(e.shiftKey ? longStep : step);
+          if (e.altKey) this.stepFrame(1);
+          else this.seekBy(e.shiftKey ? longStep : step);
           this.showUi();
           return;
         case 'ArrowLeft':
           if (tv) return;
           handled();
-          this.seekBy(-(e.shiftKey ? longStep : step));
+          if (e.altKey) this.stepFrame(-1);
+          else this.seekBy(-(e.shiftKey ? longStep : step));
           this.showUi();
           return;
         case 'ArrowUp':
@@ -1697,6 +2307,31 @@ export class Player {
           handled();
           this.seek(this.duration);
           return;
+        case 'i':
+        case 'I':
+          handled();
+          this.toggleStats();
+          return;
+        case 'e':
+        case 'E':
+          handled();
+          this.openEffectsDrawer();
+          return;
+        case 'a':
+        case 'A':
+          handled();
+          this.openPlaybackDrawer();
+          return;
+        case 'z':
+        case 'Z':
+          handled();
+          this.openSleepDrawer();
+          return;
+        case 'd':
+        case 'D':
+          handled();
+          this.openSyncDrawer();
+          return;
         case '?':
         case '/':
           handled();
@@ -1746,6 +2381,15 @@ export class Player {
         startBrightness = this.brightness;
         mode = 'none';
         moved = false;
+        window.clearTimeout(this.pressTimer);
+        if (store.settings.longPressBoost && this.current && !this.video.paused) {
+          this.pressTimer = window.setTimeout(() => {
+            if (moved) return;
+            this.boostFrom = this.video.playbackRate;
+            this.setRate(Math.min(4, this.boostFrom * 2), true);
+            this.flashHud('forward', `${n(2)}×`);
+          }, 420);
+        }
       },
       { passive: true },
     );
@@ -1757,10 +2401,10 @@ export class Player {
         const tch = e.touches[0];
         const dx = tch.clientX - startX;
         const dy = tch.clientY - startY;
-        if (!moved && Math.abs(dy) > 14 && Math.abs(dy) > Math.abs(dx) * 1.4) {
+        if (Math.abs(dx) > 10 || Math.abs(dy) > 10) moved = true;
+        if (mode === 'none' && Math.abs(dy) > 14 && Math.abs(dy) > Math.abs(dx) * 1.4) {
           const rect = this.stage.getBoundingClientRect();
           mode = startX - rect.left < rect.width / 2 ? 'volume' : 'brightness';
-          moved = true;
         }
         if (mode === 'volume') {
           const next = clamp(startVolume - dy / (this.stage.clientHeight * 0.7), 0, 1);
@@ -1779,6 +2423,11 @@ export class Player {
     );
 
     this.stage.addEventListener('touchend', (e) => {
+      window.clearTimeout(this.pressTimer);
+      if (this.video.playbackRate !== this.boostFrom && this.boostFrom > 0 && store.settings.longPressBoost) {
+        this.setRate(this.boostFrom, true);
+        this.boostFrom = 1;
+      }
       if (!this.current) return;
       const tch = e.changedTouches[0];
       const dx = tch.clientX - startX;
@@ -1793,7 +2442,7 @@ export class Player {
       const rect = this.stage.getBoundingClientRect();
       const leftSide = tch.clientX - rect.left < rect.width / 2;
       if (now - lastTap < 320) {
-        this.seekBy(leftSide ? -10 : 10);
+        if (store.settings.doubleTapSeek) this.seekBy(leftSide ? -10 : 10);
         lastTap = 0;
       } else {
         lastTap = now;
@@ -2273,6 +2922,62 @@ export class Player {
 /* ------------------------------------------------------------------ */
 /* helpers                                                           */
 /* ------------------------------------------------------------------ */
+
+export interface SubCue {
+  start: number;
+  end: number;
+  text: string;
+}
+
+const toSeconds = (stamp: string): number => {
+  const m = stamp.trim().match(/(\d+):(\d{2}):(\d{2})[.,](\d{3})/);
+  if (!m) return 0;
+  return Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]) + Number(m[4]) / 1000;
+};
+
+/** Parse WebVTT/SubRip into cues so the timing can be shifted later. */
+export function parseCues(vtt: string): SubCue[] {
+  const clean = vtt.replace(/\r+/g, '').replace(/^\uFEFF/, '');
+  return clean
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter((block) => block && !/^WEBVTT/.test(block) && block.includes('-->'))
+    .map((block) => {
+      const lines = block.split('\n');
+      const idx = lines.findIndex((l) => l.includes('-->'));
+      const [from, to] = lines[idx].split('-->').map((x) => x.trim().split(/\s+/)[0]);
+      return {
+        start: toSeconds(from),
+        end: toSeconds(to),
+        text: lines.slice(idx + 1).join('\n') || ' ',
+      };
+    })
+    .filter((cue) => cue.end > cue.start);
+}
+
+const stamp = (t: number): string => {
+  const s = Math.max(0, t);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = Math.floor(s % 60);
+  const ms = Math.round((s - Math.floor(s)) * 1000);
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}.${String(
+    ms,
+  ).padStart(3, '0')}`;
+};
+
+/** Serialise cues back to WebVTT with a millisecond offset applied. */
+export function buildVtt(cues: SubCue[], offsetMs = 0): string {
+  const shift = offsetMs / 1000;
+  const blocks = cues
+    .map((cue) => {
+      const start = Math.max(0, cue.start + shift);
+      const end = Math.max(start + 0.2, cue.end + shift);
+      return `${stamp(start)} --> ${stamp(end)}\n${cue.text}`;
+    })
+    .join('\n\n');
+  return `WEBVTT\n\n${blocks}\n`;
+}
 
 /** Convert SubRip to WebVTT so the native text-track engine can show it. */
 export function srtToVtt(srt: string): string {

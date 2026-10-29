@@ -4,6 +4,7 @@ import './styles/theme.css';
 import './styles/app.css';
 import './styles/overlays.css';
 import './styles/player-extras.css';
+import './styles/studio.css';
 import { bootApp } from './core/shell';
 
 function boot(): void {

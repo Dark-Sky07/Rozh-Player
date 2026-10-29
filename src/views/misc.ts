@@ -45,10 +45,17 @@ export function renderShortcuts(host: HTMLElement, ctx: AppContext): void {
         ${keyRow(['V'], t('shortcuts.subs'))}
         ${keyRow(['C'], t('shortcuts.screenshot'))}
         ${keyRow(['[', ']'], t('shortcuts.speed'))}
+        ${keyRow(['E'], t('player.effects'))}
+        ${keyRow(['I'], t('player.stats'))}
+        ${keyRow(['A'], t('player.aspect'))}
+        ${keyRow(['Z'], t('player.sleep'))}
+        ${keyRow(['D'], t('player.sync'))}
+        ${keyRow(['Alt', arrow('←')], t('shortcuts.frame'))}
       </div>
       <div class="kbd-col">
         <h4>${t('shortcuts.window')}</h4>
         ${keyRow(['Q'], t('shortcuts.queue'))}
+        ${keyRow([mod, 'B'], t('player.bookmarks'))}
         ${keyRow(['O'], t('shortcuts.open'))}
         ${keyRow([mod, ','], t('shortcuts.settings'))}
         ${keyRow(['?'], t('shortcuts.help'))}

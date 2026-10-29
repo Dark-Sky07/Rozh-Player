@@ -5,6 +5,7 @@
  */
 
 import { store, type Lang } from './store';
+import { LANGS, PARTIAL, isRtl } from './langs';
 
 type Dict = Record<string, string>;
 
@@ -60,6 +61,7 @@ const fa: Dict = {
   'player.back': 'عقب',
   'player.forward': 'جلو',
   'player.mute': 'بی‌صدا',
+  'player.eqCors': 'این منبع از دامنهٔ دیگری است و امکان پردازش صدا ندارد؛ اکولایزر خاموش شد تا صدا قطع نشود.',
   'player.unmute': 'باصدا',
   'player.volume': 'صدا',
   'player.fullscreen': 'تمام‌صفحه',
@@ -195,6 +197,8 @@ const fa: Dict = {
   'settings.reset': 'بازگردانی تنظیمات',
   'settings.resetSub': 'همهٔ تنظیمات به حالت اولیه برمی‌گردد',
   'settings.resetBtn': 'بازگردانی',
+  'settings.on': 'روشن',
+  'settings.off': 'خاموش',
 
   'settings.subtitles': 'زیرنویس',
   'settings.subSize': 'اندازهٔ متن',
@@ -283,6 +287,80 @@ const fa: Dict = {
   'common.unknown': 'نامشخص',
   'common.new': 'جدید',
   'common.ok': 'باشه',
+
+  /* --- playback extras (VLC / PotPlayer style) --- */
+  'player.effects': 'جلوه‌های تصویر',
+  'player.effectsSub': 'روشنایی، کنتراست، رنگ و تیزی — همان لحظه اعمال می‌شود',
+  'player.brightness': 'روشنایی',
+  'player.contrast': 'کنتراست',
+  'player.saturation': 'اشباع رنگ',
+  'player.hue': 'رنگ‌مایه',
+  'player.blur': 'نرمی',
+  'player.grayscale': 'سیاه‌وسفید',
+  'player.preset': 'پیش‌تنظیم',
+  'player.preset.none': 'اصلی',
+  'player.preset.cinema': 'سینمایی',
+  'player.preset.vivid': 'پرشور',
+  'player.preset.soft': 'ملایم',
+  'player.preset.mono': 'تک‌رنگ',
+  'player.aspect': 'نسبت تصویر',
+  'player.aspect.auto': 'خودکار',
+  'player.aspect.16:9': '۱۶:۹',
+  'player.aspect.4:3': '۴:۳',
+  'player.aspect.21:9': '۲۱:۹',
+  'player.aspect.fill': 'پر کردن',
+  'player.aspect.stretch': 'کشیده',
+  'player.rotate': 'چرخش',
+  'player.flipH': 'قرینهٔ افقی',
+  'player.flipV': 'قرینهٔ عمودی',
+  'player.zoom': 'بزرگ‌نمایی',
+  'player.sleep': 'تایمر خواب',
+  'player.sleepOff': 'خاموش',
+  'player.sleepSet': 'پخش تا {m} دقیقهٔ دیگر متوقف می‌شود',
+  'player.sleepEnd': 'تایمر خواب تمام شد',
+  'player.lock': 'قفل صفحه',
+  'player.locked': 'صفحه قفل است — برای باز کردن دوباره بزنید',
+  'player.stats': 'آمار فنی',
+  'player.bookmarks': 'نشانه‌ها',
+  'player.bookmark': 'نشانه‌گذاری',
+  'player.bookmarkAdd': 'افزودن نشانه در {t}',
+  'player.bookmarkAdded': 'نشانه ذخیره شد',
+  'player.bookmarksEmpty': 'هنوز نشانه‌ای ندارید',
+  'player.subDelay': 'تأخیر زیرنویس',
+  'player.audioDelay': 'تأخیر صدا',
+  'player.pitch': 'حفظ زیر و بم',
+  'player.sync': 'هم‌زمان‌سازی',
+  'player.tracks': 'مسیرها',
+  'player.videoTrack': 'تصویر',
+  'player.sharp': 'تیزی',
+  'player.resetAll': 'بازنشانی همه',
+  'player.sleepEndOfFile': 'پایان این فایل',
+
+  /* --- settings: new sections --- */
+  'settings.video': 'تصویر و جلوه‌ها',
+  'settings.videoSub': 'نسبت تصویر، چرخش، قرینه و درجه‌بندی رنگ',
+  'settings.gestures': 'اشاره‌ها',
+  'settings.gesturesSub': 'حرکت روی صفحهٔ پخش',
+  'settings.doubleTap': 'دو ضربه برای پرش',
+  'settings.doubleTapSub': 'دو ضربه در کناره‌های تصویر، ۱۰ ثانیه جلو/عقب می‌برد',
+  'settings.longPress': 'نگه‌داشتن برای ۲×',
+  'settings.longPressSub': 'نگه‌داشتن انگشت روی تصویر، سرعت را موقتاً دو برابر می‌کند',
+  'settings.frameStep': 'گام فریم',
+  'settings.frameStepSub': 'مدت هر فریم برای دکمهٔ گام‌به‌گام',
+  'settings.stats': 'نمایش آمار فنی',
+  'settings.statsSub': 'رزولوشن، نرخ فریم، بافر و افت فریم روی تصویر',
+  'settings.sleep': 'تایمر خواب',
+  'settings.sleepSub': 'پخش را پس از مدت مشخصی متوقف می‌کند',
+  'settings.lockSub': 'صفحهٔ پخش را از لمس ناخواسته محافظت می‌کند',
+  'settings.minutes': 'دقیقه',
+  'settings.langSub': 'رابط را به زبان دلخواه تغییر دهید — فارسی و انگلیسی کامل هستند',
+  'settings.langFull': 'کامل',
+  'settings.langPartial': 'پایه',
+  'settings.langFilter': 'جست‌وجوی زبان…',
+  'settings.langNote': 'فارسی، کوردی و انگلیسی کامل‌ترین ترجمه‌ها را دارند؛ بقیهٔ زبان‌ها رابط اصلی را پوشش می‌دهند و هر عبارت ترجمه‌نشده به انگلیسی نمایش داده می‌شود.',
+  'settings.bookmarks': 'نشانه‌های ذخیره‌شده',
+  'settings.bookmarksSub': 'همهٔ نشانه‌ها در یک جا',
+  'settings.resetEffects': 'بازنشانی جلوه‌ها',
 };
 
 const en: Dict = {
@@ -337,6 +415,7 @@ const en: Dict = {
   'player.back': 'Back',
   'player.forward': 'Forward',
   'player.mute': 'Mute',
+  'player.eqCors': 'This source is cross-origin, so the equalizer was skipped to keep the audio playing.',
   'player.unmute': 'Unmute',
   'player.volume': 'Volume',
   'player.fullscreen': 'Fullscreen',
@@ -472,6 +551,8 @@ const en: Dict = {
   'settings.reset': 'Reset settings',
   'settings.resetSub': 'Return every setting to its default',
   'settings.resetBtn': 'Reset',
+  'settings.on': 'On',
+  'settings.off': 'Off',
 
   'settings.subtitles': 'Subtitles',
   'settings.subSize': 'Text size',
@@ -560,17 +641,98 @@ const en: Dict = {
   'common.unknown': 'Unknown',
   'common.new': 'New',
   'common.ok': 'OK',
+
+  'player.effects': 'Video effects',
+  'player.effectsSub': 'Brightness, contrast, colour and sharpness — applied live',
+  'player.brightness': 'Brightness',
+  'player.contrast': 'Contrast',
+  'player.saturation': 'Saturation',
+  'player.hue': 'Hue',
+  'player.blur': 'Softness',
+  'player.grayscale': 'Monochrome',
+  'player.preset': 'Preset',
+  'player.preset.none': 'Original',
+  'player.preset.cinema': 'Cinema',
+  'player.preset.vivid': 'Vivid',
+  'player.preset.soft': 'Soft',
+  'player.preset.mono': 'Noir',
+  'player.aspect': 'Aspect ratio',
+  'player.aspect.auto': 'Auto',
+  'player.aspect.16:9': '16:9',
+  'player.aspect.4:3': '4:3',
+  'player.aspect.21:9': '21:9',
+  'player.aspect.fill': 'Fill',
+  'player.aspect.stretch': 'Stretch',
+  'player.rotate': 'Rotate',
+  'player.flipH': 'Flip horizontal',
+  'player.flipV': 'Flip vertical',
+  'player.zoom': 'Zoom',
+  'player.sleep': 'Sleep timer',
+  'player.sleepOff': 'Off',
+  'player.sleepSet': 'Playback stops in {m} minutes',
+  'player.sleepEnd': 'Sleep timer finished',
+  'player.lock': 'Lock screen',
+  'player.locked': 'Controls locked — tap again to unlock',
+  'player.stats': 'Playback stats',
+  'player.bookmarks': 'Bookmarks',
+  'player.bookmark': 'Bookmark',
+  'player.bookmarkAdd': 'Bookmark at {t}',
+  'player.bookmarkAdded': 'Bookmark saved',
+  'player.bookmarksEmpty': 'No bookmarks yet',
+  'player.subDelay': 'Subtitle delay',
+  'player.audioDelay': 'Audio delay',
+  'player.pitch': 'Preserve pitch',
+  'player.sync': 'Sync',
+  'player.tracks': 'Tracks',
+  'player.videoTrack': 'Video',
+  'player.sharp': 'Sharpness',
+  'player.resetAll': 'Reset all',
+  'player.sleepEndOfFile': 'End of this file',
+
+  'settings.video': 'Picture & effects',
+  'settings.videoSub': 'Aspect ratio, rotation, mirroring and colour grading',
+  'settings.gestures': 'Gestures',
+  'settings.gesturesSub': 'Touch and pointer behaviour on the stage',
+  'settings.doubleTap': 'Double-tap to seek',
+  'settings.doubleTapSub': 'Double-tap either side of the picture to jump 10 s',
+  'settings.longPress': 'Hold for 2×',
+  'settings.longPressSub': 'Press and hold the picture to play at double speed',
+  'settings.frameStep': 'Frame step',
+  'settings.frameStepSub': 'Length of one frame step',
+  'settings.stats': 'Show playback stats',
+  'settings.statsSub': 'Resolution, frame rate, buffer and dropped frames',
+  'settings.sleep': 'Sleep timer',
+  'settings.sleepSub': 'Stop playback after a chosen time',
+  'settings.lockSub': 'Protects the stage from accidental taps',
+  'settings.minutes': 'min',
+  'settings.langSub': 'Persian and English are complete; other languages cover the essentials',
+  'settings.langFull': 'Full',
+  'settings.langPartial': 'Core',
+  'settings.langFilter': 'Search languages…',
+  'settings.langNote': 'Persian, Kurdish and English carry the fullest translations; the rest cover the main interface, and anything untranslated falls back to English.',
+  'settings.bookmarks': 'Saved bookmarks',
+  'settings.bookmarksSub': 'Every bookmark in one place',
+  'settings.resetEffects': 'Reset effects',
 };
 
-const dicts: Record<Lang, Dict> = { fa, en };
+const dicts: Record<Lang, Dict> = { fa, en } as Record<Lang, Dict>;
+for (const info of LANGS) {
+  const partial = PARTIAL[info.code];
+  if (partial) dicts[info.code] = { ...en, ...partial } as Dict;
+}
 
 export function currentLang(): Lang {
   return store.settings.lang;
 }
 
+export function isRtlLang(code: Lang = currentLang()): boolean {
+  return isRtl(code);
+}
+
 export function t(key: string, vars?: Record<string, string | number>): string {
   const lang = currentLang();
-  const raw = dicts[lang][key] ?? dicts.en[key] ?? key;
+  const dict = dicts[lang] ?? en;
+  const raw = dict[key] ?? en[key] ?? key;
   if (!vars) return raw;
   return raw.replace(/\{(\w+)\}/g, (_, k: string) => String(vars[k] ?? `{${k}}`));
 }

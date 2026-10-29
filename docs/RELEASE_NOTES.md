@@ -1,18 +1,39 @@
-# ROZH Player 1.0.0
+# ROZH Player 1.0.1
 
 <p align="center"><b>یک پلیر، همهٔ پلتفرم‌ها — one player, every platform.</b></p>
+
+## تازه در ۱٫۰٫۱ / New in 1.0.1
+
+**صدا واقعاً پخش می‌شود.** مهم‌ترین باگ گزارش‌شده برطرف شد: پیش‌تر با هر بار پخش، صدا
+به‌اجبار از گراف Web Audio عبور می‌کرد؛ روی منابع cross-origin (لینک‌های اینترنتی) کروم آن
+جریان را کاملاً بی‌صدا می‌کرد. حالا گراف فقط وقتی ساخته می‌شود که اکولایزر روشن باشد، و
+منابع cross-origin به‌جای سکوت، با پیام روشن نادیده گرفته می‌شوند. وضعیت بی‌صدا هم دیگر با
+ساختن گراف از بین نمی‌رود.
+
+- **۴۷ زبان** — از فارسی، کوردی و انگلیسی (کامل) تا عربی، عبری، ترکی، روسی، اردو، هندی،
+  چینی، ژاپنی، کره‌ای، آلمانی، فرانسه، اسپانیایی، ایتالیایی، پرتغال، هلندی، لهستانی،
+  چکی، اسلواکی، مجاری، رومانیایی، بلغاری، صربی، کروات، اوکراینی، یونانی، سوئدی، نروژی،
+  دانمارکی، فنلاندی، ویتنامی، تایلندی، مالایی، بنگالی، تامیل، تلوگو، فیلیپینی، سواحیلی،
+  قزاق، ازبک، ارمنی، گرجی و آذری — با جهت RTL خودکار و **جست‌وجوی زبان**.
+- **بازطراحی کامل رابط** — ریل کناری و نوار بالا شیشه‌ای و شناور، کارت‌های تیرهٔ لایه‌دار،
+  دکمه‌های طلایی امبر، فهرست کشویی ابزار، پنل آمار، و نوار پرش بین بخش‌های تنظیمات.
+- **تنظیمات تازه** — بخش «تصویر و جلوه‌ها» (نسبت تصویر، چرخش، آینه، جلوه‌ها، قفل صفحه) و
+  بخش «اشاره‌ها» (دو ضربه، نگه‌داشتن ۲×، آمار، تایمر خواب، گام فریم).
+- **میان‌برهای تازه** — `B` نشانه، `I` آمار، `E` جلوه‌ها، `A` نسبت تصویر، `Z` تایمر خواب،
+  `D` هم‌زمان‌سازی، `,`/`.` گام فریم.
+- اصلاح صفحه در حالت موبایل (RTL)، بزرگ‌نمایی آیکن‌ها، و ۳۰ زبان تازه بدون افزایش وزن.
 
 ## دانلود / Download
 
 | پلتفرم | فایل |
 | --- | --- |
-| **Windows 10/11 (x64)** | `ROZH.Player_1.0.0_x64-setup.exe` |
-| **macOS — Apple Silicon (M1/M2/M3/M4)** | `ROZH.Player_1.0.0_aarch64.dmg` |
-| **macOS — Intel** | `ROZH.Player_1.0.0_x64.dmg` |
-| **Linux (Debian/Ubuntu)** | `ROZH.Player_1.0.0_amd64.deb` |
-| **Linux (Fedora/RHEL/openSUSE)** | `ROZH.Player-1.0.0-1.x86_64.rpm` |
-| **Linux (هر توزیع دیگری)** | `ROZH.Player_1.0.0_amd64.AppImage` |
-| **Android 7.0+ / Android TV** | `ROZH-Player-1.0.0.apk` |
+| **Windows 10/11 (x64)** | `ROZH.Player_1.0.1_x64-setup.exe` |
+| **macOS — Apple Silicon (M1/M2/M3/M4)** | `ROZH.Player_1.0.1_aarch64.dmg` |
+| **macOS — Intel** | `ROZH.Player_1.0.1_x64.dmg` |
+| **Linux (Debian/Ubuntu)** | `ROZH.Player_1.0.1_amd64.deb` |
+| **Linux (Fedora/RHEL/openSUSE)** | `ROZH.Player-1.0.1-1.x86_64.rpm` |
+| **Linux (هر توزیع دیگری)** | `ROZH.Player_1.0.1_amd64.AppImage` |
+| **Android 7.0+ / Android TV** | `ROZH-Player-1.0.1.apk` |
 | **وب / PWA** | `rozh-player-web.zip` — از حالت فشرده خارج کنید و روی هر هاست استاتیک بگذارید |
 
 ## نصب / Install
@@ -24,7 +45,7 @@
 ممکن است Gatekeeper بگوید «برنامهٔ تأیید‌نشده»؛ روی آیکون راست‌کلیک کنید و **Open** را بزنید
 (یا در System Settings → Privacy & Security اجازه دهید).
 
-**Linux** — `sudo apt install ./ROZH.Player_1.0.0_amd64.deb` یا `chmod +x` روی AppImage و اجرا.
+**Linux** — `sudo apt install ./ROZH.Player_1.0.1_amd64.deb` یا `chmod +x` روی AppImage و اجرا.
 
 **Android / Android TV** — APK را sideload کنید. روی تی‌وی، پس از نصب در ردیف اپ‌های
 LEANBACK ظاهر می‌شود. این نسخه با کلید موقت CI امضا شده است؛ اگر بعداً نسخهٔ جدیدی نصب کنید
@@ -54,7 +75,7 @@ LEANBACK ظاهر می‌شود. این نسخه با کلید موقت CI ام�
 
 ### فنی / Technical
 
-Built from source at the commit tagged `v1.0.0`:
+Built from source at the commit tagged `v1.0.1`:
 
 - UI: TypeScript + Vite, zero framework, ~42 kB gzip
 - Shell: Tauri 2 (Rust), WebView2 / WKWebView / WebKitGTK

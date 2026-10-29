@@ -1,7 +1,7 @@
 {
   "name": "rozh-player",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "ROZH Player — a fast, beautiful, universal media player for Windows, macOS, Linux, Android, Android TV and the web.",
   "type": "module",
   "license": "MIT",

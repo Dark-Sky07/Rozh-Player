@@ -36,7 +36,9 @@
 
   /* ---- semantic ---- */
   --accent: var(--ember-400);
+  --accent-1: var(--ember-400);
   --accent-2: var(--ember-300);
+  --accent-3: var(--ember-200);
   --accent-dim: var(--ember-600);
   --accent-ink: #241205;
   --accent-grad: linear-gradient(135deg, #ffd88f 0%, #f7a94f 42%, #d97528 100%);
@@ -103,34 +105,44 @@
 /* ---------- accent variants ---------- */
 :root[data-accent='ember'] {
   --accent: #f8a24a;
+  --accent-1: #f8a24a;
   --accent-2: #ffd79a;
+  --accent-3: #ffbf7c;
   --accent-rgb: 248, 162, 74;
   --accent-grad: linear-gradient(135deg, #ffd88f 0%, #f7a94f 42%, #d97528 100%);
 }
 :root[data-accent='crimson'] {
   --accent: #ff7a72;
+  --accent-1: #ff7a72;
   --accent-2: #ffb3a7;
+  --accent-3: #ffd3cb;
   --accent-rgb: 255, 122, 114;
   --accent-grad: linear-gradient(135deg, #ffc0ae 0%, #ff7a72 45%, #c0352f 100%);
   --line-warm: rgba(255, 165, 155, 0.18);
 }
 :root[data-accent='azure'] {
   --accent: #6ba8ff;
+  --accent-1: #6ba8ff;
   --accent-2: #a9cdff;
+  --accent-3: #d2e5ff;
   --accent-rgb: 107, 168, 255;
   --accent-grad: linear-gradient(135deg, #c6e0ff 0%, #6ba8ff 45%, #2b5bd7 100%);
   --line-warm: rgba(160, 200, 255, 0.18);
 }
 :root[data-accent='jade'] {
   --accent: #55d6a4;
+  --accent-1: #55d6a4;
   --accent-2: #a4f2d3;
+  --accent-3: #cdfbe9;
   --accent-rgb: 85, 214, 164;
   --accent-grad: linear-gradient(135deg, #c8ffe9 0%, #55d6a4 45%, #178a63 100%);
   --line-warm: rgba(150, 255, 215, 0.16);
 }
 :root[data-accent='violet'] {
   --accent: #b28bff;
+  --accent-1: #b28bff;
   --accent-2: #d6c2ff;
+  --accent-3: #ecdcff;
   --accent-rgb: 178, 139, 255;
   --accent-grad: linear-gradient(135deg, #e6d8ff 0%, #b28bff 45%, #6a3fd1 100%);
   --line-warm: rgba(205, 180, 255, 0.18);
@@ -184,6 +196,14 @@ video,
 canvas {
   display: block;
   max-width: 100%;
+}
+
+/* Every inline icon starts at a sane square; specific contexts override it.
+   Without this an icon dropped into a flex row stretches to the row height. */
+.ico {
+  width: 18px;
+  height: 18px;
+  flex: none;
 }
 button,
 input,

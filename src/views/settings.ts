@@ -2,7 +2,8 @@
 
 import type { AppContext } from '../core/context';
 import { icon, hydrateIcons } from '../core/icons';
-import { t } from '../core/i18n';
+import { t, n } from '../core/i18n';
+import { LANGS } from '../core/langs';
 import { store, type Accent } from '../core/store';
 import { confirmDialog, toast } from '../core/ui';
 import { $, $$, escapeHtml, fmtBytes } from '../core/util';
@@ -70,8 +71,18 @@ export function renderSettings(host: HTMLElement, ctx: AppContext): void {
       <button class="btn btn-sm" data-reset>${icon('rotateccw')}<span>${t('settings.resetBtn')}</span></button>
     </div>
 
+    <nav class="settings-jump" aria-label="${t('settings.title')}">
+      <button data-jump="sec-appearance" class="is-on">${icon('palette')}<span>${t('settings.appearance')}</span></button>
+      <button data-jump="sec-playback">${icon('play')}<span>${t('settings.playback')}</span></button>
+      <button data-jump="sec-video">${icon('monitor')}<span>${t('settings.video')}</span></button>
+      <button data-jump="sec-gestures">${icon('target')}<span>${t('settings.gestures')}</span></button>
+      <button data-jump="sec-subtitles">${icon('subtitles')}<span>${t('settings.subtitles')}</span></button>
+      <button data-jump="sec-audio">${icon('audio-wave')}<span>${t('settings.audio')}</span></button>
+      <button data-jump="sec-about">${icon('info')}<span>${t('settings.about')}</span></button>
+    </nav>
+
     <div class="settings-wrap">
-      <section class="setting-group">
+      <section class="setting-group" id="sec-appearance">
         <header>${icon('palette')}<h3>${t('settings.appearance')}</h3></header>
         ${row(
           t('settings.accent'),
@@ -108,22 +119,33 @@ export function renderSettings(host: HTMLElement, ctx: AppContext): void {
             'data-motion',
           ),
         )}
-        ${row(
-          t('settings.language'),
-          '',
-          seg(
-            [
-              { id: 'fa', label: 'فارسی' },
-              { id: 'en', label: 'English' },
-            ],
-            s.lang,
-            'data-lang',
-          ),
-        )}
+        <div class="setting-block">
+          <div class="sr-label"><b>${t('settings.language')}</b><small>${t('settings.langSub')}</small></div>
+          <label class="lang-search">
+            ${icon('search')}
+            <input type="search" data-lang-filter placeholder="${t('settings.langFilter')}" aria-label="${t(
+              'settings.langFilter',
+            )}" />
+            <span class="badge mono">${n(LANGS.length)}</span>
+          </label>
+          <div class="lang-grid" data-lang-list>
+            ${LANGS.map(
+              (l) => `<button class="lang-cell ${s.lang === l.code ? 'is-on' : ''}" data-lang-id="${l.code}" data-lang-search="${escapeHtml(
+                `${l.name} ${l.en} ${l.code}`.toLowerCase(),
+              )}">
+                <span class="lc-name">${escapeHtml(l.name)}</span>
+                <span class="lc-meta">${l.rtl ? 'RTL' : 'LTR'} · ${
+                  l.coverage === 'full' ? t('settings.langFull') : t('settings.langPartial')
+                }</span>
+              </button>`,
+            ).join('')}
+          </div>
+          <p class="lang-note">${t('settings.langNote')}</p>
+        </div>
         ${row(t('settings.embers'), t('settings.embersSub'), sw(s.showEmbers, 'data-embers'))}
       </section>
 
-      <section class="setting-group">
+      <section class="setting-group" id="sec-playback">
         <header>${icon('play')}<h3>${t('settings.playback')}</h3></header>
         ${row(t('settings.autoplay'), t('settings.autoplaySub'), sw(s.autoplay, 'data-autoplay'))}
         ${row(t('settings.resume'), t('settings.resumeSub'), sw(s.resume, 'data-resume'))}
@@ -171,7 +193,76 @@ export function renderSettings(host: HTMLElement, ctx: AppContext): void {
         )}
       </section>
 
-      <section class="setting-group">
+      <section class="setting-group" id="sec-video">
+        <header>${icon('monitor')}<h3>${t('settings.video')}</h3></header>
+        ${row(
+          t('player.aspect'),
+          t('settings.videoSub'),
+          seg(
+            [
+              { id: 'auto', label: t('player.aspect.auto') },
+              { id: '16:9', label: '16:9' },
+              { id: '4:3', label: '4:3' },
+              { id: '21:9', label: '21:9' },
+              { id: 'fill', label: t('player.aspect.fill') },
+            ],
+            s.aspect,
+            'data-aspect-set',
+          ),
+        )}
+        ${row(
+          t('player.rotate'),
+          `${n(s.rotate)}°`,
+          `<div class="row-btns">
+             <button class="btn btn-sm" data-rotate>${icon('rotate')}${n(90)}°</button>
+             <button class="btn btn-sm ${s.flipH ? 'is-on' : ''}" data-flip="h">${t('player.flipH')}</button>
+             <button class="btn btn-sm ${s.flipV ? 'is-on' : ''}" data-flip="v">${t('player.flipV')}</button>
+           </div>`,
+        )}
+        ${row(
+          t('player.effects'),
+          t('player.effectsSub'),
+          `<button class="btn btn-sm" data-effects>${icon('sliders')}${t('player.effects')}</button>`,
+        )}
+        ${row(t('settings.lockSub'), '', sw(s.lock, 'data-lock'))}
+      </section>
+
+      <section class="setting-group" id="sec-gestures">
+        <header>${icon('target')}<h3>${t('settings.gestures')}</h3></header>
+        ${row(t('settings.doubleTap'), t('settings.doubleTapSub'), sw(s.doubleTapSeek, 'data-dtap'))}
+        ${row(t('settings.longPress'), t('settings.longPressSub'), sw(s.longPressBoost, 'data-lpress'))}
+        ${row(t('settings.stats'), t('settings.statsSub'), sw(s.stats, 'data-stats'))}
+        ${row(
+          t('settings.frameStep'),
+          `${n(s.frameStepMs)} ms`,
+          seg(
+            [
+              { id: '33', label: '30fps' },
+              { id: '40', label: '25fps' },
+              { id: '50', label: '20fps' },
+              { id: '66', label: '15fps' },
+            ],
+            String(s.frameStepMs),
+            'data-frame-step',
+          ),
+        )}
+        ${row(
+          t('settings.sleep'),
+          s.sleepTimer ? `${n(s.sleepTimer)} ${t('settings.minutes')}` : t('settings.sleepSub'),
+          seg(
+            [
+              { id: '0', label: t('common.off') },
+              { id: '15', label: '15' },
+              { id: '30', label: '30' },
+              { id: '60', label: '60' },
+            ],
+            String(s.sleepTimer),
+            'data-sleep-set',
+          ),
+        )}
+      </section>
+
+      <section class="setting-group" id="sec-subtitles">
         <header>${icon('subtitles')}<h3>${t('settings.subtitles')}</h3></header>
         <div class="setting-row">
           <div class="sub-style-preview" style="flex:1">
@@ -219,7 +310,7 @@ export function renderSettings(host: HTMLElement, ctx: AppContext): void {
         )}
       </section>
 
-      <section class="setting-group">
+      <section class="setting-group" id="sec-audio">
         <header>${icon('sliders')}<h3>${t('settings.audio')}</h3></header>
         ${row(
           t('settings.eq'),
@@ -242,7 +333,7 @@ export function renderSettings(host: HTMLElement, ctx: AppContext): void {
         </div>
       </section>
 
-      <section class="setting-group">
+      <section class="setting-group" id="sec-about">
         <header>${icon('info')}<h3>${t('settings.about')}</h3></header>
         ${row(t('settings.version'), 'ROZH Player', `<span class="badge mono">v${__APP_VERSION__}</span>`)}
         ${row(
@@ -274,6 +365,17 @@ export function renderSettings(host: HTMLElement, ctx: AppContext): void {
     }),
   );
 
+  const viewEl = host.closest('.view');
+  $$('[data-jump]', host).forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const target = document.getElementById((btn as HTMLElement).dataset.jump!);
+      if (!target || !viewEl) return;
+      const top = (target as HTMLElement).offsetTop - (viewEl as HTMLElement).offsetTop - 12;
+      viewEl.scrollTo({ top, behavior: 'smooth' });
+      $$('[data-jump]', host).forEach((b) => b.classList.toggle('is-on', b === btn));
+    }),
+  );
+
   const bindSeg = (attr: string, apply: (v: string) => void): void => {
     $$(`[${attr}] button`, host).forEach((btn) =>
       btn.addEventListener('click', () => {
@@ -286,11 +388,53 @@ export function renderSettings(host: HTMLElement, ctx: AppContext): void {
 
   bindSeg('data-glass', (v) => store.patch({ glass: v as typeof s.glass }));
   bindSeg('data-motion', (v) => store.patch({ motion: v as typeof s.motion }));
-  bindSeg('data-lang', (v) => {
-    store.patch({ lang: v as typeof s.lang });
-    window.dispatchEvent(new CustomEvent('rozh:relang'));
-  });
   bindSeg('data-tv', (v) => store.patch({ tv: v as typeof s.tv }));
+  bindSeg('data-aspect-set', (v) => {
+    store.patch({ aspect: v as typeof s.aspect });
+    ctx.player.applyAspect();
+  });
+  bindSeg('data-frame-step', (v) => {
+    store.patch({ frameStepMs: Number(v) });
+    rerender();
+  });
+  bindSeg('data-sleep-set', (v) => {
+    ctx.player.setSleep(Number(v));
+    rerender();
+  });
+
+  $<HTMLInputElement>('[data-lang-filter]', host)?.addEventListener('input', (e) => {
+    const q = (e.target as HTMLInputElement).value.trim().toLowerCase();
+    $$('[data-lang-id]', host).forEach((cell) => {
+      const hay = (cell as HTMLElement).dataset.langSearch ?? '';
+      cell.toggleAttribute('hidden', !!q && !hay.includes(q));
+    });
+  });
+
+  $$('[data-lang-id]', host).forEach((btn) =>
+    btn.addEventListener('click', () => {
+      const code = (btn as HTMLElement).dataset.langId as typeof s.lang;
+      if (code === store.settings.lang) return;
+      store.patch({ lang: code });
+      window.dispatchEvent(new CustomEvent('rozh:relang'));
+    }),
+  );
+
+  $('[data-rotate]', host)?.addEventListener('click', () => {
+    ctx.player.rotate();
+    rerender();
+  });
+
+  $$('[data-flip]', host).forEach((btn) =>
+    btn.addEventListener('click', () => {
+      ctx.player.toggleFlip((btn as HTMLElement).dataset.flip === 'h' ? 'h' : 'v');
+      (btn as HTMLElement).classList.toggle('is-on');
+    }),
+  );
+
+  $('[data-effects]', host)?.addEventListener('click', () => {
+    ctx.navigate('player');
+    setTimeout(() => document.querySelector<HTMLElement>('.stage-bottom [data-act="tools"]')?.click(), 220);
+  });
   bindSeg('data-shot', (v) => store.patch({ screenshotFormat: v as 'png' | 'jpeg' }));
   bindSeg('data-substyle', (v) => {
     store.patch({ subFontStyle: v as typeof s.subFontStyle });
@@ -311,8 +455,17 @@ export function renderSettings(host: HTMLElement, ctx: AppContext): void {
   bindSwitch('data-thumbs', (on) => store.patch({ thumbnails: on }));
   bindSwitch('data-sdr', (on) => {
     store.patch({ sdrBoost: on });
-    const v = ctx.player.video;
-    v.style.filter = `brightness(1) contrast(${on ? 1.06 : 1}) saturate(${on ? 1.12 : 1})`;
+    ctx.player.applyEffects();
+  });
+  bindSwitch('data-lock', (on) => {
+    store.patch({ lock: on });
+    if (on) ctx.player.toggleLock();
+  });
+  bindSwitch('data-dtap', (on) => store.patch({ doubleTapSeek: on }));
+  bindSwitch('data-lpress', (on) => store.patch({ longPressBoost: on }));
+  bindSwitch('data-stats', (on) => {
+    store.patch({ stats: on });
+    ctx.player.toggleStats();
   });
   bindSwitch('data-embers', (on) => {
     store.patch({ showEmbers: on });
