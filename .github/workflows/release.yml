@@ -55,7 +55,7 @@ jobs:
           - key: windows
             label: Windows · x64
             platform: windows-latest
-            args: ''
+            args: --bundles nsis
             rust-targets: ''
     runs-on: ${{ matrix.platform }}
     steps:
@@ -95,7 +95,7 @@ jobs:
           npm run tauri build -- ${{ matrix.args }} 2>&1 | tee /tmp/build.log
           code=${PIPESTATUS[0]}
           if [ "$code" -ne 0 ]; then
-            summary=$(tail -n 80 /tmp/build.log | sed -e 's/%/%25/g' -e 's/\r//g' | awk '{printf "%s%%0A", $0}')
+            summary=$(sed -e 's/\x1b\[[0-9;]*m//g' -e 's/%/%25/g' -e 's/\r//g' /tmp/build.log | grep -aiE "error|fail|panic|invalid|wix|nsis|light.exe|candle.exe" | tail -n 30 | awk '{printf "%s%%0A", $0}')
             echo "::error title=Bundle failed::$summary"
             exit "$code"
           fi
@@ -114,6 +114,7 @@ jobs:
           tag_name: ${{ env.TAG }}
           name: 'ROZH Player ${{ env.TAG }}'
           draft: true
+          overwrite_files: true
           files: out/*
 
   # -------------------------------------------------------------------- web
@@ -140,6 +141,7 @@ jobs:
           tag_name: ${{ env.TAG }}
           name: 'ROZH Player ${{ env.TAG }}'
           draft: true
+          overwrite_files: true
           files: rozh-player-web.zip
 
   # ---------------------------------------------------------------- android
@@ -239,4 +241,5 @@ jobs:
           tag_name: ${{ env.TAG }}
           name: 'ROZH Player ${{ env.TAG }}'
           draft: true
+          overwrite_files: true
           files: out/*
