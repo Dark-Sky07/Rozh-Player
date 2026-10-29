@@ -333,14 +333,14 @@ pub fn run() {
     });
 
     builder
-        .on_window_event(|window, event| {
+        .on_window_event(|_window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 // On macOS the app keeps running in the tray/dock after the
                 // window closes, so playback state survives.
                 #[cfg(target_os = "macos")]
                 {
                     api.prevent_close();
-                    let _ = window.hide();
+                    let _ = _window.hide();
                 }
                 #[cfg(not(target_os = "macos"))]
                 {
