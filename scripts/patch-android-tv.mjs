@@ -28,6 +28,40 @@ try {
   process.exit(1);
 }
 
+/**
+ * Android's manifest merger rejects duplicated `<uses-feature>` elements, and
+ * the generated Tauri manifest already declares some of them. This rewrites the
+ * three features ROZH cares about into exactly one declaration each.
+ */
+function normaliseFeatures(xml, { leanback, touchscreen = 'false' }) {
+  const MANAGED = new Set([
+    'android.software.leanback',
+    'android.hardware.touchscreen',
+    'android.hardware.gamepad',
+  ]);
+  const featureRe = /<uses-feature\b[^>]*\/>[ \t]*\r?\n?/g;
+  const stripped = xml.replace(featureRe, (tag) => {
+    const name = tag.match(/android:name="([^"]+)"/)?.[1];
+    return name && MANAGED.has(name) ? '' : tag;
+  });
+  const block = [
+    `<uses-feature android:name="android.hardware.touchscreen" android:required="${touchscreen}" />`,
+    `<uses-feature android:name="android.software.leanback" android:required="${leanback}" />`,
+    '<uses-feature android:name="android.hardware.gamepad" android:required="false" />',
+  ].join('\n    ');
+  return stripped.replace(/(<manifest\b[^>]*>)/, `$1\n    ${block}`);
+}
+
+/** Set an attribute on the `<application>` (or `<activity>`) tag, never twice. */
+function setAttr(xml, tagName, name, value) {
+  const openRe = new RegExp(`<${tagName}\\b[^>]*>`);
+  return xml.replace(openRe, (tag) => {
+    const attrRe = new RegExp(`${name.replace(/[:.]/g, (m) => `\\${m}`)}\\s*=\\s*"[^"]*"`);
+    if (attrRe.test(tag)) return tag.replace(attrRe, `${name}="${value}"`);
+    return tag.replace(new RegExp(`<${tagName}\\b`), `<${tagName}\n        ${name}="${value}"`);
+  });
+}
+
 let xml = await readFile(manifest, 'utf8');
 const before = xml;
 const applied = [];
@@ -40,7 +74,7 @@ if (xml.includes('android:usesCleartextTraffic="${usesCleartextTraffic}"')) {
   xml = xml.replace(/android:usesCleartextTraffic="false"/g, 'android:usesCleartextTraffic="true"');
   applied.push('cleartext on');
 } else if (!xml.includes('android:usesCleartextTraffic')) {
-  xml = xml.replace(/<application\s/, '<application\n        android:usesCleartextTraffic="true"\n        ');
+  xml = setAttr(xml, 'application', 'android:usesCleartextTraffic', 'true');
   applied.push('cleartext added');
 }
 
@@ -55,11 +89,11 @@ if (missing.length) {
 
 /* ---- 3. hardware acceleration + heap ------------------------------------ */
 if (!xml.includes('android:hardwareAccelerated')) {
-  xml = xml.replace(/<application\s/, '<application\n        android:hardwareAccelerated="true"\n        ');
+  xml = setAttr(xml, 'application', 'android:hardwareAccelerated', 'true');
   applied.push('hw accel');
 }
 if (!xml.includes('android:largeHeap')) {
-  xml = xml.replace(/<application\s/, '<application\n        android:largeHeap="true"\n        ');
+  xml = setAttr(xml, 'application', 'android:largeHeap', 'true');
   applied.push('large heap');
 }
 
@@ -72,23 +106,15 @@ if (!xml.includes('LEANBACK_LAUNCHER')) {
   applied.push('leanback launcher');
 }
 
-if (!xml.includes('android.hardware.touchscreen')) {
-  xml = xml.replace(
-    /<application/,
-    '<!-- ROZH: also offered on Android TV launchers -->\n    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />\n    <uses-feature android:name="android.software.leanback" android:required="false" />\n\n    <application',
-  );
-  applied.push('optional touchscreen');
-}
+/* ---- 5. feature declarations (exactly one of each, never duplicated) --- */
+xml = normaliseFeatures(xml, { leanback: 'false' });
 
 if (!xml.includes('android:banner')) {
-  const hasIcon = /<application\s+([^>]*?)android:icon="[^"]*"/s.test(xml);
-  xml = hasIcon
-    ? xml.replace(/<application\s+([^>]*?)android:icon="[^"]*"/s, (m) => `${m}\n        android:banner="@mipmap/ic_launcher"`)
-    : xml.replace(/<application\s/, '<application\n        android:banner="@mipmap/ic_launcher"\n        ');
+  xml = setAttr(xml, 'application', 'android:banner', '@mipmap/ic_launcher');
   applied.push('banner');
 }
 
-/* ---- 5. gradle placeholder (older templates) ---------------------------- */
+/* ---- 6. gradle placeholder (older templates) ---------------------------- */
 const gradle = join(gen, 'app', 'build.gradle.kts');
 try {
   let g = await readFile(gradle, 'utf8');
