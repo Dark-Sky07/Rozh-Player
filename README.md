@@ -7,7 +7,7 @@
   **Windows · macOS · Linux · Android · Android TV · Web**
 
   [![CI](https://img.shields.io/badge/build-passing-4ecf9a?style=flat-square)](.github/workflows/ci.yml)
-  [![Release](https://img.shields.io/badge/release-v1.0.5-f8da7e?style=flat-square)](../../releases/latest)
+  [![Release](https://img.shields.io/badge/release-v1.0.6-f8da7e?style=flat-square)](../../releases/latest)
   [![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square)](https://tauri.app)
   [![License](https://img.shields.io/badge/license-MIT-f8a24a?style=flat-square)](LICENSE)
   [![Languages](https://img.shields.io/badge/languages-47-6ba8ff?style=flat-square)](#languages)
@@ -42,15 +42,15 @@ Every version ships ready-to-install builds for all platforms on the
 
 | Platform | File |
 | --- | --- |
-| **Windows 10/11 (x64)** | `ROZH-Player_1.0.5_x64-setup.exe` |
-| **macOS — Apple Silicon (M1–M4)** | `ROZH-Player_1.0.5_aarch64.dmg` |
-| **macOS — Intel** | `ROZH-Player_1.0.5_x64.dmg` |
-| **Linux (Debian/Ubuntu)** | `ROZH-Player_1.0.5_amd64.deb` |
-| **Linux (Fedora/RHEL/openSUSE)** | `ROZH-Player-1.0.5-1.x86_64.rpm` |
-| **Linux (any distribution)** | `ROZH-Player_1.0.5_amd64.AppImage` |
-| **Android 7.0+ (phones, tablets)** | `ROZH-Player-1.0.5.apk` |
-| **Android TV (dedicated build)** | `ROZH-Player-TV-1.0.5.apk` |
-| **Android TV (Google Play bundle)** | `ROZH-Player-TV-1.0.5.aab` |
+| **Windows 10/11 (x64)** | `ROZH-Player_1.0.6_x64-setup.exe` |
+| **macOS — Apple Silicon (M1–M4)** | `ROZH-Player_1.0.6_aarch64.dmg` |
+| **macOS — Intel** | `ROZH-Player_1.0.6_x64.dmg` |
+| **Linux (Debian/Ubuntu)** | `ROZH-Player_1.0.6_amd64.deb` |
+| **Linux (Fedora/RHEL/openSUSE)** | `ROZH-Player-1.0.6-1.x86_64.rpm` |
+| **Linux (any distribution)** | `ROZH-Player_1.0.6_amd64.AppImage` |
+| **Android 7.0+ (phones, tablets)** | `ROZH-Player-1.0.6.apk` |
+| **Android TV (dedicated build)** | `ROZH-Player-TV-1.0.6.apk` |
+| **Android TV (Google Play bundle)** | `ROZH-Player-TV-1.0.6.aab` |
 | **Web / PWA** | `rozh-player-web.zip` — unzip and serve as static files |
 
 > Builds are unsigned: Windows may show SmartScreen and macOS Gatekeeper needs a
@@ -286,7 +286,7 @@ Pushing a tag that matches `v*` builds the full matrix and publishes a new
 GitHub release with every asset attached:
 
 ```bash
-git tag v1.0.5 && git push origin v1.0.5
+git tag v1.0.6 && git push origin v1.0.6
 ```
 
 | Job | Tooling | Output |

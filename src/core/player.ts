@@ -383,7 +383,7 @@ export class Player {
     const isHls = /\.m3u8$/.test(clean);
     const isDash = /\.mpd$/.test(clean);
     const isMpegTs = /\.(ts|m2ts|mts|flv|f4v)$/.test(clean);
-    const url = await streamableUrl(reference);
+    const url = await streamableUrl(reference, item.name);
     this.hlsAttempt = 0;
 
     // resume position (set before we attach so loadedmetadata sees it)

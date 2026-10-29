@@ -78,28 +78,29 @@ function fileName(url: string): string {
   return decoded.replace(/[^\w.\-\s()[\]]+/g, '_').slice(-80) || 'media';
 }
 
-function streamFor(url: string, openPort: number): string {
+function streamFor(url: string, openPort: number, hint?: string): string {
+  const named = hint && /\.[a-z0-9]{2,4}$/i.test(hint) ? hint : fileName(url);
   // The name stays in the path so `.mkv`, `.ts`, `.m3u8` detection keeps working
   // in the player, and so the server can guess a MIME type.
-  return `http://127.0.0.1:${openPort}/s/${base64Url(url)}/${encodeURIComponent(fileName(url))}`;
+  return `http://127.0.0.1:${openPort}/s/${base64Url(url)}/${encodeURIComponent(named)}`;
 }
 
 /** A URL the webview can actually play for this media reference. */
-export async function streamableUrl(url: string): Promise<string> {
+export async function streamableUrl(url: string, hint?: string): Promise<string> {
   if (!needsServer(url)) return url;
   const openPort = await mediaServerPort();
   if (!openPort) return url;
-  return streamFor(url, openPort);
+  return streamFor(url, openPort, hint);
 }
 
 /**
  * Some containers need demuxing in JavaScript (MKV → MSE). Those loaders fetch
  * the source themselves, so they need the same URL even for plain files.
  */
-export async function streamableFetchUrl(url: string): Promise<string> {
+export async function streamableFetchUrl(url: string, hint?: string): Promise<string> {
   if (!needsServer(url)) return url;
   const openPort = await mediaServerPort();
-  return openPort ? streamFor(url, openPort) : url;
+  return openPort ? streamFor(url, openPort, hint) : url;
 }
 
 /* ------------------------------------------------------------------ */

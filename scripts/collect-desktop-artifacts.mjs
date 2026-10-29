@@ -91,8 +91,27 @@ await mkdir(out, { recursive: true });
 await mkdir(manifestDir, { recursive: true });
 
 const written = new Set();
-const platforms = {};
+const candidates = {};
 const report = [];
+
+/**
+ * Only these files can feed Tauri's updater, and the order decides which one is
+ * used when the bundler signed several of them (Linux signs the AppImage, the
+ * .deb and the .rpm, but only an AppImage can replace a running AppImage).
+ */
+function updaterRank(p, key) {
+  const name = base(p);
+  if (key.startsWith('darwin')) return /\.app\.tar\.gz$/i.test(name) ? 0 : -1;
+  if (key.startsWith('windows')) {
+    if (/\.exe$/i.test(name)) return 0;
+    if (/\.nsis\.zip$/i.test(name)) return 1;
+    if (/\.msi$/i.test(name)) return 2;
+    return -1;
+  }
+  if (/\.AppImage\.tar\.gz$/i.test(name)) return 0;
+  if (/\.AppImage$/i.test(name)) return 1;
+  return -1;
+}
 
 for (const file of files) {
   const name = base(file);
@@ -110,18 +129,29 @@ for (const file of files) {
 
   const sigSource = `${file}.sig`;
   const hasSig = present.has(sigSource);
-  if (hasSig) {
-    const signature = (await readFile(sigSource, 'utf8')).trim();
-    if (!signature) {
-      console.error(`::error title=updater signature::empty .sig for ${rel(file)}`);
-      process.exit(1);
-    }
-    await writeFile(join(out, `${target_name}.sig`), signature);
-    platforms[key] = { file: target_name, signature };
-    report.push(`${key.padEnd(15)} ${target_name}  (update)`);
-  } else {
+  if (!hasSig) {
     report.push(`${key.padEnd(15)} ${target_name}`);
+    continue;
   }
+
+  const signature = (await readFile(sigSource, 'utf8')).trim();
+  if (!signature) {
+    console.error(`::error title=updater signature::empty .sig for ${rel(file)}`);
+    process.exit(1);
+  }
+  await writeFile(join(out, `${target_name}.sig`), signature);
+  const rank = updaterRank(file, key);
+  report.push(`${key.padEnd(15)} ${target_name}  (update, rank ${rank})`);
+  if (rank < 0) continue;
+  const current = candidates[key];
+  if (!current || rank < current.rank) {
+    candidates[key] = { rank, file: target_name, signature };
+  }
+}
+
+const platforms = {};
+for (const [key, value] of Object.entries(candidates)) {
+  platforms[key] = { file: value.file, signature: value.signature };
 }
 
 // Each runner only builds its own targets, so the expectation comes from the

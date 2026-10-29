@@ -325,6 +325,7 @@ jobs:
           "$BT/apksigner" sign --ks "$KS" --ks-key-alias "$ROZH_KEY_ALIAS" \
             --ks-pass pass:rozhplayer --key-pass pass:rozhplayer \
             --out out/"ROZH-Player-$VERSION.apk" out/unsigned-aligned.apk
+          rm -f out/*.idsig
           "$BT/apksigner" verify --print-certs out/"ROZH-Player-$VERSION.apk" | head -5
           aab=$(find src-tauri/gen/android/app/build/outputs/bundle -name '*.aab' | head -1)
           if [ -n "$aab" ]; then
@@ -386,6 +387,7 @@ jobs:
           "$BT/apksigner" sign --ks "$KS" --ks-key-alias "$ROZH_KEY_ALIAS" \
             --ks-pass pass:rozhplayer --key-pass pass:rozhplayer \
             --out out/"ROZH-Player-TV-$VERSION.apk" out/unsigned-tv-aligned.apk
+          rm -f out/*.idsig
           "$BT/apksigner" verify --print-certs out/"ROZH-Player-TV-$VERSION.apk" | head -3
           aab=$(find src-tauri/gen/android/app/build/outputs/bundle -name '*.aab' | head -1)
           if [ -n "$aab" ]; then
@@ -434,6 +436,14 @@ jobs:
           ls -la manifest
           node scripts/build-latest-json.mjs manifest latest.json
           cat latest.json
+          # surface the mapping as an annotation: run logs are not always
+          # reachable, annotations always are
+          node -e "
+            const j = require('./latest.json');
+            for (const [k, v] of Object.entries(j.platforms)) {
+              console.log('::notice title=latest.json ' + k + '::' + v.url.split('/').pop());
+            }
+          "
 
       - uses: softprops/action-gh-release@v2
         with:

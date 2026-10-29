@@ -1,6 +1,13 @@
-# ROZH Player 1.0.5
+# ROZH Player 1.0.6
 
 **Updates that install over the old version — on every platform.**
+
+_1.0.6 is the same feature set as 1.0.5 with a corrected update manifest: the
+published `latest.json` now points every platform at the package the updater can
+actually install (the AppImage tarball on Linux, the `.app` archive on macOS, the
+NSIS installer on Windows), instead of whichever signed file the bundler happened
+to write last. Installing 1.0.6 by hand once puts you on the fixed channel;
+everything after it updates from inside the app._
 
 Windows · macOS · Linux · Android · Android TV · Web
 
@@ -8,15 +15,15 @@ Windows · macOS · Linux · Android · Android TV · Web
 
 | Platform | File |
 | --- | --- |
-| **Windows 10/11 (x64)** | `ROZH-Player_1.0.5_x64-setup.exe` |
-| **macOS — Apple Silicon (M1–M4)** | `ROZH-Player_1.0.5_aarch64.dmg` |
-| **macOS — Intel** | `ROZH-Player_1.0.5_x64.dmg` |
-| **Linux (Debian/Ubuntu)** | `ROZH-Player_1.0.5_amd64.deb` |
-| **Linux (Fedora/RHEL/openSUSE)** | `ROZH-Player-1.0.5-1.x86_64.rpm` |
-| **Linux (any distribution)** | `ROZH-Player_1.0.5_amd64.AppImage` |
-| **Android 7.0+ (phones, tablets)** | `ROZH-Player-1.0.5.apk` |
-| **Android TV (dedicated build)** | `ROZH-Player-TV-1.0.5.apk` |
-| **Google Play bundles** | `ROZH-Player-1.0.5.aab`, `ROZH-Player-TV-1.0.5.aab` |
+| **Windows 10/11 (x64)** | `ROZH-Player_1.0.6_x64-setup.exe` |
+| **macOS — Apple Silicon (M1–M4)** | `ROZH-Player_1.0.6_aarch64.dmg` |
+| **macOS — Intel** | `ROZH-Player_1.0.6_x64.dmg` |
+| **Linux (Debian/Ubuntu)** | `ROZH-Player_1.0.6_amd64.deb` |
+| **Linux (Fedora/RHEL/openSUSE)** | `ROZH-Player-1.0.6-1.x86_64.rpm` |
+| **Linux (any distribution)** | `ROZH-Player_1.0.6_amd64.AppImage` |
+| **Android 7.0+ (phones, tablets)** | `ROZH-Player-1.0.6.apk` |
+| **Android TV (dedicated build)** | `ROZH-Player-TV-1.0.6.apk` |
+| **Google Play bundles** | `ROZH-Player-1.0.6.aab`, `ROZH-Player-TV-1.0.6.aab` |
 | **Web / PWA** | `rozh-player-web.zip` — unzip and serve from any static host |
 
 ## Install
@@ -29,13 +36,13 @@ because the build carries no commercial code-signing certificate; choose
 Gatekeeper may refuse an unidentified developer; right-click the app and choose
 **Open**.
 
-**Linux** — `sudo apt install ./ROZH-Player_1.0.5_amd64.deb`, or `chmod +x` the
+**Linux** — `sudo apt install ./ROZH-Player_1.0.6_amd64.deb`, or `chmod +x` the
 AppImage and run it.
 
-**Android** — open `ROZH-Player-1.0.5.apk`, allow "install unknown apps" once, and
+**Android** — open `ROZH-Player-1.0.6.apk`, allow "install unknown apps" once, and
 the package installer updates the app in place.
 
-**Android TV / Fire TV** — sideload `ROZH-Player-TV-1.0.5.apk`. It is a separate
+**Android TV / Fire TV** — sideload `ROZH-Player-TV-1.0.6.apk`. It is a separate
 package (`…rozh.player.tv`) with its own `LEANBACK_LAUNCHER` entry and banner.
 
 ## What is new
@@ -65,11 +72,11 @@ key and reports a **higher** version code. From this release on:
 
 - every APK is signed with one long-lived release key (valid to 2055);
 - the version code is pinned in the build config and climbs with every version
-  (`1.0.5` → `1000005`), so the store and the installer always agree.
+  (`1.0.6` → `1000005`), so the store and the installer always agree.
 
 **One-time note for 1.0.4 users:** 1.0.4 was signed with a throwaway key that no
 longer exists, so Android refuses to upgrade across it. Uninstall 1.0.4 once,
-install 1.0.5, and every future version will install straight over the top.
+install 1.0.6, and every future version will install straight over the top.
 
 ### A local media server for the files Android's decoder refuses
 
@@ -87,6 +94,21 @@ tiny HTTP server inside its own process:
 
 The server is loopback-only, needs no permission, and stops with the app.
 
+### Fixed in 1.0.6
+
+- **The update manifest now names the right file per platform.** Tauri signs every
+  Linux bundle, so `latest.json` could point at the `.deb` or `.rpm`; only an
+  AppImage can replace a running AppImage. The collector ranks the candidates
+  (AppImage tarball → AppImage → `app.tar.gz` → NSIS installer) and refuses to
+  publish a manifest with a gap.
+- **The release pipeline exports the updater key as content**, which is what
+  Tauri expects (`TAURI_SIGNING_PRIVATE_KEY`), instead of a path — desktop
+  bundles were failing to sign at the very last step.
+- **Media URLs carry the real file name**, so the loopback server returns the
+  correct `Content-Type` for device files whose `content://` path has no
+  extension.
+- `.idsig` side files no longer clutter the release assets.
+
 ### Fixes
 
 - **Android commands no longer go missing after a restart.** The native bridge
@@ -96,7 +118,7 @@ The server is loopback-only, needs no permission, and stops with the app.
 - **Android library files play.** Device items are routed through the loopback
   server, which fixes the silent "nothing happens" on media that the webview
   could not open at all.
-- Windows installs stay per-machine, so 1.0.5 replaces 1.0.4 in the same folder.
+- Windows installs stay per-machine, so 1.0.6 replaces 1.0.4 in the same folder.
   The updater may ask for administrator permission once while it swaps the files.
 
 ## How updates are delivered
