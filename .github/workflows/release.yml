@@ -234,11 +234,26 @@ jobs:
             exit "$code"
           fi
 
-      - name: Collect artefacts
+      - name: Sign APK + AAB
         shell: bash
         run: |
+          set -euo pipefail
+          KS="$GITHUB_WORKSPACE/src-tauri/keystore/rozh-ci.jks"
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)"
           mkdir -p out
-          find src-tauri/gen/android/app/build/outputs -type f \( -name '*.apk' -o -name '*.aab' \) -exec cp {} out/ \;
+          unsigned=$(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' | head -1)
+          echo "unsigned: $unsigned"
+          "$BT/zipalign" -f -p 4 "$unsigned" out/unsigned-aligned.apk
+          "$BT/apksigner" sign --ks "$KS" --ks-pass pass:rozhplayer --key-pass pass:rozhplayer \
+            --out out/ROZH-Player-1.0.0.apk out/unsigned-aligned.apk
+          "$BT/apksigner" verify --print-certs out/ROZH-Player-1.0.0.apk | head -5
+          aab=$(find src-tauri/gen/android/app/build/outputs/bundle -name '*.aab' | head -1)
+          if [ -n "$aab" ]; then
+            cp "$aab" out/ROZH-Player-1.0.0.aab
+            jarsigner -keystore "$KS" -storepass rozhplayer -keypass rozhplayer \
+              out/ROZH-Player-1.0.0.aab rozh
+          fi
+          rm -f out/unsigned-aligned.apk
           ls -lh out
 
       - uses: softprops/action-gh-release@v2
