@@ -1000,7 +1000,18 @@ export class Player {
               ico,
             )}</span><span class="tt-label">${label}</span></button>`,
         )
-        .join('')}</div>`,
+        .join('')}</div>
+        <div class="drawer-note">
+          <div class="dn-title">${escapeHtml(t('shortcuts.help'))}</div>
+          <ul class="dn-list">
+            <li><kbd>E</kbd><span>${escapeHtml(t('player.effects'))}</span></li>
+            <li><kbd>I</kbd><span>${escapeHtml(t('player.stats'))}</span></li>
+            <li><kbd>A</kbd><span>${escapeHtml(t('player.aspect'))}</span></li>
+            <li><kbd>Z</kbd><span>${escapeHtml(t('player.sleep'))}</span></li>
+            <li><kbd>,</kbd><kbd>.</kbd><span>${escapeHtml(t('shortcuts.frame'))}</span></li>
+            <li><kbd>${escapeHtml(t('common.ctrl'))}+B</kbd><span>${escapeHtml(t('player.bookmarks'))}</span></li>
+          </ul>
+        </div>`,
       onMount: (body, close) => {
         $$('[data-tool]', body).forEach((btn) =>
           btn.addEventListener('click', () => {

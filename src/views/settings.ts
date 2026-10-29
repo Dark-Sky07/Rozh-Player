@@ -370,7 +370,8 @@ export function renderSettings(host: HTMLElement, ctx: AppContext): void {
     btn.addEventListener('click', () => {
       const target = document.getElementById((btn as HTMLElement).dataset.jump!);
       if (!target || !viewEl) return;
-      const top = (target as HTMLElement).offsetTop - (viewEl as HTMLElement).offsetTop - 12;
+      // leave room for the sticky jump bar so the section title stays visible
+      const top = (target as HTMLElement).offsetTop - (viewEl as HTMLElement).offsetTop - 74;
       viewEl.scrollTo({ top, behavior: 'smooth' });
       $$('[data-jump]', host).forEach((b) => b.classList.toggle('is-on', b === btn));
     }),
