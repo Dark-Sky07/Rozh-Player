@@ -2,6 +2,7 @@
 
 import type { AppContext } from '../core/context';
 import { icon, hydrateIcons } from '../core/icons';
+import type { NativeFile } from '../core/native';
 import { t, n } from '../core/i18n';
 import { store, type MediaItem } from '../core/store';
 import { confirmDialog, toast } from '../core/ui';
@@ -14,7 +15,8 @@ let query = '';
 export async function generateThumb(file: File): Promise<string | undefined> {
   if (!store.settings.thumbnails) return undefined;
   if (isAudioFile(file.name)) return undefined;
-  const url = URL.createObjectURL(file);
+  const native = (file as NativeFile).__url;
+  const url = native ?? URL.createObjectURL(file);
   const video = document.createElement('video');
   video.muted = true;
   video.preload = 'metadata';
@@ -46,7 +48,7 @@ export async function generateThumb(file: File): Promise<string | undefined> {
   } finally {
     video.removeAttribute('src');
     video.load();
-    URL.revokeObjectURL(url);
+    if (!native) URL.revokeObjectURL(url);
   }
 }
 

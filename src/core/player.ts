@@ -299,7 +299,7 @@ export class Player {
 
     // resume position (set before we attach so loadedmetadata sees it)
     let start = opts.startAt ?? 0;
-    if (!start && !item.isStream) start = store.getResume(item.name, item.size);
+    if (!start && !item.isStream) start = store.getResume(item.key);
     this.pendingStart = start;
 
     this.stage.dataset.buffering = 'true';
@@ -1258,13 +1258,13 @@ export class Player {
     if (!this.current || this.current.isStream) return;
     const dur = this.duration;
     if (dur > 0 && this.video.currentTime > dur - 20) {
-      store.setResume(this.current.name, this.current.size, 0);
+      store.setResume(this.current.key, 0);
       if (reset && this.current.mediaId) {
         store.updateMedia(this.current.mediaId, { position: 0, playedAt: Date.now() });
       }
       return;
     }
-    store.setResume(this.current.name, this.current.size, this.video.currentTime);
+    store.setResume(this.current.key, this.video.currentTime);
     if (this.current.mediaId) {
       store.updateMedia(this.current.mediaId, {
         position: this.video.currentTime,
@@ -1851,11 +1851,13 @@ export class Player {
   }
 
   fileToPlayable(file: File): Playable {
+    const nativePath = (file as NativeFile).__path;
     const nativeUrl = (file as NativeFile).__url;
     const url = nativeUrl ?? URL.createObjectURL(file);
     const isAudio = isAudioFile(file.name);
     return {
-      key: `${file.name}::${file.size}`,
+      // native files carry no byte size, so the absolute path is the identity
+      key: nativePath ? `native::${nativePath}` : `${file.name}::${file.size}`,
       name: file.name,
       title: file.name.replace(/\.[^.]+$/, ''),
       url,

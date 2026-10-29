@@ -303,23 +303,28 @@ class Store {
   }
 
   /* ---------------- resume ---------------- */
-  fingerprint(name: string, size: number): string {
-    return `${name}::${size}`;
+  /**
+   * Resume points are keyed by the playable key, which already contains the
+   * file name plus its size (or the absolute path for native Tauri files), so
+   * two different films never share a bookmark.
+   */
+  fingerprint(key: string): string {
+    return key;
   }
 
-  getResume(name: string, size: number): number {
+  getResume(key: string): number {
     if (!this.settings.resume) return 0;
-    const rec = this.resumeMap[this.fingerprint(name, size)];
+    const rec = this.resumeMap[this.fingerprint(key)];
     if (!rec) return 0;
     // ignore resume points in the last 20 seconds, or ancient ones
     if (Date.now() - rec.at > 1000 * 60 * 60 * 24 * 60) return 0;
     return rec.pos;
   }
 
-  setResume(name: string, size: number, pos: number): void {
+  setResume(key: string, pos: number): void {
     if (!this.settings.resume) return;
     if (pos < 5) return;
-    this.resumeMap[this.fingerprint(name, size)] = { pos, at: Date.now() };
+    this.resumeMap[this.fingerprint(key)] = { pos, at: Date.now() };
     storage.set('resume', this.resumeMap);
   }
 }

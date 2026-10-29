@@ -5,6 +5,7 @@ import { icon, hydrateIcons } from './icons';
 import { t, n } from './i18n';
 import { mountPlayer, type Playable } from './player';
 import { applySettings, store, type MediaItem } from './store';
+import { urlForFile } from './native';
 import { openDrawer, toast } from './ui';
 import { $, $$, escapeHtml, isTextEntry, pickFiles, platform } from './util';
 import { renderHistory } from '../views/history';
@@ -291,7 +292,7 @@ function ingestFiles(files: File[], opts: { autoplay?: boolean } = {}): Playable
       inLibrary: true,
     });
     if (!session.has(item.id)) {
-      session.set(item.id, { url: URL.createObjectURL(file), name: file.name, size: file.size });
+      session.set(item.id, { url: urlForFile(file), name: file.name, size: file.size });
     }
     const playable = toPlayable(item);
     if (playable) playables.push({ ...playable, file });
