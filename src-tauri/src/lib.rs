@@ -250,7 +250,6 @@ async fn probe_file(app: tauri::AppHandle, path: String) -> Result<serde_json::V
  * version from 7 to 16 without a single unsafe block.
  */
 
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 static MEDIA_TOKEN: AtomicU32 = AtomicU32::new(1);
