@@ -44,6 +44,8 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable snapshot
+        with:
+          toolchain: stable
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: src-tauri
@@ -100,6 +102,7 @@ jobs:
           java-version: "17"
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # stable snapshot
         with:
+          toolchain: stable
           targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
       - name: Android SDK + NDK
         shell: bash
