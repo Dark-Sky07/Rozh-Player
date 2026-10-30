@@ -152,7 +152,7 @@ jobs:
           ls -lh out
           ls -lh manifest
 
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: release-desktop-${{ matrix.key }}
           path: out/*
@@ -161,7 +161,7 @@ jobs:
 
       # One manifest per runner; the publish job merges them into latest.json.
       - name: Keep the updater manifest
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: updater-manifest-${{ matrix.key }}
           path: manifest/*.json
@@ -188,7 +188,7 @@ jobs:
       - run: |
           cd dist && zip -qr ../rozh-player-web.zip . && cd ..
           ls -la rozh-player-web.zip
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: release-web
           path: rozh-player-web.zip
@@ -407,7 +407,7 @@ jobs:
           rm -f out/unsigned-tv-aligned.apk
           ls -lh out
 
-      - uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: release-android
           path: out/*
@@ -432,13 +432,13 @@ jobs:
         with:
           node-version: 22
 
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           pattern: updater-manifest-*
           path: manifest
           merge-multiple: true
 
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           pattern: release-*
           path: release-assets
