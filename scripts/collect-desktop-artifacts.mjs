@@ -12,7 +12,7 @@
  *
  * Output:
  *   out/*                       → uploaded as release assets
- *   manifest/desktop.json       → consumed by the `latest` job (see release.yml)
+ *   manifest/desktop.json       → consumed by the `publish` job (see release.yml)
  *
  * Usage: node scripts/collect-desktop-artifacts.mjs
  */
@@ -168,7 +168,7 @@ if (missing.length) {
   process.exit(1);
 }
 
-// One file per runner: the `latest` job merges them, so the names must not
+// One file per runner: the `publish` job merges them, so the names must not
 // collide when the artefacts are downloaded into a single folder.
 const runner = process.env.ARTIFACT_KEY ?? 'desktop';
 await writeFile(
