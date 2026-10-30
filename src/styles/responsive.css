@@ -154,9 +154,24 @@
     width: 100%;
     gap: 8px;
   }
+  /* Preserve the labels on the horizontally scrollable settings index; icons
+     alone are hard to distinguish on a small touch screen. */
+  .settings-jump {
+    max-width: 100%;
+    margin-bottom: 12px;
+  }
+  .settings-jump button {
+    min-height: 40px;
+    padding-inline: 11px;
+    font-size: 0.74rem;
+  }
+  .settings-jump button span {
+    display: inline !important;
+  }
   .view-head .field {
     flex: 1;
     width: auto !important;
+    min-width: 0;
   }
 
   /* ---- library ------------------------------------------------------ */
@@ -171,9 +186,27 @@
   .toolbar > .muted {
     display: none;
   }
+  .device-bar {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 11px;
+  }
+  .device-bar .db-text {
+    flex: 1 1 calc(100% - 56px);
+  }
+  .device-bar .db-actions {
+    width: 100%;
+    gap: 8px;
+  }
+  .device-bar .db-actions .btn {
+    flex: 1;
+    min-height: 40px;
+    justify-content: center;
+  }
   .filter-scroll {
     gap: 6px;
     max-width: 100%;
+    min-width: 0;
     scroll-snap-type: x proximity;
   }
   .filter-scroll .chip {
@@ -281,11 +314,39 @@
     padding: 44px 14px calc(12px + env(safe-area-inset-bottom));
   }
   .ctrl-row {
-    gap: 4px;
+    gap: 3px;
+    min-width: 0;
+  }
+  .ctrl-row > .iconbtn,
+  .ctrl-row > .rate-chip,
+  .ctrl-row > .vol-wrap {
+    flex: none;
   }
   .ctrl-row .play-btn {
-    width: 56px;
-    height: 56px;
+    width: 52px;
+    height: 52px;
+  }
+  /* The desktop transport exposes every feature in one long row. On a phone
+     that pushes the essential play/seek/fullscreen controls off-screen. Keep
+     the touch-first controls visible; the advanced actions remain in the
+     player's top action tray and settings drawers. */
+  .ctrl-row [data-act='queue'],
+  .ctrl-row [data-act='shuffle'],
+  .ctrl-row [data-act='loop'],
+  .ctrl-row [data-act='speed'],
+  .ctrl-row [data-act='tracks'],
+  .ctrl-row [data-act='fit'],
+  .ctrl-row [data-act='tools'],
+  .ctrl-row [data-act='pip'] {
+    display: none;
+  }
+  .vol-slider {
+    width: 66px;
+    opacity: 1;
+  }
+  .vol-slider input {
+    width: 66px;
+    margin: 0 3px;
   }
   .scrub {
     height: 26px;
@@ -325,6 +386,14 @@
   .tab-item .ico {
     width: 22px;
     height: 22px;
+    flex: none;
+  }
+  .tab-item > span {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .tab-item.is-active {
     background: none;
@@ -352,6 +421,45 @@
   }
   .drawer {
     width: min(100vw, 520px) !important;
+  }
+}
+
+/* ---- very narrow phones ---------------------------------------------- */
+@media (max-width: 380px) {
+  .topbar {
+    padding-inline: 7px;
+    gap: 3px;
+  }
+  .topbar::before {
+    width: 24px;
+    height: 24px;
+  }
+  .topbar-tools .iconbtn,
+  .topbar-open {
+    width: 36px;
+    height: 36px;
+  }
+  .ctrl-row [data-act='prev'],
+  .ctrl-row [data-act='next'] {
+    display: none;
+  }
+  .ctrl-row .play-btn {
+    width: 48px;
+    height: 48px;
+  }
+  .ctrl-row .time {
+    padding-inline: 3px;
+    font-size: 0.68rem;
+  }
+  .vol-slider,
+  .vol-slider input {
+    width: 48px;
+  }
+  .media-grid {
+    gap: 8px;
+  }
+  .media-body {
+    padding-inline: 7px;
   }
 }
 
