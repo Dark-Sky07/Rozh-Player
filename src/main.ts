@@ -7,6 +7,7 @@ import './styles/player-extras.css';
 import './styles/studio.css';
 import './styles/responsive.css';
 import './styles/tv.css';
+import './styles/desktop.css';
 import { bootApp } from './core/shell';
 
 function boot(): void {

@@ -23,6 +23,7 @@ import {
   haptic,
   isAudioFile,
   isTextEntry,
+  isWindowsDesktop,
   pickFiles,
   platform,
   saveBlob,
@@ -84,12 +85,12 @@ const TEMPLATE = `
         <div class="empty-inner">
           <img class="empty-logo" src="/icons/rozh-logo.png" alt="" />
           <h3>${t('player.empty.title')}</h3>
-          <p>${t('player.empty.sub')}</p>
+          <p>${t(isWindowsDesktop ? 'desktop.playerEmpty' : 'player.empty.sub')}</p>
           <div class="drop-zone">
             <div class="dz-title">${t('player.empty.drop')}</div>
-            <div class="dz-sub">${t('player.empty.dropSub')}</div>
+            <div class="dz-sub">${t(isWindowsDesktop ? 'desktop.dropHint' : 'player.empty.dropSub')}</div>
           </div>
-          <div class="empty-actions">
+          ${isWindowsDesktop ? '' : `<div class="empty-actions">
             <button class="btn btn-primary btn-lg" data-act="open">${icon('folder-open')}<span>${t(
               'player.openFile',
             )}</span></button>
@@ -97,7 +98,7 @@ const TEMPLATE = `
             <button class="btn btn-ghost btn-lg" data-act="demo">${icon('sparkles')}<span>${t(
               'player.sample',
             )}</span></button>
-          </div>
+          </div>`}
           <div class="empty-formats">
             ${['MP4', 'MKV', 'WebM', 'MOV', 'AVI', 'TS', 'MP3', 'FLAC', 'WAV', 'M4A', 'OGG', 'HLS', 'DASH']
               .map((f) => `<span class="badge muted">${f}</span>`)
@@ -217,12 +218,12 @@ const TEMPLATE = `
         <button class="iconbtn" data-act="addqueue" data-tip="${t('player.addQueue')}" aria-label="${t(
           'player.addQueue',
         )}">${icon('plus')}</button>
-        <button class="iconbtn" data-act="open" data-tip="${t('player.openFile')}" aria-label="${t(
+        ${isWindowsDesktop ? '' : `<button class="iconbtn" data-act="open" data-tip="${t('player.openFile')}" aria-label="${t(
           'player.openFile',
         )}">${icon('folder-open')}</button>
         <button class="iconbtn" data-act="url" data-tip="${t('player.openUrl')}" aria-label="${t('player.openUrl')}">${icon(
           'link',
-        )}</button>
+        )}</button>`}
         ${
           platform.tauri
             ? `<button class="iconbtn" data-act="reveal" data-tip="${t('player.reveal')}" aria-label="${t(
@@ -2097,10 +2098,10 @@ export class Player {
               )}</span></button>`
             : ''
         }
-        <button class="btn ${canHandOff(this.current?.url) ? '' : 'btn-primary'} btn-lg" data-act="open">${icon(
+        ${isWindowsDesktop ? '' : `<button class="btn ${canHandOff(this.current?.url) ? '' : 'btn-primary'} btn-lg" data-act="open">${icon(
           'folder-open',
         )}<span>${escapeHtml(t('player.openFile'))}</span></button>
-        <button class="btn btn-lg" data-act="url">${icon('link')}<span>${escapeHtml(t('player.openUrl'))}</span></button>
+        <button class="btn btn-lg" data-act="url">${icon('link')}<span>${escapeHtml(t('player.openUrl'))}</span></button>`}
       </div>`;
     this.events.onError?.(message);
   }
@@ -2720,7 +2721,7 @@ export class Player {
     const clean = url.split('?')[0].toLowerCase();
     const isHls = /\.m3u8$/.test(clean);
     const isDash = /\.mpd$/.test(clean);
-    const isAudio = /\.(mp3|m4a|aac|flac|wav|ogg|opus)$/.test(clean);
+    const isAudio = isAudioFile(clean);
     const item: Playable = {
       key: `url::${url}`,
       name: title || url.split('/').pop() || url,

@@ -1,3 +1,49 @@
+# ROZH Player 1.0.9
+
+**A rebuilt Windows desktop workspace and reliable Explorer playback**
+
+## Direct downloads
+
+| Platform | Download |
+| --- | --- |
+| Windows 10/11 (x64) | [Windows installer](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/ROZH-Player_1.0.9_x64-setup.exe) |
+| macOS — Apple Silicon | [DMG](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/ROZH-Player_1.0.9_aarch64.dmg) |
+| macOS — Intel | [DMG](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/ROZH-Player_1.0.9_x64.dmg) |
+| Linux — Debian/Ubuntu | [DEB](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/ROZH-Player_1.0.9_amd64.deb) |
+| Linux — Fedora/RHEL/openSUSE | [RPM](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/ROZH-Player-1.0.9-1.x86_64.rpm) |
+| Linux — AppImage | [AppImage](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/ROZH-Player_1.0.9_amd64.AppImage) |
+| Android phones and tablets | [APK](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/ROZH-Player-1.0.9.apk) · [Google Play bundle](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/ROZH-Player-1.0.9.aab) |
+| Android TV (dedicated build) | [TV APK](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/ROZH-Player-TV-1.0.9.apk) · [TV Google Play bundle](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/ROZH-Player-TV-1.0.9.aab) |
+| Web / PWA | [Static bundle](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/rozh-player-web.zip) |
+
+## What changed
+
+### Windows desktop
+
+- Replaced the player-first landing screen with a dedicated media workspace: a home dashboard for continue-watching and recent items, clear Library / Streams / History destinations, and a single global **Open media** action.
+- Removed redundant Open buttons from the Windows sidebar and empty/error player panels. The remaining toolbar action, Ctrl+O, drag-and-drop, and Explorer file opening all route to the visible player.
+- Fixed click bubbling that previously triggered two file pickers from controls inside the player; opening files from another page now switches to playback rather than leaving the result hidden behind that page.
+- Registered common video, audio, and M3U8 file types for Windows **Open with** / default-app selection.
+- Added single-instance handoff: launching a media file from Explorer starts playback immediately, or forwards it to the already-running ROZH window.
+
+### Design references
+
+- Applied the practical conventions of desktop media players: an obvious file-open path and persistent queue/playback context (VLC / PotPlayer), separate Video, Music and file-library destinations (Kodi / KMPlayer), and a concise home for recent media. No interface was copied.
+
+### Compatibility and upgrades
+
+- Bumped Windows and app versions to 1.0.9; Android version code is incremented and the existing signing identity is retained.
+- Phone/tablet navigation and the dedicated Android TV shell remain separate.
+- After installing, choose **ROZH Player** once in Windows' **Open with → Always** prompt (or set it under Default apps) if another app already owns the file type. Windows does not allow an installer to silently override that user choice.
+
+### Validation
+
+- `npm run build` — TypeScript check and Vite production build passed.
+- Tauri configuration JSON and `git diff --check` passed.
+- This environment does not include Rust/Windows tooling or a Windows device. The Windows native package and Explorer handoff are covered by the Windows release workflow; a real installed-build verification remains recommended.
+
+---
+
 # ROZH Player 1.0.8
 
 **A dedicated, remote-first Android TV home**

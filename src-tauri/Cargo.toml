@@ -1,6 +1,6 @@
 [package]
 name = "rozh-player"
-version = "1.0.8"
+version = "1.0.9"
 description = "ROZH Player — a fast, beautiful, universal media player"
 authors = ["ROZH"]
 edition = "2021"
@@ -26,6 +26,12 @@ tauri-plugin-os = "2"
 tauri-plugin-http = "2"
 # process restart/relaunch, used by the updater and by the Android installer
 tauri-plugin-process = "2"
+
+# Windows Explorer launches media files as a second process. The plugin
+# forwards those arguments to the running ROZH Player instance.
+[target.'cfg(target_os = "windows")'.dependencies]
+tauri-plugin-single-instance = "2"
+
 # In-app updates: signed bundles + latest.json. Desktop only — the Android
 # builds update through the system package installer instead.
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]

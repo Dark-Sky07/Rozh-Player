@@ -7,7 +7,7 @@
   **Windows · macOS · Linux · Android · Android TV · Web**
 
   [![CI](https://img.shields.io/badge/build-passing-4ecf9a?style=flat-square)](.github/workflows/ci.yml)
-  [![Release](https://img.shields.io/badge/release-v1.0.8-f8da7e?style=flat-square)](../../releases/latest)
+  [![Release](https://img.shields.io/badge/release-v1.0.9-f8da7e?style=flat-square)](../../releases/latest)
   [![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square)](https://tauri.app)
   [![License](https://img.shields.io/badge/license-MIT-f8a24a?style=flat-square)](LICENSE)
   [![Languages](https://img.shields.io/badge/languages-47-6ba8ff?style=flat-square)](#languages)
@@ -42,17 +42,17 @@ Every version ships ready-to-install builds for all platforms on the
 
 | Platform | File |
 | --- | --- |
-| **Windows 10/11 (x64)** | [ROZH-Player_1.0.8_x64-setup.exe](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player_1.0.8_x64-setup.exe) |
-| **macOS — Apple Silicon (M1–M4)** | [ROZH-Player_1.0.8_aarch64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player_1.0.8_aarch64.dmg) |
-| **macOS — Intel** | [ROZH-Player_1.0.8_x64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player_1.0.8_x64.dmg) |
-| **Linux (Debian/Ubuntu)** | [ROZH-Player_1.0.8_amd64.deb](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player_1.0.8_amd64.deb) |
-| **Linux (Fedora/RHEL/openSUSE)** | [ROZH-Player-1.0.8-1.x86_64.rpm](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player-1.0.8-1.x86_64.rpm) |
-| **Linux (any distribution)** | [ROZH-Player_1.0.8_amd64.AppImage](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player_1.0.8_amd64.AppImage) |
-| **Android 7.0+ (phones, tablets)** | [ROZH-Player-1.0.8.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player-1.0.8.apk) |
-| **Android (Google Play bundle)** | [ROZH-Player-1.0.8.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player-1.0.8.aab) |
-| **Android TV (dedicated build)** | [ROZH-Player-TV-1.0.8.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player-TV-1.0.8.apk) |
-| **Android TV (Google Play bundle)** | [ROZH-Player-TV-1.0.8.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player-TV-1.0.8.aab) |
-| **Web / PWA** | [rozh-player-web.zip](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/rozh-player-web.zip) — unzip and serve as static files |
+| **Windows 10/11 (x64)** | [ROZH-Player_1.0.9_x64-setup.exe](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/ROZH-Player_1.0.9_x64-setup.exe) |
+| **macOS — Apple Silicon (M1–M4)** | [ROZH-Player_1.0.9_aarch64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/ROZH-Player_1.0.9_aarch64.dmg) |
+| **macOS — Intel** | [ROZH-Player_1.0.9_x64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/ROZH-Player_1.0.9_x64.dmg) |
+| **Linux (Debian/Ubuntu)** | [ROZH-Player_1.0.9_amd64.deb](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/ROZH-Player_1.0.9_amd64.deb) |
+| **Linux (Fedora/RHEL/openSUSE)** | [ROZH-Player-1.0.9-1.x86_64.rpm](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/ROZH-Player-1.0.9-1.x86_64.rpm) |
+| **Linux (any distribution)** | [ROZH-Player_1.0.9_amd64.AppImage](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/ROZH-Player_1.0.9_amd64.AppImage) |
+| **Android 7.0+ (phones, tablets)** | [ROZH-Player-1.0.9.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/ROZH-Player-1.0.9.apk) |
+| **Android (Google Play bundle)** | [ROZH-Player-1.0.9.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/ROZH-Player-1.0.9.aab) |
+| **Android TV (dedicated build)** | [ROZH-Player-TV-1.0.9.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/ROZH-Player-TV-1.0.9.apk) |
+| **Android TV (Google Play bundle)** | [ROZH-Player-TV-1.0.9.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/ROZH-Player-TV-1.0.9.aab) |
+| **Web / PWA** | [rozh-player-web.zip](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/rozh-player-web.zip) — unzip and serve as static files |
 
 > Builds are unsigned: Windows may show SmartScreen and macOS Gatekeeper needs a
 > right-click → **Open** on first launch. Details in the
@@ -105,7 +105,11 @@ midnight black. Three simple rules:
 ## Features
 
 ### Interfaces
-- **Desktop**: floating glass panels around a persistent rail
+- **Windows**: a dedicated home for recent media and continue-watching, a simple
+  Library / Streams / History rail, one global Open media action, and a focused
+  playback surface. Explorer file associations launch the selected media
+  directly; a second launch forwards it to the existing window.
+- **macOS / Linux**: floating glass panels around a persistent rail
 - **Phone**: a real mobile shell — compact app bar, thumb-sized controls, a
   bottom tab bar with safe-area padding, no hover-only affordances, 2–3 column
   grid, `dvh`-aware player that survives rotation
@@ -118,7 +122,8 @@ midnight black. Three simple rules:
 ### Playback
 - Custom player surface on top of `<video>` with a complete control set
 - **HLS** (`.m3u8`) and **DASH** (`.mpd`) with lazy loading and manual/auto quality
-- Open local media by drag-and-drop, the native file dialog, or the Open button
+- Open local media by drag-and-drop, the native file dialog, or Windows Explorer;
+  on Windows the toolbar Open media action is the single visible file picker
 - **Queue**, shuffle, repeat (one / all)
 - **Resume where you left off** — every file restarts at the second you stopped
 - Playback speed 0.25×–4× with pitch preservation
@@ -152,6 +157,8 @@ midnight black. Three simple rules:
 - Local library with **automatic poster frames** captured off the playback path
 - Search and filters (video / audio / network)
 - Playback history with progress percentage and "continue from…"
+- Windows file associations for common media types; choose ROZH Player once in
+  Windows **Open with → Always** if another app already owns that file type
 - Everything stays on your device: no account, no server, no telemetry
 
 ### Experience
@@ -287,7 +294,7 @@ Pushing a tag that matches `v*` builds the full matrix and publishes a new
 GitHub release with every asset attached:
 
 ```bash
-git tag v1.0.8 && git push origin v1.0.8
+git tag v1.0.9 && git push origin v1.0.9
 ```
 
 | Job | Tooling | Output |
@@ -296,7 +303,7 @@ git tag v1.0.8 && git push origin v1.0.8
 | macOS | `macos-latest`, both architectures | `aarch64.dmg` · `x64.dmg` |
 | Linux | `ubuntu-22.04` | `deb` · `rpm` · `AppImage` |
 | Android | JDK 17 + NDK 27 | `apk` · `aab` (phone **and** TV builds) |
-| Web | `ubuntu-latest` | [rozh-player-web.zip](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/rozh-player-web.zip) |
+| Web | `ubuntu-latest` | [rozh-player-web.zip](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.9/rozh-player-web.zip) |
 | Manifest | after every desktop job | `latest.json` (in-app updates) |
 
 The release body is generated from [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md).

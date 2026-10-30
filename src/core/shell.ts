@@ -5,21 +5,22 @@ import { icon, hydrateIcons } from './icons';
 import { t, n } from './i18n';
 import { mountPlayer, type Playable } from './player';
 import { applySettings, store, type MediaItem } from './store';
-import { onNativeCommand, probeFile, urlForFile } from './native';
+import { convertFileSrc as convertNativePath, NativeFile, onNativeCommand, probeFile, urlForFile } from './native';
 import { openDrawer, toast } from './ui';
 import { applyDeviceStatus, isAndroidDevice, pickDeviceFolder, syncDeviceLibrary } from './device';
 import { autoCheckForUpdates } from './updateUI';
 import { focusView, initTv } from './tv';
-import { $, $$, escapeHtml, isTextEntry, pickFiles, platform } from './util';
+import { $, $$, escapeHtml, guessMime, isAudioFile, isTextEntry, isWindowsDesktop, pickFiles, platform } from './util';
 import { renderHistory } from '../views/history';
 import { renderLibrary, generateThumb } from '../views/library';
 import { renderTvHome } from '../views/tvHome';
+import { renderDesktopHome } from '../views/desktopHome';
 import { renderAbout, renderShortcuts } from '../views/misc';
 import { renderSettings } from '../views/settings';
 import { openUrlModal, renderStreams } from '../views/streams';
 
-const VIEWS: { id: ViewId; icon: string; group: string; mobile?: boolean; tvOnly?: boolean }[] = [
-  { id: 'home', icon: 'home', group: 'tv', tvOnly: true },
+const VIEWS: { id: ViewId; icon: string; group: string; mobile?: boolean; desktopOnly?: boolean }[] = [
+  { id: 'home', icon: 'home', group: 'play', desktopOnly: true },
   { id: 'player', icon: 'play', group: 'play', mobile: true },
   { id: 'library', icon: 'film', group: 'play', mobile: true },
   { id: 'streams', icon: 'broadcast', group: 'play', mobile: true },
@@ -32,6 +33,8 @@ const VIEWS: { id: ViewId; icon: string; group: string; mobile?: boolean; tvOnly
 let activeView: ViewId = platform.tv ? 'home' : 'player';
 let player: ReturnType<typeof mountPlayer>;
 const session = new Map<string, { url: string; name: string; size: number }>();
+let shellReady = false;
+const pendingWindowsOpenPaths: string[][] = [];
 
 /* ------------------------------------------------------------------ */
 
@@ -45,7 +48,9 @@ function navMarkup(primaryOnly = false): string {
     .map(
       (g) => `
           <div class="nav-title">${escapeHtml(g.label)}</div>
-          ${VIEWS.filter((v) => v.group === g.key && (!primaryOnly || v.mobile))
+          ${VIEWS.filter(
+            (v) => v.group === g.key && (!primaryOnly || v.mobile) && (!v.desktopOnly || isWindowsDesktop),
+          )
             .map(
               (v) => `<button class="nav-item" data-view="${v.id}">
                 <span class="nav-ico">${icon(v.icon)}</span>
@@ -149,7 +154,7 @@ function shellTemplate(): string {
   if (document.documentElement.dataset.tv === 'true') return tvTemplate();
 
   return `
-  <div class="shell" data-sidebar="${
+  <div class="shell ${isWindowsDesktop ? 'windows-shell' : ''}" data-sidebar="${
     platform.mobile || window.innerWidth <= 900 ? 'closed' : store.settings.sidebar
   }">
     ${ambientMarkup()}
@@ -162,9 +167,9 @@ function shellTemplate(): string {
       <nav class="nav">${navMarkup()}</nav>
 
       <div class="sidebar-foot">
-        <button class="btn btn-primary open-btn" data-act="open">${icon('folder-open')}<span>${t(
+        ${isWindowsDesktop ? '' : `<button class="btn btn-primary open-btn" data-act="open">${icon('folder-open')}<span>${t(
           'nav.openFile',
-        )}</span></button>
+        )}</span></button>`}
         <div class="side-card">
           <span class="foot-text"><span class="dot"></span>${platform.tauri ? platform.os : 'web'}</span>
           <span class="badge mono">v${__APP_VERSION__}</span>
@@ -232,7 +237,8 @@ function renderActiveView(): void {
   const ctx = makeContext();
   switch (activeView) {
     case 'home':
-      renderTvHome(host, ctx);
+      if (platform.tv) renderTvHome(host, ctx);
+      else renderDesktopHome(host, ctx);
       break;
     case 'library':
       renderLibrary(host, ctx);
@@ -370,7 +376,7 @@ function ingestFiles(files: File[], opts: { autoplay?: boolean } = {}): Playable
     const item = store.addMedia({
       name: file.name,
       title: file.name.replace(/\.[^.]+$/, ''),
-      kind: /\.(mp3|m4a|aac|flac|wav|ogg|opus)$/i.test(file.name) ? 'audio' : 'video',
+      kind: isAudioFile(file.name) ? 'audio' : 'video',
       source: 'local',
       size: file.size,
       ext: (file.name.split('.').pop() ?? '').toLowerCase(),
@@ -430,10 +436,70 @@ async function registerOpenedFiles(files: File[]): Promise<void> {
   }
 }
 
+const WINDOWS_MEDIA_EXTENSIONS = new Set([
+  'mp4', 'm4v', 'mov', 'mkv', 'avi', 'webm', 'wmv', 'flv', 'ts', 'm2ts', 'mpg', 'mpeg', '3gp', 'ogv',
+  'mp3', 'm4a', 'm4b', 'aac', 'flac', 'wav', 'ogg', 'oga', 'opus', 'wma', 'aif', 'aiff', 'ape', 'alac', 'm3u8',
+]);
+
+function receiveWindowsOpenPaths(paths: string[]): void {
+  const accepted = [...new Set(paths.filter((path) => typeof path === 'string' && path.trim()))];
+  if (!accepted.length) return;
+  if (!shellReady) pendingWindowsOpenPaths.push(accepted);
+  else void openWindowsPaths(accepted);
+}
+
+async function initializeWindowsOpenBridge(): Promise<void> {
+  if (!isWindowsDesktop || !platform.tauri) return;
+  try {
+    const [{ listen }, { invoke }] = await Promise.all([
+      import('@tauri-apps/api/event'),
+      import('@tauri-apps/api/core'),
+    ]);
+    // Subscribe before reading startup argv so Explorer launches during webview
+    // startup cannot lose a second-open request.
+    await listen<string[]>('rozh:open-files', (event) => receiveWindowsOpenPaths(event.payload));
+    const initial = await invoke<string[]>('take_initial_open_files');
+    if (initial?.length) pendingWindowsOpenPaths.push(initial);
+  } catch (error) {
+    console.warn('[rozh] Windows Explorer open integration unavailable', error);
+  }
+}
+
+async function openWindowsPaths(paths: string[]): Promise<void> {
+  try {
+    const files: NativeFile[] = [];
+    for (const raw of paths) {
+      const path = raw.replace(/^\"|\"$/g, '');
+      const name = path.split(/[\\/]/).filter(Boolean).pop() ?? '';
+      const extension = name.split('.').pop()?.toLowerCase() ?? '';
+      if (!name || !WINDOWS_MEDIA_EXTENSIONS.has(extension)) continue;
+      const file = new File([], name, { type: guessMime(name) }) as NativeFile;
+      file.__path = path;
+      file.__url = await convertNativePath(path);
+      files.push(file);
+    }
+    if (!files.length) return;
+    navigate('player');
+    await player.loadFiles(files);
+  } catch (error) {
+    console.error('[rozh] opening media from Explorer failed', error);
+    toast(t('player.openFailed'), 'bad', 3200);
+  }
+}
+
 async function openLocalFiles(): Promise<void> {
-  const files = await pickFiles();
-  if (!files.length) return;
-  await player.loadFiles(files);
+  try {
+    const files = await pickFiles();
+    if (!files.length) return;
+    // The global toolbar stays available from every destination. After a
+    // selection, make the player visible before loading so the action never
+    // appears to do nothing while the library or settings page stays on top.
+    navigate('player');
+    await player.loadFiles(files);
+  } catch (error) {
+    console.error('[rozh] opening media failed', error);
+    toast(t('player.openFailed'), 'bad', 3200);
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -448,6 +514,9 @@ function bindChrome(): void {
       navigate(viewBtn.dataset.view as ViewId);
       return;
     }
+    // Player owns controls rendered inside its own surface. Letting both its
+    // handler and the shell handle Open/URL clicks launches two native dialogs.
+    if (target.closest('.player-view [data-act]')) return;
     const act = target.closest<HTMLElement>('[data-act]')?.dataset.act;
     if (!act) return;
     switch (act) {
@@ -461,7 +530,7 @@ function bindChrome(): void {
           title: title || url,
           url,
           isStream: true,
-          kind: /\.(m3u8|mpd)$/i.test(url) ? 'stream' : /\.(mp3|m4a|aac|flac|wav|ogg)$/i.test(url) ? 'audio' : 'video',
+          kind: /\.(m3u8|mpd)$/i.test(url) ? 'stream' : isAudioFile(url.split('?')[0]) ? 'audio' : 'video',
           size: 0,
         }));
         break;
@@ -630,15 +699,18 @@ export async function rebuild(): Promise<void> {
 }
 
 export async function bootApp(): Promise<void> {
+  await initializeWindowsOpenBridge();
   await store.init();
   applySettings(store.settings);
 
   const hash = location.hash.replace('#', '') as ViewId;
-  if (platform.tv) activeView = 'home';
+  if (platform.tv || isWindowsDesktop) activeView = 'home';
   else if (VIEWS.some((v) => v.id === hash)) activeView = hash;
 
   paint();
   bindChrome();
+  shellReady = true;
+  for (const paths of pendingWindowsOpenPaths.splice(0)) await openWindowsPaths(paths);
 
   // tray / menu-bar transport (desktop only; the promise resolves to a no-op on web)
   void onNativeCommand((cmd) => {
@@ -669,7 +741,13 @@ export async function bootApp(): Promise<void> {
   // First-run niceties. Not on Android (the device scan is the onboarding and
   // the permission dialog owns the first frame) and not on TV (a modal before
   // the remote has been explained is a trap).
-  if (!store.settings.seenWelcome && store.media.length === 0 && !platform.tv && !isAndroidDevice()) {
+  if (
+    !store.settings.seenWelcome &&
+    store.media.length === 0 &&
+    !platform.tv &&
+    !isAndroidDevice() &&
+    !isWindowsDesktop
+  ) {
     setTimeout(() => {
       openDrawer({
         title: 'ROZH Player',

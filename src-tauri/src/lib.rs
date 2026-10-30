@@ -10,6 +10,57 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::Mutex;
+
+#[derive(Default)]
+struct InitialOpenFiles(Mutex<Vec<String>>);
+
+#[tauri::command]
+fn take_initial_open_files(state: tauri::State<'_, InitialOpenFiles>) -> Vec<String> {
+    state
+        .0
+        .lock()
+        .map(|mut files| std::mem::take(&mut *files))
+        .unwrap_or_default()
+}
+
+fn normalize_media_path(raw: &str, cwd: &Path) -> Option<String> {
+    let raw = raw.trim().trim_matches('"');
+    if raw.is_empty() || raw.starts_with('-') {
+        return None;
+    }
+    let raw_path = PathBuf::from(raw);
+    let path = if raw_path.is_absolute() { raw_path } else { cwd.join(raw_path) };
+    if !path.is_file() {
+        return None;
+    }
+    let extension = path.extension()?.to_str()?.to_ascii_lowercase();
+    const MEDIA_EXTENSIONS: &[&str] = &[
+        "mp4", "m4v", "mov", "mkv", "avi", "webm", "wmv", "flv", "ts", "m2ts", "mpg", "mpeg",
+        "3gp", "ogv", "mp3", "m4a", "m4b", "aac", "flac", "wav", "ogg", "oga", "opus", "wma",
+        "aif", "aiff", "ape", "alac", "m3u8",
+    ];
+    if !MEDIA_EXTENSIONS.contains(&extension.as_str()) {
+        return None;
+    }
+    Some(path.to_string_lossy().into_owned())
+}
+
+fn media_paths_from_args<I, S>(args: I, cwd: &Path) -> Vec<String>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let mut paths = Vec::new();
+    for arg in args {
+        if let Some(path) = normalize_media_path(arg.as_ref(), cwd) {
+            if !paths.contains(&path) {
+                paths.push(path);
+            }
+        }
+    }
+    paths
+}
 
 #[cfg(desktop)]
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
@@ -447,7 +498,34 @@ fn reveal_in_folder(path: String) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let mut builder = tauri::Builder::default()
+    let startup_cwd = std::env::current_dir().unwrap_or_default();
+    let startup_open_files = media_paths_from_args(
+        std::env::args_os().skip(1).map(|arg| arg.to_string_lossy().into_owned()),
+        &startup_cwd,
+    );
+
+    let mut builder = tauri::Builder::default();
+    // Must be the first plugin: Explorer may invoke ROZH again for every file,
+    // and this forwards those paths to the already-running window.
+    #[cfg(target_os = "windows")]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+            let paths = media_paths_from_args(argv.iter().skip(1), Path::new(&cwd));
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
+            }
+            if !paths.is_empty() {
+                if let Err(error) = app.emit("rozh:open-files", paths) {
+                    eprintln!("[rozh] could not forward Explorer media paths: {error}");
+                }
+            }
+        }));
+    }
+
+    builder = builder
+        .manage(InitialOpenFiles(Mutex::new(startup_open_files)))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -464,7 +542,8 @@ pub fn run() {
             android_open_external,
             android_media_server,
             android_update_status,
-            android_update_install
+            android_update_install,
+            take_initial_open_files
         ]);
 
     // The updater only exists on desktop: Android updates itself through the
