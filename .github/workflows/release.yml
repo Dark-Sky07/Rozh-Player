@@ -240,21 +240,20 @@ jobs:
             || { echo '::error title=manifest::media permissions missing'; exit 1; }
           echo 'manifest ok'
 
-      - name: Signing key (ephemeral, CI only)
+      # The signing key must be the same on every release: Android only installs
+      # an update whose certificate matches the installed one. Until v1.1.0 this
+      # step generated a throwaway keystore per run, which made in-place updates
+      # impossible. It now fails closed when the stable key is not configured
+      # instead of producing another unmatched APK.
+      # See docs/SIGNING-AND-UPDATES.md.
+      - name: Signing key (stable, from repository secrets)
         shell: bash
-        run: |
-          mkdir -p src-tauri/keystore
-          keytool -genkeypair -v \
-            -keystore src-tauri/keystore/rozh-ci.jks \
-            -alias rozh \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -storepass rozhplayer -keypass rozhplayer \
-            -dname "CN=ROZH Player, OU=ROZH, O=ROZH, L=Tehran, C=IR"
-          cat > src-tauri/gen/android/keystore.properties <<EOF
-          password=rozhplayer
-          keyAlias=rozh
-          storeFile=$GITHUB_WORKSPACE/src-tauri/keystore/rozh-ci.jks
-          EOF
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: scripts/prepare-android-signing.sh
 
       - name: Build APK + AAB
         shell: bash
@@ -270,24 +269,32 @@ jobs:
 
       - name: Sign APK + AAB
         shell: bash
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           set -euo pipefail
           VERSION="$(node -p "require('./package.json').version")"
           echo "Building Android artefacts for $VERSION"
-          KS="$GITHUB_WORKSPACE/src-tauri/keystore/rozh-ci.jks"
+          KS="$GITHUB_WORKSPACE/src-tauri/keystore/release.jks"
+          test -f "$KS" || { echo '::error title=android signing::keystore missing, prepare-android-signing.sh did not run'; exit 1; }
           BT="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)"
           mkdir -p out
           unsigned=$(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' | head -1)
           echo "unsigned: $unsigned"
           "$BT/zipalign" -f -p 4 "$unsigned" out/unsigned-aligned.apk
-          "$BT/apksigner" sign --ks "$KS" --ks-pass pass:rozhplayer --key-pass pass:rozhplayer \
+          "$BT/apksigner" sign --ks "$KS" \
+            --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" \
+            --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --key-pass "pass:$ANDROID_KEY_PASSWORD" \
             --out out/"ROZH-Player-$VERSION.apk" out/unsigned-aligned.apk
           "$BT/apksigner" verify --print-certs out/"ROZH-Player-$VERSION.apk" | head -5
           aab=$(find src-tauri/gen/android/app/build/outputs/bundle -name '*.aab' | head -1)
           if [ -n "$aab" ]; then
             cp "$aab" out/"ROZH-Player-$VERSION.aab"
-            jarsigner -keystore "$KS" -storepass rozhplayer -keypass rozhplayer \
-              out/"ROZH-Player-$VERSION.aab" rozh
+            jarsigner -keystore "$KS" -storepass "$ANDROID_KEYSTORE_PASSWORD" -keypass "$ANDROID_KEY_PASSWORD" \
+              out/"ROZH-Player-$VERSION.aab" "$ANDROID_KEY_ALIAS"
           fi
           rm -f out/unsigned-aligned.apk
           ls -lh out
@@ -332,22 +339,30 @@ jobs:
 
       - name: Sign Android TV APK + AAB
         shell: bash
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           set -euo pipefail
           VERSION="$(node -p "require('./package.json').version")"
-          KS="$GITHUB_WORKSPACE/src-tauri/keystore/rozh-ci.jks"
+          KS="$GITHUB_WORKSPACE/src-tauri/keystore/release.jks"
+          test -f "$KS" || { echo '::error title=android signing::keystore missing, prepare-android-signing.sh did not run'; exit 1; }
           BT="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)"
           unsigned=$(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' | head -1)
           echo "unsigned TV apk: $unsigned"
           "$BT/zipalign" -f -p 4 "$unsigned" out/unsigned-tv-aligned.apk
-          "$BT/apksigner" sign --ks "$KS" --ks-pass pass:rozhplayer --key-pass pass:rozhplayer \
+          "$BT/apksigner" sign --ks "$KS" \
+            --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" \
+            --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --key-pass "pass:$ANDROID_KEY_PASSWORD" \
             --out out/"ROZH-Player-TV-$VERSION.apk" out/unsigned-tv-aligned.apk
           "$BT/apksigner" verify out/"ROZH-Player-TV-$VERSION.apk"
           aab=$(find src-tauri/gen/android/app/build/outputs/bundle -name '*.aab' | head -1)
           if [ -n "$aab" ]; then
             cp "$aab" out/"ROZH-Player-TV-$VERSION.aab"
-            jarsigner -keystore "$KS" -storepass rozhplayer -keypass rozhplayer \
-              out/"ROZH-Player-TV-$VERSION.aab" rozh
+            jarsigner -keystore "$KS" -storepass "$ANDROID_KEYSTORE_PASSWORD" -keypass "$ANDROID_KEY_PASSWORD" \
+              out/"ROZH-Player-TV-$VERSION.aab" "$ANDROID_KEY_ALIAS"
           fi
           rm -f out/unsigned-tv-aligned.apk
           ls -lh out

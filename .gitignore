@@ -28,3 +28,14 @@ Thumbs.db
 # logs
 *.log
 npm-debug.log*
+
+# signing material — never commit (see docs/SIGNING-AND-UPDATES.md)
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pem
+*.key
+src-tauri/keystore/
+src-tauri/gen/android/keystore.properties
+keystore.properties
