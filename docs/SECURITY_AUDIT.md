@@ -5,38 +5,45 @@
 
 ## Summary
 
-Prior signing material had been committed to repository history, and the release workflow previously contained an Android signing password. The current release preparation rotates the Tauri updater public key, uses newly generated signing identities supplied by the owner through protected Actions secrets, and adds a manual signing preflight. The release workflow now stages platform artifacts and has a single final publishing job, so it cannot create a public release until all required platform builds, signing, and asset validation pass.
+Historical signing material was committed to repository history, so the old updater and Android signing identities are treated as compromised. The owner provisioned fresh signing identities in protected GitHub Actions secrets. The v1.1.1 signing preflight passed both updater-key matching and Android keystore validation, and the v1.1.1 release was published after its release workflow completed.
 
-Version **1.1.1** is prepared on the active feature branch but has not been released. The new release workflow and signing preflight have not yet run in GitHub Actions. No secret values are present in this audit or intended to be printed in workflow logs.
+This branch prepares v1.1.2 with Android phone and Android TV fixes. Those changes must pass the protected pull-request checks and the gated release workflow before any v1.1.2 tag is published. Do not claim physical-device, Play Store, or sideload-migration validation unless those tests are actually completed. No signing-secret values are present in this audit.
 
-## Fixed or hardened in the current release branch
+## Existing security hardening
 
 - **DOM injection:** toast content and boot-failure text use `textContent`; dynamic library/history thumbnail URLs and media IDs are escaped before markup insertion. Toast callers pass plain text.
-- **Android loopback media server:** each process creates a cryptographically random 256-bit bearer token. The route no longer treats base64 as authorization; it accepts only the tokenized route, `content://` or `file://` sources, and GET/HEAD/OPTIONS. Request lines/headers are bounded, active connections are capped, CORS is explicit, MIME response headers are validated, and byte-range handling was corrected.
-- **Android update downloads:** the URL is checked in the frontend, Rust command, and Java bridge. Only version-matched phone/TV APKs at the exact HTTPS GitHub release path are accepted; Java also checks that the asset matches the installed phone or TV package.
+- **Android loopback media server:** each process creates a cryptographically random 256-bit bearer token. The route accepts only the tokenized path and `content://` or `file://` sources; request lines/headers are bounded, active connections are capped, CORS is explicit, MIME response headers are validated, and byte-range handling is implemented.
+- **Android update downloads:** URLs are checked in the frontend, Rust command, and Java bridge. Only version-matched phone/TV APKs at the exact HTTPS GitHub release path are accepted; Java also checks that the asset matches the installed phone or TV package.
 - **Native FFmpeg commands:** probe/remux require an accessible regular local media file with an allowed media extension. Network protocols are excluded from FFmpeg input; remux outputs include a path-derived identifier to avoid same-name collisions. File reveal canonicalizes and verifies paths.
-- **FFmpeg supply chain:** the downloader pins FFmpeg 6.1.1 release assets, exact sizes, and GitHub-published SHA-256 digests; it verifies cached files and downloads to a temporary file before installing. Release builds fail closed on download/integrity failures. macOS builds fetch the correct architecture binary for each target.
+- **FFmpeg supply chain:** the downloader pins FFmpeg release assets, exact sizes, and GitHub-published SHA-256 digests; it verifies cached files and downloads to a temporary file before installing. Release builds fail closed on download/integrity failures. macOS builds fetch the correct architecture binary for each target.
 - **Android HLS fetch cancellation:** abort and destroy cancel the native HTTP request.
-- **Native permission scope:** removed unused Tauri filesystem, opener, and OS plugins/permissions and the DevTools toggle permission. Dialog permission is narrowed to `allow-open`; process permission is limited to restart.
-- **GitHub Actions:** third-party actions are pinned to full commit SHAs. The release workflow runs only for version-tag pushes, checks out the exact tag, requires a `vMAJOR.MINOR.PATCH` tag matching `package.json`, requires a release commit already reachable from `main`, and limits write permission to the final publishing job. Platform jobs upload artifacts rather than publishing partial releases. Android/updater signing uses protected Actions secrets and fails closed when inputs are absent or invalid.
-- **Signing preflight:** a manually dispatched workflow verifies that the Tauri private key matches the public key in the application config, and tests the Android keystore, alias, store password, and key password. It does not upload probe files or intentionally print secret values.
-- **Android update selection:** the TV updater no longer falls back to installing the phone APK, and API assets must match the official repository, tag, variant, and filename.
-- **Signing transition:** the updater public key was rotated in the v1.1.1 branch. Existing desktop users need a one-time manual installation to trust the new updater key. Existing Android sideload users must uninstall the old app before installing v1.1.1 because the signing certificate changed; this can remove app-private data. Future releases are intended to update in place under the new keys.
+- **Native permission scope:** unused Tauri filesystem, opener, and OS plugins/permissions and the DevTools toggle permission were removed. Dialog permission is narrowed to `allow-open`; process permission is limited to restart.
+- **GitHub Actions:** third-party actions are pinned to full commit SHAs. Release runs only for version-tag pushes, checks out the exact tag, validates that the `vMAJOR.MINOR.PATCH` tag matches `package.json`, requires the release commit to be reachable from `main`, and limits write permission to the final publishing job. Platform jobs stage artifacts; the final job publishes only after required builds, signing, manifest validation, and asset checks succeed.
+- **Signing preflight:** the manual workflow verifies that the Tauri private key matches the configured public key and validates the Android keystore, alias, and passwords without intentionally printing secret values. Owner-triggered run [41099673390](https://github.com/Dark-Sky07/Rozh-Player/actions/runs/41099673390) passed both checks.
+- **Signing transition:** v1.1.1 introduced the fresh updater and Android signing identities and was published as a public GitHub release. Existing v1.1.0 desktop installs require a one-time manual migration to trust the new updater key. Existing v1.1.0 Android sideload installs require uninstall/reinstall because the certificate changed; this may erase app-private data. Future updates are intended to use the replacement identities in place.
+
+## Android fixes in the proposed v1.1.2 release
+
+- Each scan/picker request now has an ID, and the mailbox publishes a fresh pending state before sending a command. This prevents a previous launch's `ready` snapshot from prematurely completing the next scan.
+- The Android process skips the command left by its previous run so a stale play/install command is not replayed on launch, and refreshes its Activity reference after configuration-driven recreation.
+- The audio-index preference is applied to MediaStore and persisted SAF folders. Missing provider MIME types are classified from filenames, and a declined Android 13+ audio permission no longer prevents video scanning.
+- Android 14+ selected-media permission is declared and used so selected videos remain indexable when full-library access is not granted.
+- Indexed Android media is de-duplicated by document URI rather than filename and size, preserving same-named files in different folders.
 
 ## Release gates and remaining limitations
 
-### Before publishing v1.1.1
+### Before publishing v1.1.2
 
-1. Merge the reviewed release-preparation PR through the protected `main` branch and wait for all required checks.
-2. From the default branch, run **Signing preflight** and confirm both signing checks pass. The secrets API is not accessible to this session; the owner reports that all six required Actions secrets have been configured. Do not expose their values in chat or logs.
-3. Only after those checks pass, create and push the `v1.1.1` tag on the merged commit. The release workflow's final publish job must succeed before a public, non-draft release appears.
-4. Verify the published assets and updater manifest. Test the one-time v1.1.0-to-v1.1.1 migration and subsequent in-place update on representative devices before describing those behaviors as device-certified.
+1. Open a pull request from this branch and merge only after the required Web, Rust, and Android checks pass on protected `main`.
+2. Confirm signing secrets remain configured; the release workflow must complete its native build, signing, manifest, and asset validation steps before its final publishing job can create a public non-draft release.
+3. Verify the public assets and updater manifest after publication. Do not publish a tag while required CI or signing validation is failing or incomplete.
+4. Test Android phone and TV permissions, library indexing, local/network playback, remote navigation, and in-place update behavior on representative physical devices before describing them as device-certified.
 
-The v1.1.1 release is a GitHub release. Its AAB files are build artifacts for possible separate Play Console submission; they are **not** automatically published to Google Play. Play App Signing, upload-key configuration, store-policy compliance, and store acceptance have not been verified.
+The GitHub release's AAB files are artifacts for a possible separate Play Console submission; they are **not** automatically published to Google Play. Play App Signing, upload-key configuration, store-policy compliance, and store acceptance have not been verified.
 
 ### Platform and security limits
 
-- Android signing-certificate rotation means sideloaded v1.1.0 installations cannot update directly to v1.1.1. Uninstalling may erase app-private settings, history, and playlists; media files stored elsewhere on the device are not removed. Physical-device migration is unverified.
+- Android signing-certificate rotation means sideloaded v1.1.0 installations cannot directly install v1.1.1 or later. Uninstalling may erase app-private settings, history, and playlists; media files stored elsewhere on the device are not removed. Physical-device migration is unverified.
 - The release workflow does not provision Apple Developer ID signing/notarization or Windows code-signing credentials. Platform security warnings may therefore appear.
 - The Android manifest requests `REQUEST_INSTALL_PACKAGES` to support GitHub sideload updates. Google Play restricts this permission for apps whose core purpose is not package installation. A Play-distributed build may require a separate update flow and build configuration.
 - Android allows cleartext traffic to support user-entered HTTP media streams. This permits interception/modification on untrusted networks. Keep HTTP as an explicit user choice and warn when it is used; a stricter store channel may be needed.
@@ -47,15 +54,14 @@ The v1.1.1 release is a GitHub release. Its AAB files are build artifacts for po
 
 ## Repository controls and release state
 
-- The `main` branch is protected by the active `Arena` ruleset. It requires a pull request and the Web typecheck/build, Rust cargo check, and Android bridge compile checks; it blocks force-pushes and deletion and has no bypass actors.
-- The owner reports that these six GitHub Actions secrets are configured: `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`, `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_PASSWORD`, and `ANDROID_KEY_ALIAS`. Their values are intentionally inaccessible to this session.
-- No v1.1.1 tag or public release has been created. The release and signing-preflight workflows still need GitHub Actions validation.
+- The `main` branch is protected by the active Arena ruleset. It requires a pull request and the Web typecheck/build, Rust cargo check, and Android bridge compile checks; it blocks force-pushes and deletion and has no bypass actors.
+- The owner reports that the six required GitHub Actions secrets are configured. Their values are intentionally inaccessible to this session.
+- Latest published release at audit time: [v1.1.1](https://github.com/Dark-Sky07/Rozh-Player/releases/tag/v1.1.1). Release workflow run [41099996287](https://github.com/Dark-Sky07/Rozh-Player/actions/runs/41099996287) was triggered from the merged v1.1.1 tag.
 
-## Validation performed
+## Validation performed for this branch
 
-- `npm run typecheck`: passed on the v1.1.1 worktree.
-- `npm run build`: passed; Vite emitted existing mixed static/dynamic import chunk warnings but produced the production build.
-- Prettier validation for the release and signing-preflight workflow YAML: passed.
-- JSON parsing, updater public-key format check, JavaScript syntax check for `scripts/build-latest-json.mjs`, release-notes/version checks, and `git diff --check`: passed.
-- Earlier main-branch CI run [41066224419](https://github.com/Dark-Sky07/Rozh-Player/actions/runs/41066224419) passed after PR #2 was merged. It does not validate the current v1.1.1 release-workflow edits.
-- The new GitHub release workflow, signing preflight, native desktop release packages, secret/key matching, signed Android packages, v1.1.0 upgrade migration, store submission, and physical-device playback/update behavior remain **unverified** until the applicable CI or device tests pass.
+- `npm ci`: passed; npm reported zero known vulnerabilities in the installed dependency set.
+- `npm run build`: TypeScript check and Vite production build passed. Vite emitted existing mixed static/dynamic import chunk warnings.
+- `git diff --check`: passed.
+- Cargo/Rust tests could not run locally because Cargo is not installed in this sandbox. Android native generation/build and physical-device tests also remain unavailable here; GitHub Actions must validate the native build changes.
+- The v1.1.2 protected PR checks, release signing, native release artifacts, update migration, Play Store submission, and physical-device playback/update behavior remain **unverified** until their respective CI or device tests pass.

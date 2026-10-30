@@ -52,6 +52,8 @@ export interface DeviceStatus {
   items?: DeviceItem[];
   message?: string;
   ts?: number;
+  /** Mailbox request id; prevents a previous launch's `ready` snapshot from winning a new scan. */
+  requestToken?: number;
 }
 
 export interface SyncResult {
@@ -116,15 +118,25 @@ const PENDING: DeviceState[] = ['starting', 'scanning', 'picking', 'idle'];
  * Poll the native state file until the scan settles. `readOnly` polls are free —
  * they never restart a running scan.
  */
-async function waitForSettle(state: DeviceStatus | null, timeoutMs: number): Promise<DeviceStatus | null> {
+async function waitForSettle(
+  state: DeviceStatus | null,
+  timeoutMs: number,
+  requestToken: number,
+): Promise<DeviceStatus | null> {
   let current = state;
   const started = Date.now();
-  while (current && PENDING.includes(current.state) && Date.now() - started < timeoutMs) {
+  while (
+    current &&
+    (current.requestToken !== requestToken || PENDING.includes(current.state)) &&
+    Date.now() - started < timeoutMs
+  ) {
     await sleep(450);
     current = await invoke<DeviceStatus>('android_media_status');
     emit(current);
   }
-  return current;
+  // Do not merge a completed result belonging to another command (or stale
+  // state left by an earlier process) when a scan times out.
+  return current?.requestToken === requestToken ? current : null;
 }
 
 /** Kick a device scan and wait for the result. */
@@ -133,16 +145,30 @@ export async function scanDevice(opts: { audio?: boolean } = {}): Promise<Device
   const audio = opts.audio ?? store.settings.indexAudio;
   const kicked = await invoke<DeviceStatus>('android_media_scan', { audio });
   emit(kicked);
-  return waitForSettle(kicked, 45_000);
+  const requestToken = kicked?.requestToken;
+  if (requestToken == null) return null;
+  return waitForSettle(kicked, 45_000, requestToken);
 }
 
 /** Ask the system for a folder and index everything inside it. */
 export async function pickDeviceFolder(): Promise<DeviceStatus | null> {
   if (!isAndroidDevice()) return null;
-  const kicked = await invoke<DeviceStatus>('android_media_pick_folder');
-  emit(kicked);
-  // the user may take a while inside the system picker
-  return waitForSettle(kicked, 240_000);
+  if (busy) {
+    const { toast } = await import('./ui');
+    toast(t('device.scanning'), 'info', 1800);
+    return latest;
+  }
+  busy = true;
+  try {
+    const kicked = await invoke<DeviceStatus>('android_media_pick_folder', { audio: store.settings.indexAudio });
+    emit(kicked);
+    const requestToken = kicked?.requestToken;
+    if (requestToken == null) return null;
+    // the user may take a while inside the system picker
+    return waitForSettle(kicked, 240_000, requestToken);
+  } finally {
+    busy = false;
+  }
 }
 
 function thumbUrl(path?: string): string | undefined {
@@ -207,12 +233,13 @@ export function applyDeviceStatus(status: DeviceStatus | null): SyncResult {
  * simply continues the scan once the grant arrives. Keep a light poll running in
  * the background so the library fills itself without a relaunch.
  */
-async function followUpAfterPermission(): Promise<void> {
+async function followUpAfterPermission(requestToken: number): Promise<void> {
   const started = Date.now();
   while (Date.now() - started < 180_000) {
     await sleep(1200);
     const status = await invoke<DeviceStatus>('android_media_status');
     if (!status) return;
+    if (status.requestToken !== requestToken) continue;
     emit(status);
     if (status.state === 'ready') {
       const result = applyDeviceStatus(status);
@@ -221,7 +248,7 @@ async function followUpAfterPermission(): Promise<void> {
       if (result.added) toast(t('device.added', { n: n(result.added) }), 'ok', 2600);
       return;
     }
-    if (status.state === 'denied' || status.state === 'error' || status.state === 'idle') return;
+    if (status.state === 'denied' || status.state === 'error' || status.state === 'idle' || status.state === 'cancelled') return;
   }
 }
 
@@ -236,7 +263,9 @@ export async function syncDeviceLibrary(opts: { silent?: boolean; reason?: 'laun
     const result = applyDeviceStatus(status);
     if (status?.state === 'permission' || status?.state === 'denied') {
       emit(status);
-      if (status.state === 'permission') void followUpAfterPermission();
+      if (status.state === 'permission' && status.requestToken != null) {
+        void followUpAfterPermission(status.requestToken);
+      }
       return result;
     }
     if (result.added || result.removed) {

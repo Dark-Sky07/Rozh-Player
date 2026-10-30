@@ -388,7 +388,9 @@ fn next_token() -> u32 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as u32)
         .unwrap_or(0);
-    MEDIA_TOKEN.fetch_add(1, Ordering::SeqCst).wrapping_add(ms).max(1)
+    // Android's JSONObject.optInt reads this value as a signed 32-bit number.
+    // Keep it positive so the request id round-trips through Java and JS.
+    (MEDIA_TOKEN.fetch_add(1, Ordering::SeqCst).wrapping_add(ms) & 0x7fff_ffff).max(1)
 }
 
 const MEDIA_DIR: &str = "rozh-media";
@@ -445,13 +447,30 @@ fn read_media_state(app: &tauri::AppHandle) -> serde_json::Value {
 fn send_media_command(app: &tauri::AppHandle, cmd: &str, audio: bool) -> Result<serde_json::Value, String> {
     let dir = media_dir(app)?;
     let token = next_token();
+    let state = serde_json::json!({
+        "state": if cmd == "pick" { "picking" } else { "starting" },
+        "count": 0,
+        "requestToken": token,
+        "ts": std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis())
+            .unwrap_or(0),
+    });
+    // Do not return the previous launch's `ready` snapshot as the result of a
+    // new request. Publish the request id before the command so the UI can
+    // distinguish this scan from stale mailbox state.
+    std::fs::write(
+        dir.join("state.json"),
+        serde_json::to_vec(&state).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
     let payload = serde_json::json!({ "cmd": cmd, "token": token, "audio": audio });
     std::fs::write(
         dir.join("command.json"),
         serde_json::to_vec(&payload).map_err(|e| e.to_string())?,
     )
     .map_err(|e| e.to_string())?;
-    Ok(read_media_state(app))
+    Ok(state)
 }
 
 /// Kick a full device scan (MediaStore video + optional audio).
@@ -471,8 +490,8 @@ fn android_media_status(app: tauri::AppHandle) -> Result<serde_json::Value, Stri
 
 /// Ask the system for a folder (SAF tree) and index everything inside it.
 #[tauri::command]
-fn android_media_pick_folder(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
-    send_media_command(&app, "pick", true)
+fn android_media_pick_folder(app: tauri::AppHandle, audio: Option<bool>) -> Result<serde_json::Value, String> {
+    send_media_command(&app, "pick", audio.unwrap_or(true))
 }
 
 /// Android: hand a media URI to the device's own player.
@@ -706,13 +725,22 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{file_stem, validate_android_media_uri, validate_android_update_url};
+    use super::{file_stem, next_token, validate_android_media_uri, validate_android_update_url};
 
     #[test]
     fn stems_are_sanitised() {
         assert_eq!(file_stem("/movies/My Film (2024).mkv"), "My Film 2024");
         assert_eq!(file_stem("/x/y.mkv"), "y");
         assert_eq!(file_stem(""), "media");
+    }
+
+    #[test]
+    fn android_mailbox_tokens_round_trip_as_positive_java_ints() {
+        for _ in 0..16 {
+            let token = next_token();
+            assert!(token > 0);
+            assert!(token <= i32::MAX as u32);
+        }
     }
 
     #[test]
