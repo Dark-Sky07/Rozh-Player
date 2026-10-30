@@ -1,3 +1,30 @@
+# ROZH Player 1.1.1
+
+**Security signing transition and safer release validation**
+
+Existing desktop users must install this release manually once because the trusted updater key changed. Existing Android phone/tablet and Android TV sideload installations must be uninstalled before installing the new APKs because the signing certificate changed. Back up app-private settings, history, and playlists first if available; media files stored elsewhere on the device are not removed. Future updates use the new signing identities.
+
+The Android AAB files are supplied for a separate Play Console submission; this GitHub release does not publish to Google Play. Confirm Play App Signing and upload-key settings before submitting them.
+
+## Security and release pipeline
+
+- Rotated the embedded Tauri updater public key after the previous signing material was exposed.
+- Release builds use newly provisioned Android signing material and fail closed when it is missing or invalid.
+- Release assets publish only after all desktop, Android, Android TV, web, signing, and updater-manifest jobs succeed.
+- Main requires pull requests and passing Web, Rust, and Android checks; force-pushes and branch deletion are blocked.
+- Includes repository-wide native media and release-pipeline hardening described in [the security audit](SECURITY_AUDIT.md).
+
+## Platforms
+
+Windows 10/11, macOS, Linux, Android phones/tablets, Android TV (dedicated package), and Web/PWA.
+
+## Validation
+
+- Local web typecheck and production build passed. The release workflow must pass all native builds, signing, and artifact validation before it creates the public release.
+- Physical-device signing migration and Play Store submission need separate validation.
+
+---
+
 # ROZH Player 1.1.0
 
 **Immersive fullscreen playback, more capable rendition selection, and a more responsive TV experience**

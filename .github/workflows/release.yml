@@ -35,6 +35,7 @@ jobs:
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo '::error title=Release tag::tag must be vMAJOR.MINOR.PATCH'; exit 1; }
           version="$(node -p "require('./package.json').version")"
           [[ "$TAG" == "v$version" ]] || { echo "::error title=Release tag::tag $TAG does not match package version $version"; exit 1; }
+          test -s "docs/releases/$TAG.md" || { echo "::error title=Release notes::docs/releases/$TAG.md is missing"; exit 1; }
           git fetch --no-tags origin refs/heads/main:refs/remotes/origin/main
           git merge-base --is-ancestor "$TAG" refs/remotes/origin/main || { echo '::error title=Release tag::tag commit must already be reachable from main'; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -42,7 +43,7 @@ jobs:
   # ---------------------------------------------------------------- desktop
   desktop:
     permissions:
-      contents: write
+      contents: read
     needs: validate
     name: ${{ matrix.label }}
     strategy:
@@ -151,17 +152,14 @@ jobs:
           ls -lh out
           ls -lh manifest
 
-      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          tag_name: ${{ env.TAG }}
-          name: "ROZH Player ${{ env.TAG }}"
-          body_path: docs/RELEASE_NOTES.md
-          draft: false
-          prerelease: false
-          overwrite_files: true
-          files: out/*
+          name: release-desktop-${{ matrix.key }}
+          path: out/*
+          if-no-files-found: error
+          retention-days: 1
 
-      # One manifest per runner; the `latest` job merges them into latest.json.
+      # One manifest per runner; the publish job merges them into latest.json.
       - name: Keep the updater manifest
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -173,7 +171,7 @@ jobs:
   # -------------------------------------------------------------------- web
   web:
     permissions:
-      contents: write
+      contents: read
     needs: validate
     name: Web · PWA bundle
     runs-on: ubuntu-latest
@@ -190,20 +188,17 @@ jobs:
       - run: |
           cd dist && zip -qr ../rozh-player-web.zip . && cd ..
           ls -la rozh-player-web.zip
-      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          tag_name: ${{ env.TAG }}
-          name: "ROZH Player ${{ env.TAG }}"
-          body_path: docs/RELEASE_NOTES.md
-          draft: false
-          prerelease: false
-          overwrite_files: true
-          files: rozh-player-web.zip
+          name: release-web
+          path: rozh-player-web.zip
+          if-no-files-found: error
+          retention-days: 1
 
   # ---------------------------------------------------------------- android
   android:
     permissions:
-      contents: write
+      contents: read
     needs: validate
     name: Android · APK + AAB
     env:
@@ -412,27 +407,21 @@ jobs:
           rm -f out/unsigned-tv-aligned.apk
           ls -lh out
 
-      - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          tag_name: ${{ env.TAG }}
-          name: "ROZH Player ${{ env.TAG }}"
-          body_path: docs/RELEASE_NOTES.md
-          draft: false
-          prerelease: false
-          overwrite_files: true
-          files: out/*
+          name: release-android
+          path: out/*
+          if-no-files-found: error
+          retention-days: 1
 
-  # ------------------------------------------------------------- latest.json
-  # Tauri's updater polls `releases/latest/download/latest.json`. The desktop
-  # jobs each sign their own bundles, so this job merges their manifests, points
-  # every platform at the uploaded asset and publishes the file the app reads.
-  latest:
+  # ------------------------------------------------------------- atomic publish
+  # No job publishes directly. A public release is created only after every
+  # platform build, signing step, and updater-manifest check has succeeded.
+  publish:
     permissions:
       contents: write
-    name: Updater manifest
-    needs: [desktop, validate]
-    if: |-
-      always() && needs.desktop.result == 'success' && needs.validate.result == 'success'
+    name: Publish release
+    needs: [desktop, web, android, validate]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -449,26 +438,43 @@ jobs:
           path: manifest
           merge-multiple: true
 
-      - name: Build latest.json
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Build updater manifest and verify complete release set
+        shell: bash
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
         run: |
-          ls -la manifest
-          node scripts/build-latest-json.mjs manifest latest.json
-          cat latest.json
-          # surface the mapping as an annotation: run logs are not always
-          # reachable, annotations always are
-          node -e "
-            const j = require('./latest.json');
-            for (const [k, v] of Object.entries(j.platforms)) {
-              console.log('::notice title=latest.json ' + k + '::' + v.url.split('/').pop());
-            }
-          "
+          set -euo pipefail
+          node scripts/build-latest-json.mjs manifest release-assets/latest.json
+          for asset in \
+            "ROZH-Player_${VERSION}_x64-setup.exe" \
+            "ROZH-Player_${VERSION}_aarch64.dmg" \
+            "ROZH-Player_${VERSION}_x64.dmg" \
+            "ROZH-Player_${VERSION}_amd64.deb" \
+            "ROZH-Player-${VERSION}-1.x86_64.rpm" \
+            "ROZH-Player_${VERSION}_amd64.AppImage" \
+            "ROZH-Player-${VERSION}.apk" \
+            "ROZH-Player-${VERSION}.aab" \
+            "ROZH-Player-TV-${VERSION}.apk" \
+            "ROZH-Player-TV-${VERSION}.aab" \
+            rozh-player-web.zip \
+            latest.json; do
+            test -s "release-assets/$asset" || { echo "::error title=Release asset missing::$asset"; exit 1; }
+          done
+          echo "Verified all desktop, Android, Android TV, web, and updater assets for v$VERSION"
+          ls -lh release-assets
 
       - uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ env.TAG }}
           name: "ROZH Player ${{ env.TAG }}"
-          body_path: docs/RELEASE_NOTES.md
+          body_path: docs/releases/${{ env.TAG }}.md
           draft: false
           prerelease: false
           overwrite_files: true
-          files: latest.json
+          files: release-assets/*

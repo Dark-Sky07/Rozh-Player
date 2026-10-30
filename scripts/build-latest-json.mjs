@@ -44,7 +44,12 @@ if (!version || !Object.keys(platforms).length) {
 /** A short, plain-text summary: the first section of the release notes. */
 async function notes() {
   try {
-    const raw = await readFile(join(root, 'docs', 'RELEASE_NOTES.md'), 'utf8');
+    let raw;
+    try {
+      raw = await readFile(join(root, 'docs', 'releases', `${tag}.md`), 'utf8');
+    } catch {
+      raw = await readFile(join(root, 'docs', 'RELEASE_NOTES.md'), 'utf8');
+    }
     const sections = raw.split(/^### /m).slice(1);
     const first = sections[0] ?? raw;
     return first
