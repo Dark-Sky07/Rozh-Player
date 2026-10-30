@@ -51,7 +51,8 @@ The release workflow now requires these protected repository secrets: `TAURI_SIG
 - `node --check` for FFmpeg and Android patch scripts: passed.
 - Tauri JSON configuration parsing and GitHub Actions YAML formatting/parsing: passed.
 - `git diff --check`: passed.
-- Rust unit tests, Android Gradle/Java compilation, native package builds, upgrade tests, and physical-device tests were **not** run in this sandbox (Rust, Java, and Android SDK tooling are absent). CI and real-device validation are still required.
+- GitHub Actions CI run [41054309764](https://github.com/Dark-Sky07/Rozh-Player/actions/runs/41054309764) passed all three jobs: Web typecheck/build, Rust `cargo check --all-targets` plus unit tests, and Android debug APK build (including Java/Kotlin bridge compilation) through the Tauri CLI.
+- Native desktop package builds, signed updater migration, upgrades from v1.1.0, store submission checks, and physical-device playback/update tests remain **unverified**. The Android CI result is a debug build, not a signed store artifact.
 
 ## Recommended release gate
 
