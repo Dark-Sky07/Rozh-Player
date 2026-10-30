@@ -13,8 +13,8 @@
  *   2. Wires MainActivity: `MediaBridge.attach(this)` in onCreate plus the two
  *      result callbacks the framework needs in order to answer permission and
  *      folder-picker requests.
- *   3. Declares the media permissions the MediaStore query needs, including the
- *      legacy READ_EXTERNAL_STORAGE for Android 12 and older.
+ *   3. Declares the MediaStore permissions, including Android 14's selected
+ *      media access and legacy READ_EXTERNAL_STORAGE for Android 12 and older.
  *   4. Adds the self-update plumbing: REQUEST_INSTALL_PACKAGES plus a
  *      FileProvider so the downloaded APK can be handed to the package
  *      installer as a `content://` URI (a bare `file://` URI throws
@@ -125,6 +125,7 @@ const before = xml;
 const wanted = [
   { name: 'android.permission.READ_MEDIA_VIDEO', extra: '' },
   { name: 'android.permission.READ_MEDIA_AUDIO', extra: '' },
+  { name: 'android.permission.READ_MEDIA_VISUAL_USER_SELECTED', extra: '' },
   { name: 'android.permission.READ_EXTERNAL_STORAGE', extra: ' android:maxSdkVersion="32"' },
   { name: 'android.permission.REQUEST_INSTALL_PACKAGES', extra: '' },
 ];
@@ -197,6 +198,7 @@ const checks = [
   ['folder callback', activity.includes('MediaBridge.onActivityResult')],
   ['manifest video permission', xml.includes('android.permission.READ_MEDIA_VIDEO')],
   ['manifest audio permission', xml.includes('android.permission.READ_MEDIA_AUDIO')],
+  ['manifest selected-media permission', xml.includes('android.permission.READ_MEDIA_VISUAL_USER_SELECTED')],
   ['manifest legacy permission', xml.includes('android.permission.READ_EXTERNAL_STORAGE')],
   ['manifest install permission', xml.includes('android.permission.REQUEST_INSTALL_PACKAGES')],
   ['file provider', xml.includes('androidx.core.content.FileProvider')],

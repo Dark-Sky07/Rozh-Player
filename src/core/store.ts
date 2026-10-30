@@ -331,9 +331,18 @@ class Store {
   })();
 
   addMedia(item: Partial<MediaItem> & { name: string }): MediaItem {
-    const existing = this.media.find(
-      (m) => m.name === item.name && m.size === (item.size ?? 0) && m.source === (item.source ?? 'local'),
-    );
+    // Device URIs identify a concrete MediaStore/SAF document. Do not merge
+    // different files merely because two folders contain the same name and
+    // byte size; that made Android libraries silently lose tracks and videos.
+    const existing = item.deviceUri
+      ? this.media.find((m) => m.deviceUri === item.deviceUri)
+      : this.media.find(
+          (m) =>
+            !m.deviceUri &&
+            m.name === item.name &&
+            m.size === (item.size ?? 0) &&
+            m.source === (item.source ?? 'local'),
+        );
     if (existing) {
       if (item.thumb && !existing.thumb) existing.thumb = item.thumb;
       if (item.duration) existing.duration = item.duration;

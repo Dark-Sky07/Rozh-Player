@@ -42,35 +42,36 @@ Every version ships ready-to-install builds for all platforms on the
 
 | Platform | File |
 | --- | --- |
-| **Windows 10/11 (x64)** | [ROZH-Player_1.1.1_x64-setup.exe](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.1/ROZH-Player_1.1.1_x64-setup.exe) |
-| **macOS — Apple Silicon (M1–M4)** | [ROZH-Player_1.1.1_aarch64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.1/ROZH-Player_1.1.1_aarch64.dmg) |
-| **macOS — Intel** | [ROZH-Player_1.1.1_x64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.1/ROZH-Player_1.1.1_x64.dmg) |
-| **Linux (Debian/Ubuntu)** | [ROZH-Player_1.1.1_amd64.deb](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.1/ROZH-Player_1.1.1_amd64.deb) |
-| **Linux (Fedora/RHEL/openSUSE)** | [ROZH-Player-1.1.1-1.x86_64.rpm](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.1/ROZH-Player-1.1.1-1.x86_64.rpm) |
-| **Linux (any distribution)** | [ROZH-Player_1.1.1_amd64.AppImage](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.1/ROZH-Player_1.1.1_amd64.AppImage) |
-| **Android 7.0+ (phones, tablets)** | [ROZH-Player-1.1.1.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.1/ROZH-Player-1.1.1.apk) |
-| **Android (Google Play bundle)** | [ROZH-Player-1.1.1.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.1/ROZH-Player-1.1.1.aab) |
-| **Android TV (dedicated build)** | [ROZH-Player-TV-1.1.1.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.1/ROZH-Player-TV-1.1.1.apk) |
-| **Android TV (Google Play bundle)** | [ROZH-Player-TV-1.1.1.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.1/ROZH-Player-TV-1.1.1.aab) |
-| **Web / PWA** | [rozh-player-web.zip](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.1/rozh-player-web.zip) — unzip and serve as static files |
+| **Windows 10/11 (x64)** | [ROZH-Player_1.1.2_x64-setup.exe](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.2/ROZH-Player_1.1.2_x64-setup.exe) |
+| **macOS — Apple Silicon (M1–M4)** | [ROZH-Player_1.1.2_aarch64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.2/ROZH-Player_1.1.2_aarch64.dmg) |
+| **macOS — Intel** | [ROZH-Player_1.1.2_x64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.2/ROZH-Player_1.1.2_x64.dmg) |
+| **Linux (Debian/Ubuntu)** | [ROZH-Player_1.1.2_amd64.deb](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.2/ROZH-Player_1.1.2_amd64.deb) |
+| **Linux (Fedora/RHEL/openSUSE)** | [ROZH-Player-1.1.2-1.x86_64.rpm](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.2/ROZH-Player-1.1.2-1.x86_64.rpm) |
+| **Linux (any distribution)** | [ROZH-Player_1.1.2_amd64.AppImage](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.2/ROZH-Player_1.1.2_amd64.AppImage) |
+| **Android 7.0+ (phones, tablets)** | [ROZH-Player-1.1.2.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.2/ROZH-Player-1.1.2.apk) |
+| **Android (Google Play bundle)** | [ROZH-Player-1.1.2.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.2/ROZH-Player-1.1.2.aab) |
+| **Android TV (dedicated build)** | [ROZH-Player-TV-1.1.2.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.2/ROZH-Player-TV-1.1.2.apk) |
+| **Android TV (Google Play bundle)** | [ROZH-Player-TV-1.1.2.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.2/ROZH-Player-TV-1.1.2.aab) |
+| **Web / PWA** | [rozh-player-web.zip](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.2/rozh-player-web.zip) — unzip and serve as static files |
 
 > Windows/macOS packages are not yet signed with Microsoft or Apple developer
 > identities, so platform security warnings may appear. Android APKs are signed.
 > This release is the GitHub sideload channel; AAB files are not automatically
-> published to Google Play. See the [release notes](docs/releases/v1.1.1.md).
+> published to Google Play. See the [release notes](docs/releases/v1.1.2.md).
 
 ## Updates
 
 ROZH updates itself from inside the app — **Settings → Updates**:
 
 - **Windows, macOS, Linux** — updates are verified against the embedded public
-  key. Existing v1.1.0 users must install v1.1.1 manually once because the
-  updater signing key has rotated; later desktop updates use the new key.
+  key. Users still on v1.1.0 must install v1.1.1 manually once because the
+  updater signing key rotated; later desktop releases use the new key.
 - **Android, Android TV** — the matching APK is handed to Android's package
-  installer. Because the signing certificate changed for security, users moving
-  from v1.1.0 must uninstall the old sideloaded app before installing v1.1.1.
-  This may erase app-private history and settings; back up anything important.
-  Later releases use the new stable key and can update in place.
+  installer. Users still on v1.1.0 must remove the old sideloaded installation
+  before installing v1.1.1 because the signing certificate rotated. This can
+  erase app-private history and settings; back up anything important first.
+  v1.1.2 keeps the replacement signing identity introduced in v1.1.1,
+  allowing upgrades from v1.1.1 to install in place.
 - A quiet check runs on every launch (it can be switched off) and only talks to
   the public release feed.
 

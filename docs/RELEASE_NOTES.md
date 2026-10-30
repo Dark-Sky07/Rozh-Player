@@ -1,3 +1,15 @@
+# ROZH Player 1.1.2
+
+**More reliable Android phone and Android TV media libraries**
+
+- Fixed stale scan-state and mailbox-command races that could make device indexing appear complete without applying the latest result; the native bridge also refreshes its Activity after Android recreates it.
+- Applied the audio-index preference to MediaStore and picked folders; retained audio classification when providers omit MIME types.
+- Kept video indexing available when Android 13+ audio access is declined and added Android 14+ selected-video access.
+- Preserved separate files that share a filename and size by de-duplicating indexed media by document URI.
+- See [full release notes](releases/v1.1.2.md).
+
+---
+
 # ROZH Player 1.1.1
 
 **Security signing transition and safer release validation**

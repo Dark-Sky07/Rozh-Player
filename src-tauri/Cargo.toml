@@ -1,6 +1,6 @@
 [package]
 name = "rozh-player"
-version = "1.1.1"
+version = "1.1.2"
 description = "ROZH Player — a fast, beautiful, universal media player"
 authors = ["ROZH"]
 edition = "2021"

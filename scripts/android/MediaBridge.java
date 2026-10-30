@@ -75,9 +75,11 @@ public final class MediaBridge {
     private static final int MAX_FOLDER_DEPTH = 8;
     private static final int MAX_THUMBS = 160;
 
-    private static Activity activity;
+    private static volatile Activity activity;
     private static File workDir;
     private static volatile int lastToken = -1;
+    private static volatile int activeRequestToken;
+    private static volatile boolean requestedAudio = true;
     private static volatile boolean busy;
     private static volatile boolean askingPermissions;
     /** Port of the loopback media server (0 = not running). */
@@ -96,7 +98,11 @@ public final class MediaBridge {
 
     /** Called from MainActivity.onCreate — starts the mailbox worker. */
     public static void attach(Activity a) {
-        if (a == null || activity != null) return;
+        if (a == null) return;
+        boolean firstAttach = activity == null;
+        // Android may recreate MainActivity on rotation or configuration
+        // changes. Refresh the Activity reference even when the worker already
+        // exists, but start process-wide services only once.
         activity = a;
         try {
             workDir = new File(a.getCacheDir(), DIR);
@@ -107,6 +113,14 @@ public final class MediaBridge {
         } catch (Throwable t) {
             return;
         }
+        if (!firstAttach) {
+            writeHello();
+            return;
+        }
+        // The mailbox survives process restarts. Ignore the last command left by
+        // the previous process (which could otherwise reopen a player or APK
+        // installer as soon as the app launches).
+        skipStaleCommand();
         writeHello();
         startMediaServer();
         if (!new File(workDir, "state.json").exists()) {
@@ -127,6 +141,18 @@ public final class MediaBridge {
         }, "rozh-media-bridge");
         worker.setDaemon(true);
         worker.start();
+    }
+
+    private static void skipStaleCommand() {
+        try {
+            File command = new File(workDir, "command.json");
+            if (!command.isFile()) return;
+            String raw = readFile(command);
+            if (raw == null || raw.length() == 0) return;
+            lastToken = new JSONObject(raw).optInt("token", -1);
+        } catch (Throwable ignored) {
+            /* malformed leftover commands are ignored by the worker */
+        }
     }
 
     private static void writeHello() {
@@ -164,9 +190,11 @@ public final class MediaBridge {
                 String name = cmd.optString("cmd", "");
                 boolean audio = cmd.optBoolean("audio", true);
                 if ("scan".equals(name)) {
+                    activeRequestToken = token;
                     scan(audio);
                 } else if ("pick".equals(name)) {
-                    pickFolder();
+                    activeRequestToken = token;
+                    pickFolder(audio);
                 } else if ("play".equals(name)) {
                     play(cmd.optString("uri", ""), cmd.optString("mime", "video/*"));
                 } else if ("install".equals(name)) {
@@ -186,7 +214,19 @@ public final class MediaBridge {
 
     private static String[] wanted(boolean audio) {
         if (Build.VERSION.SDK_INT >= 33) {
-            // literal names on purpose: they must not depend on compileSdk
+            // Literal names on purpose: they must not depend on compileSdk.
+            if (Build.VERSION.SDK_INT >= 34) {
+                return audio
+                    ? new String[] {
+                        "android.permission.READ_MEDIA_VIDEO",
+                        "android.permission.READ_MEDIA_AUDIO",
+                        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+                    }
+                    : new String[] {
+                        "android.permission.READ_MEDIA_VIDEO",
+                        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+                    };
+            }
             return audio
                 ? new String[] { "android.permission.READ_MEDIA_VIDEO", "android.permission.READ_MEDIA_AUDIO" }
                 : new String[] { "android.permission.READ_MEDIA_VIDEO" };
@@ -194,19 +234,46 @@ public final class MediaBridge {
         return new String[] { "android.permission.READ_EXTERNAL_STORAGE" };
     }
 
-    private static boolean granted(Activity a, boolean audio) {
+    private static boolean hasFullVideoPermission(Activity a) {
         try {
-            for (String p : wanted(audio)) {
-                if (a.checkSelfPermission(p) != PackageManager.PERMISSION_GRANTED) return false;
-            }
-            return true;
+            String permission = Build.VERSION.SDK_INT >= 33
+                ? "android.permission.READ_MEDIA_VIDEO"
+                : "android.permission.READ_EXTERNAL_STORAGE";
+            return a.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED;
         } catch (Throwable t) {
             return false;
         }
     }
 
+    private static boolean hasVideoPermission(Activity a) {
+        if (hasFullVideoPermission(a)) return true;
+        if (Build.VERSION.SDK_INT < 34) return false;
+        try {
+            return a.checkSelfPermission("android.permission.READ_MEDIA_VISUAL_USER_SELECTED")
+                == PackageManager.PERMISSION_GRANTED;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private static boolean hasAudioPermission(Activity a) {
+        try {
+            String permission = Build.VERSION.SDK_INT >= 33
+                ? "android.permission.READ_MEDIA_AUDIO"
+                : "android.permission.READ_EXTERNAL_STORAGE";
+            return a.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private static boolean granted(Activity a, boolean audio) {
+        return hasVideoPermission(a) && (!audio || hasAudioPermission(a));
+    }
+
     private static void askPermissions(final boolean audio) {
         if (askingPermissions) return;
+        requestedAudio = audio;
         askingPermissions = true;
         final Activity a = activity;
         if (a == null) {
@@ -231,20 +298,14 @@ public final class MediaBridge {
     public static void onPermissions(int requestCode, int[] grantResults) {
         if (requestCode != REQ_PERMS) return;
         askingPermissions = false;
-        boolean ok = grantResults != null && grantResults.length > 0;
-        if (ok) {
-            for (int r : grantResults) {
-                if (r != PackageManager.PERMISSION_GRANTED) {
-                    ok = false;
-                    break;
-                }
-            }
-        }
-        if (!ok) {
+        Activity a = activity;
+        if (a == null || !hasVideoPermission(a)) {
             writeDenied();
             return;
         }
-        startScanThread();
+        // Video and audio are separate permissions on Android 13+. A user who
+        // declines music access should still get a working video library.
+        startScanThread(requestedAudio && hasAudioPermission(a));
     }
 
     /* ------------------------------------------------------------------ */
@@ -262,6 +323,7 @@ public final class MediaBridge {
             try {
                 o.put("state", "permission");
                 o.put("count", 0);
+                o.put("requestToken", activeRequestToken);
             } catch (Throwable ignored) {
                 /* never happens */
             }
@@ -269,17 +331,18 @@ public final class MediaBridge {
             askPermissions(audio);
             return;
         }
-        startScanThread();
+        startScanThread(audio);
     }
 
-    private static void startScanThread() {
+    private static void startScanThread(final boolean audio) {
         if (busy) return;
         busy = true;
+        final int requestToken = activeRequestToken;
         Thread t = new Thread(new Runnable() {
             @Override
             public void run() {
                 try {
-                    doScan();
+                    doScan(audio, requestToken);
                 } catch (Throwable err) {
                     fail("scan", err);
                 } finally {
@@ -291,21 +354,21 @@ public final class MediaBridge {
         t.start();
     }
 
-    private static void doScan() {
+    private static void doScan(boolean audio, int requestToken) {
         final Activity a = activity;
         if (a == null) return;
-        writeStateHeader("scanning");
+        writeStateHeader("scanning", requestToken);
 
         List<JSONObject> items = new ArrayList<>();
         Set<String> seen = new HashSet<>();
 
-        collect(items, seen, movieCollection(), true);
-        collect(items, seen, songCollection(), true);
+        if (hasVideoPermission(a)) collect(items, seen, movieCollection(), true);
+        if (audio && hasAudioPermission(a)) collect(items, seen, songCollection(), true);
 
         // folders the user picked earlier stay part of the library
         for (String tree : pickedTrees()) {
             try {
-                collectTree(a, Uri.parse(tree), items, seen);
+                collectTree(a, Uri.parse(tree), items, seen, audio);
             } catch (Throwable ignored) {
                 /* a revoked grant must not kill the rest of the scan */
             }
@@ -319,7 +382,10 @@ public final class MediaBridge {
             out.put("state", "ready");
             out.put("ts", System.currentTimeMillis());
             out.put("count", items.size());
-            out.put("permission", "granted");
+            out.put("permission", hasVideoPermission(a)
+                ? (Build.VERSION.SDK_INT >= 33 && (!hasFullVideoPermission(a) || !hasAudioPermission(a)) ? "partial" : "granted")
+                : "folder-only");
+            out.put("requestToken", requestToken);
             JSONArray arr = new JSONArray();
             for (JSONObject it : items) arr.put(it);
             out.put("items", arr);
@@ -371,7 +437,7 @@ public final class MediaBridge {
                     String name = iName >= 0 ? c.getString(iName) : null;
                     if (name == null || name.length() == 0) name = "media-" + id;
                     String mime = iMime >= 0 ? c.getString(iMime) : "";
-                    boolean isAudio = mime != null && mime.startsWith("audio/");
+                    boolean isAudio = mime != null && mime.startsWith("audio/") || looksLikeAudio(name);
                     JSONObject o = baseItem(name, uri.toString(), isAudio ? "audio" : "video");
                     o.put("size", iSize >= 0 ? c.getLong(iSize) : 0L);
                     long dur = iDur >= 0 ? c.getLong(iDur) : 0L;
@@ -408,7 +474,8 @@ public final class MediaBridge {
     /* folder picker (SAF)                                                */
     /* ------------------------------------------------------------------ */
 
-    private static void pickFolder() {
+    private static void pickFolder(boolean includeAudio) {
+        requestedAudio = includeAudio;
         final Activity a = activity;
         if (a == null) {
             fail("pick", new IllegalStateException("no activity"));
@@ -447,22 +514,9 @@ public final class MediaBridge {
         }
         addPickedTree(tree.toString());
         writeStateHeader("scanning");
-        if (busy) return;
-        busy = true;
-        Thread t = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    doScan();
-                } catch (Throwable err) {
-                    fail("folder", err);
-                } finally {
-                    busy = false;
-                }
-            }
-        }, "rozh-media-folder");
-        t.setDaemon(true);
-        t.start();
+        // SAF grants access to this folder independently of broad READ_MEDIA_AUDIO.
+        // Keep folder audio available when the user explicitly picked it.
+        startScanThread(requestedAudio);
     }
 
     private static SharedPreferences prefs() {
@@ -489,7 +543,7 @@ public final class MediaBridge {
     }
 
     /** Walk a SAF tree and add every media document to the list. */
-    private static void collectTree(Activity a, Uri tree, List<JSONObject> out, Set<String> seen) {
+    private static void collectTree(Activity a, Uri tree, List<JSONObject> out, Set<String> seen, boolean includeAudio) {
         String rootId;
         try {
             rootId = DocumentsContract.getTreeDocumentId(tree);
@@ -530,6 +584,8 @@ public final class MediaBridge {
                             }
                             boolean video = mime != null && mime.startsWith("video/");
                             boolean audio = mime != null && mime.startsWith("audio/");
+                            if (!video && !audio) audio = looksLikeAudio(name);
+                            if (audio && !includeAudio) continue;
                             if (!video && !audio && !looksLikeMedia(name)) continue;
                             Uri child = DocumentsContract.buildDocumentUriUsingTree(tree, childId);
                             String key = child.toString();
@@ -561,6 +617,14 @@ public final class MediaBridge {
             level = next;
             depth += 1;
         }
+    }
+
+    private static boolean looksLikeAudio(String name) {
+        if (name == null) return false;
+        String n = name.toLowerCase();
+        String[] exts = { ".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus", ".wma", ".mka", ".alac", ".aif", ".aiff", ".ape" };
+        for (String e : exts) if (n.endsWith(e)) return true;
+        return false;
     }
 
     private static boolean looksLikeMedia(String name) {
@@ -1185,11 +1249,16 @@ public final class MediaBridge {
     }
 
     private static void writeStateHeader(String state) {
+        writeStateHeader(state, activeRequestToken);
+    }
+
+    private static void writeStateHeader(String state, int requestToken) {
         JSONObject o = new JSONObject();
         try {
             o.put("state", state);
             o.put("count", 0);
             o.put("ts", System.currentTimeMillis());
+            o.put("requestToken", requestToken);
         } catch (Throwable ignored) {
             /* never happens */
         }
@@ -1201,6 +1270,7 @@ public final class MediaBridge {
         try {
             o.put("state", "denied");
             o.put("count", 0);
+            o.put("requestToken", activeRequestToken);
             o.put("message", "media permission denied");
         } catch (Throwable ignored) {
             /* never happens */
@@ -1214,6 +1284,7 @@ public final class MediaBridge {
             o.put("state", "error");
             o.put("count", 0);
             o.put("where", where);
+            o.put("requestToken", activeRequestToken);
             o.put("message", t == null ? "unknown" : String.valueOf(t.getMessage()));
         } catch (Throwable ignored) {
             /* never happens */
