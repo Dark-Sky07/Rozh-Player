@@ -1,0 +1,110 @@
+name: Main · guard
+
+# Compensating control for `main` while real branch protection cannot be created.
+#
+# The automation credential is a GitHub App installation token. It holds the
+# repository *admin role* (so `GET /repos/…` reports `"admin": true`) but the App
+# itself is not granted `Administration: write`, therefore every protection
+# endpoint answers:
+#
+#   403 Resource not accessible by integration
+#   X-Accepted-Github-Permissions: administration=write
+#
+# GitHub enforces protection before it consults any credential we hold, so there
+# is no API workaround (no force-push trick, no direct commit, no ruleset).
+#
+# What *is* possible with `contents: write` is a post-hoc guard. This workflow:
+#   * keeps a durable ref to the commit that a force-push on `main` discarded,
+#   * opens an issue when `main` is force-pushed or deleted,
+#   * opens an issue when `main` is pushed without an associated pull request.
+#
+# It cannot prevent anything. It is an audit trail plus a recovery point, and it
+# should be deleted once real protection is in place.
+
+on:
+  push:
+    branches: [main]
+  delete:
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: read
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  REPO: ${{ github.repository }}
+
+jobs:
+  audit:
+    name: Audit main
+    if: github.event_name == 'push' || github.event.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Branch deleted
+        if: github.event_name == 'delete'
+        run: |
+          set -euo pipefail
+          ref='${{ github.event.ref }}'
+          echo "::error title=Branch deleted::$ref was deleted ($(date -u +%FT%TZ))"
+          gh issue create --repo "$REPO" \
+            --title "⚠️ Branch deleted: $ref" \
+            --body "Branch \`$ref\` was deleted by \`${{ github.actor }}\`.
+
+          \`main\` is currently **not protected**, so deletion is not blocked by
+          GitHub. If this was not intended, restore it from the local clone or a
+          fork: \`git push origin <sha>:refs/heads/$ref\`."
+          exit 1
+
+      - name: Force-push detected
+        if: github.event_name == 'push' && github.event.forced
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          backup="refs/heads/main-rewound-${GITHUB_RUN_ID}"
+          if [ -n "${BEFORE:-}" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
+            # Keep the discarded commit reachable so it can never be garbage
+            # collected before a human looks at it.
+            gh api -X POST "repos/$REPO/git/refs" \
+              -f ref="$backup" -f sha="$BEFORE" \
+              && echo "preserved $BEFORE as $backup" \
+              || echo "::warning::could not create $backup"
+          fi
+          echo "::error title=Force-push on main::${BEFORE:-?} was overwritten by $GITHUB_SHA"
+          gh issue create --repo "$REPO" \
+            --title "⚠️ Force-push detected on main" \
+            --body "**${{ github.actor }}** force-pushed \`main\`.
+
+          | | commit |
+          |---|---|
+          | discarded | \`${BEFORE:-unknown}\` |
+          | new head | \`$GITHUB_SHA\` |
+          | run | $GITHUB_SERVER_URL/$REPO/actions/runs/$GITHUB_RUN_ID |
+
+          The discarded commit was preserved as \`$backup\` when possible.
+          Review the diff before doing anything else."
+          exit 1
+
+      - name: Push without pull request
+        if: github.event_name == 'push' && !github.event.forced
+        run: |
+          set -euo pipefail
+          count=$(gh api "repos/$REPO/commits/$GITHUB_SHA/pulls" --jq 'length')
+          if [ "$count" -gt 0 ]; then
+            echo "head commit belongs to a pull request — nothing to report"
+            exit 0
+          fi
+          echo "::error title=Direct push to main::$GITHUB_SHA has no pull request"
+          gh issue create --repo "$REPO" \
+            --title "⚠️ Direct push to main: $GITHUB_SHA" \
+            --body "**${{ github.actor }}** pushed \`$GITHUB_SHA\` to \`main\` without a
+          pull request.
+
+          \`main\` is not protected yet, so this push went through the API rather than
+          through a review. The intended policy is: pull request + green CI
+          (\`Web · typecheck & build\`, \`Rust · cargo check\`, \`Android · bridge compile\`).
+
+          Run \`.github/scripts/apply-main-protection.sh\` with an Administration-scoped
+          credential to close this gap for good."
+          exit 1
