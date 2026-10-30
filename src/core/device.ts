@@ -254,7 +254,7 @@ async function followUpAfterPermission(requestToken: number): Promise<void> {
 
 export async function syncDeviceLibrary(opts: { silent?: boolean; reason?: 'launch' | 'manual' } = {}): Promise<SyncResult> {
   if (!isAndroidDevice() || busy) return { status: null, added: 0, removed: 0, total: store.library().length };
-  if (!store.settings.autoIndex && opts.reason !== 'manual') {
+  if (!store.settings.autoIndex && opts.reason !== 'manual' && !platform.tvBuild && !platform.tv) {
     return { status: null, added: 0, removed: 0, total: store.library().length };
   }
   busy = true;

@@ -1,3 +1,14 @@
+# ROZH Player 1.1.5
+
+**A usable, remote-first Android TV launch and media-browsing flow**
+
+- Dedicated TV builds now assert their 10-foot interface flag at startup and in the release workflow.
+- Android TV indexes media on launch; folder and library Add actions use the native SAF picker, index selected media, and restore D-pad focus. Failure and cancellation states are surfaced.
+- Android version code is 1001005; existing v1.1.4 installs can update in place.
+- See [full release notes](releases/v1.1.5.md).
+
+---
+
 # ROZH Player 1.1.4
 
 **Corrected Android fullscreen sizing and controls**

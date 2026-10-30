@@ -133,10 +133,9 @@ function tvTemplate(): string {
       <div class="tv-brand">${brandMarkup(false)}</div>
       <nav class="tv-nav" aria-label="${escapeHtml(t('nav.home'))}">${tvNavMarkup()}</nav>
       <div class="tv-header-actions">
-        ${isAndroidDevice() ? `<button class="tv-toolbar-btn" data-act="tv-scan" aria-label="${escapeHtml(t('tv.scan'))}">${icon('rotate')}<b data-tv-scan-label>${escapeHtml(t('tv.scan'))}</b></button>
-        <button class="tv-toolbar-btn" data-act="tv-folder" aria-label="${escapeHtml(t('tv.folder'))}">${icon('folder')}<b>${escapeHtml(t('tv.folder'))}</b></button>` : ''}
+        ${isAndroidDevice() ? `<button class="tv-toolbar-btn" data-act="tv-scan" aria-label="${escapeHtml(t('tv.scan'))}">${icon('rotate')}<b data-tv-scan-label>${escapeHtml(t('tv.scan'))}</b></button>` : ''}
         <button class="tv-toolbar-btn" data-act="url" aria-label="${escapeHtml(t('player.openUrl'))}">${icon('link')}<b>${escapeHtml(t('player.openUrl'))}</b></button>
-        <button class="tv-toolbar-btn tv-toolbar-primary" data-act="open" aria-label="${escapeHtml(t('player.openFile'))}">${icon('folder-open')}<b>${escapeHtml(t('player.openFile'))}</b></button>
+        <button class="tv-toolbar-btn tv-toolbar-primary" data-act="tv-folder" aria-label="${escapeHtml(t('tv.folder'))}">${icon('folder-open')}<b>${escapeHtml(t('tv.folder'))}</b></button>
       </div>
     </header>
     <div class="main tv-main">${viewsMarkup()}</div>
@@ -481,7 +480,36 @@ async function openWindowsPaths(paths: string[]): Promise<void> {
   }
 }
 
+async function browseAndroidTvFolder(): Promise<void> {
+  try {
+    const status = await pickDeviceFolder();
+    applyDeviceStatus(status);
+    if (status?.state === 'cancelled') toast(t('device.cancelled'), 'info', 1800);
+    else if (status?.state === 'error') toast(t('device.error'), 'bad', 2600);
+    else if (status?.state === 'ready') toast(t('device.ready', { n: n(store.deviceCount()) }), 'ok', 2200);
+    else if (status?.state === 'permission' || status?.state === 'denied') {
+      toast(t('device.permissionSub'), 'info', 3200);
+    } else if (!status) toast(t('device.error'), 'bad', 2600);
+  } catch (error) {
+    console.error('[rozh] Android TV folder selection failed', error);
+    toast(t('device.error'), 'bad', 2600);
+  }
+
+  // Keep the TV home visible: the selected folder is indexed, then the user
+  // chooses a playable item with the remote instead of returning to a dead file
+  // input overlay in Android WebView.
+  if (activeView === 'home' || activeView === 'library') {
+    renderActiveView();
+    focusView(activeView);
+  }
+  refreshNav();
+}
+
 async function openLocalFiles(): Promise<void> {
+  if (platform.tv && isAndroidDevice()) {
+    await browseAndroidTvFolder();
+    return;
+  }
   try {
     const files = await pickFiles();
     if (!files.length) return;
@@ -671,11 +699,8 @@ function bindChrome(): void {
         });
         break;
       case 'tv-folder':
-        void pickDeviceFolder().then((status) => {
-          applyDeviceStatus(status);
-          if (activeView === 'home' || activeView === 'library') renderActiveView();
-          refreshNav();
-        });
+        if (isAndroidDevice()) void browseAndroidTvFolder();
+        else void openLocalFiles();
         break;
       case 'menu':
         toggleSidebar(true);

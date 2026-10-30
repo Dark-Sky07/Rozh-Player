@@ -5,6 +5,7 @@ import { icon, hydrateIcons } from '../core/icons';
 import type { NativeFile } from '../core/native';
 import { t, n } from '../core/i18n';
 import { store, type MediaItem } from '../core/store';
+import { focusView } from '../core/tv';
 import {
   applyDeviceStatus,
   isAndroidDevice,
@@ -15,7 +16,7 @@ import {
   type DeviceStatus,
 } from '../core/device';
 import { confirmDialog, toast } from '../core/ui';
-import { escapeHtml, fmtBytes, fmtTime, fmtRelative, isAudioFile, pickFiles, $, $$ } from '../core/util';
+import { escapeHtml, fmtBytes, fmtTime, fmtRelative, isAudioFile, pickFiles, platform, $, $$ } from '../core/util';
 
 let filter: 'all' | 'video' | 'audio' | 'stream' = 'all';
 let query = '';
@@ -171,12 +172,13 @@ async function runDeviceSync(host: HTMLElement, ctx: AppContext, kind: 'scan' | 
     toast(t('device.error'), 'bad', 2400);
   } else if (done.status?.state === 'permission' || done.status?.state === 'denied') {
     // the prompt is on screen; the panel explains what to do next
-  } else if (done.added || done.removed) {
+  } else if (done.status?.state === 'ready' || done.added || done.removed) {
     toast(t('device.ready', { n: n(store.deviceCount()) }), 'ok', 2200);
   } else {
     toast(t('device.empty'), 'info', 1800);
   }
   renderLibrary(host, ctx);
+  if (platform.tv) focusView('library');
   ctx.refreshNav();
 }
 
@@ -254,9 +256,13 @@ export function renderLibrary(host: HTMLElement, ctx: AppContext): void {
     deviceBound = true;
     deviceStatus = lastDeviceStatus();
     onDeviceSync((status) => {
+      const changedState = status?.state !== deviceStatus?.state;
       deviceStatus = status;
       const live = document.querySelector<HTMLElement>('.view[data-view="library"].is-active');
-      if (live && lastCtx) renderLibrary(live, lastCtx);
+      if (live && lastCtx && changedState) {
+        renderLibrary(live, lastCtx);
+        if (platform.tv) focusView('library');
+      }
     });
   }
 
@@ -290,6 +296,12 @@ export function renderLibrary(host: HTMLElement, ctx: AppContext): void {
 
   $$('[data-add]', host).forEach((btn) =>
     btn.addEventListener('click', async () => {
+      // Android TV has no dependable WebView file chooser. Use SAF and keep the
+      // user in the library, where the indexed media is immediately playable.
+      if (isAndroidDevice() && platform.tv) {
+        await runDeviceSync(host, ctx, 'folder');
+        return;
+      }
       const files = await pickFiles();
       if (files.length) await ctx.addFilesToLibrary(files);
     }),
