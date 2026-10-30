@@ -12,7 +12,7 @@ import { t, n } from './i18n';
 import { store, type Aspect, type Fit, type LoopMode } from './store';
 import { hasOverlay, openDrawer, openPopover, toast, type PopItem } from './ui';
 import { openUrlModal } from '../views/streams';
-import { remuxToPlayable, revealInFolder, type NativeFile } from './native';
+import { remuxToPlayable, revealInFolder, setAndroidPlaybackMode, type NativeFile } from './native';
 import { nativeHlsLoader } from './netLoader';
 import {
   $,
@@ -290,6 +290,7 @@ export class Player {
   private brightness = 1;
   private ab = { a: 0, b: 0 };
   private errorCount = 0;
+  private autoFullscreenPending = false;
 
   constructor(host: HTMLElement) {
     host.innerHTML = TEMPLATE;
@@ -362,6 +363,10 @@ export class Player {
     this.ab = { a: 0, b: 0 };
 
     const isAudio = item.kind === 'audio' || isAudioFile(item.name);
+    if (isAudio && platform.tauri && platform.os === 'android' && this.isFullscreen()) {
+      this.setFullscreenState(false);
+    }
+    this.autoFullscreenPending = platform.tauri && platform.os === 'android' && !isAudio;
     this.stage.dataset.state = isAudio ? 'audio' : 'video';
     this.wrap.dataset.empty = 'false';
     this.video.poster = item.thumb ?? '';
@@ -1651,33 +1656,46 @@ export class Player {
       webkitExitFullscreen?: () => Promise<void>;
       webkitFullscreenElement?: Element;
     };
-    const isFs = !!document.fullscreenElement || !!d.webkitFullscreenElement || this.wrap.classList.contains('fs-fallback');
+    const isFs = this.isFullscreen();
+
+    // Android WebView's Fullscreen API can promote only the <video>, drop our
+    // controls, or resolve without reliably resizing the app. Keep the player
+    // in its own fixed layer and ask the Android bridge for landscape + immersive
+    // bars instead. This also guarantees the shell/sidebar cannot leak through.
+    if (platform.tauri && platform.os === 'android') {
+      this.setFullscreenState(!isFs);
+      this.showUi();
+      return;
+    }
+
     try {
       if (isFs) {
         if (document.fullscreenElement) await document.exitFullscreen?.();
         else if (d.webkitFullscreenElement) await d.webkitExitFullscreen?.();
-        this.wrap.classList.remove('fs-fallback');
-        this.wrap.dataset.fs = 'false';
+        this.setFullscreenState(false);
       } else if (this.wrap.requestFullscreen) {
         await this.wrap.requestFullscreen({ navigationUI: 'hide' });
       } else {
-        // Keep our own controls on platforms whose native video fullscreen
-        // cannot be styled or auto-hidden (notably mobile WebKit).
-        this.wrap.classList.add('fs-fallback');
-        this.wrap.dataset.fs = 'true';
+        this.setFullscreenState(true);
       }
     } catch {
-      // If a platform rejects the Fullscreen API, use the in-app full-window
-      // presentation rather than handing control visibility to native chrome.
-      if (isFs) {
-        this.wrap.classList.remove('fs-fallback');
-        this.wrap.dataset.fs = 'false';
-      } else {
-        this.wrap.classList.add('fs-fallback');
-        this.wrap.dataset.fs = 'true';
-      }
+      // If a platform rejects Fullscreen API, keep the custom controls in view.
+      this.setFullscreenState(!isFs);
     }
     this.showUi();
+  }
+
+  private setFullscreenState(fullscreen: boolean): void {
+    this.wrap.classList.toggle('fs-fallback', fullscreen);
+    this.wrap.dataset.fs = String(fullscreen);
+    const android = platform.tauri && platform.os === 'android';
+    if (android) {
+      document.body.dataset.androidPlayerFullscreen = String(fullscreen);
+      void setAndroidPlaybackMode(fullscreen, fullscreen || platform.tv);
+    }
+    $$('[data-act="fullscreen"]', this.root).forEach((button) => {
+      button.innerHTML = icon(fullscreen ? 'fullscreen-exit' : 'maximize');
+    });
   }
 
   async togglePip(): Promise<void> {
@@ -1962,6 +1980,11 @@ export class Player {
     v.addEventListener('playing', () => {
       this.stage.dataset.buffering = 'false';
       this.stage.dataset.playing = 'true';
+      if (this.autoFullscreenPending) {
+        this.autoFullscreenPending = false;
+        this.setFullscreenState(true);
+        this.showUi();
+      }
     });
     v.addEventListener('canplay', () => (this.stage.dataset.buffering = 'false'));
     v.addEventListener('ratechange', () => this.syncRateChip());
@@ -2396,6 +2419,13 @@ export class Player {
         e.preventDefault();
         e.stopPropagation();
       };
+
+      const androidBack = ['Escape', 'Backspace', 'BrowserBack', 'GoBack'].includes(k) || e.keyCode === 4 || e.keyCode === 111;
+      if (platform.tauri && platform.os === 'android' && this.isFullscreen() && androidBack) {
+        handled();
+        void this.toggleFullscreen();
+        return;
+      }
 
       switch (k) {
         case ' ':

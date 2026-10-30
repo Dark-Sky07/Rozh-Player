@@ -508,6 +508,29 @@ fn android_open_external(app: tauri::AppHandle, uri: String, mime: String) -> Re
     .map_err(|e| e.to_string())
 }
 
+/// Apply the Android native immersive/landscape state for video playback.
+/// A separate mailbox file keeps orientation updates from racing media scans.
+#[tauri::command]
+fn android_set_playback_mode(
+    app: tauri::AppHandle,
+    fullscreen: bool,
+    landscape: bool,
+) -> Result<(), String> {
+    let dir = media_dir(&app)?;
+    let payload = serde_json::json!({
+        "token": next_token(),
+        "fullscreen": fullscreen,
+        "landscape": landscape,
+    });
+    let temporary = dir.join("playback-mode.json.tmp");
+    std::fs::write(
+        &temporary,
+        serde_json::to_vec(&payload).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| e.to_string())?;
+    std::fs::rename(temporary, dir.join("playback-mode.json")).map_err(|e| e.to_string())
+}
+
 /// Port of the loopback media server started by `MediaBridge.java` (0 = none).
 #[tauri::command]
 fn android_media_server(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
@@ -638,6 +661,7 @@ pub fn run() {
             android_media_pick_folder,
             android_open_external,
             android_media_server,
+            android_set_playback_mode,
             android_update_status,
             android_update_install,
             take_initial_open_files

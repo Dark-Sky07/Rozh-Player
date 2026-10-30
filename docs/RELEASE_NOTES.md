@@ -1,3 +1,15 @@
+# ROZH Player 1.1.3
+
+**Reliable immersive fullscreen playback on Android**
+
+- Android video playback now automatically enters landscape fullscreen and hides the system bars; the app sidebar and navigation chrome stay out of the way.
+- Replaced Android WebView's inconsistent native fullscreen path with the in-app player layer, keeping controls and playback menus together. Controls continue to fade after inactivity and reappear on touch or remote input.
+- Fixed fullscreen overlays so playback settings and menus remain above the video, and Back exits fullscreen cleanly.
+- The Android release uses a separate native orientation mailbox so display changes cannot interfere with device media indexing.
+- See [full release notes](releases/v1.1.3.md).
+
+---
+
 # ROZH Player 1.1.2
 
 **More reliable Android phone and Android TV media libraries**

@@ -105,6 +105,47 @@
   pointer-events: none;
 }
 
+/* Android video playback uses a CSS-owned fullscreen layer because WebView's
+   native fullscreen can detach the video controls or leave app chrome visible. */
+body[data-android-player-fullscreen='true'] {
+  overflow: hidden;
+  background: #000;
+}
+body[data-android-player-fullscreen='true'] .shell > .sidebar,
+body[data-android-player-fullscreen='true'] .shell > .scrim,
+body[data-android-player-fullscreen='true'] .shell > .bg-aura,
+body[data-android-player-fullscreen='true'] .shell > .embers,
+body[data-android-player-fullscreen='true'] .shell .topbar,
+body[data-android-player-fullscreen='true'] .shell .tabbar,
+body[data-android-player-fullscreen='true'] .shell .tv-rail {
+  display: none !important;
+}
+body[data-android-player-fullscreen='true'] .stage-wrap.fs-fallback {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  z-index: 300;
+  padding: 0 !important;
+  background: #000;
+}
+body[data-android-player-fullscreen='true'] .stage-wrap.fs-fallback .stage {
+  min-height: 0;
+  border-radius: 0;
+  background: #000;
+}
+body[data-android-player-fullscreen='true'] .backdrop {
+  z-index: 390;
+}
+body[data-android-player-fullscreen='true'] .drawer,
+body[data-android-player-fullscreen='true'] .modal-wrap,
+body[data-android-player-fullscreen='true'] .popover {
+  z-index: 410;
+}
+body[data-android-player-fullscreen='true'] .toasts {
+  z-index: 430;
+}
+
 /* big play + spinner stacking in the centre */
 .stage-center .big-play,
 .stage-center .spinner {
