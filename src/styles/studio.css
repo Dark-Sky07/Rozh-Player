@@ -1001,3 +1001,135 @@ html[dir='rtl'] .tool-tile::after {
   color: var(--text-4);
   margin-top: 2px;
 }
+
+/* ------------------------------------------------------------ update card */
+.update-card {
+  margin: 2px 0 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--line-1);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015));
+  display: grid;
+  gap: 12px;
+}
+.update-card[data-phase='available'],
+.update-card[data-phase='ready'] {
+  border-color: var(--line-warm);
+  box-shadow: 0 12px 34px -18px rgba(247, 169, 79, 0.55);
+}
+.uc-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.uc-mark {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  border: 1px solid var(--line-2);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-2);
+}
+.uc-mark.is-new {
+  color: #0b0d12;
+  border-color: transparent;
+  background: linear-gradient(135deg, #ffd88f, #f7a94f 55%, #d97528);
+  box-shadow: 0 10px 26px -12px rgba(247, 169, 79, 0.8);
+}
+.uc-mark.is-busy svg {
+  animation: spin 1.1s linear infinite;
+}
+.uc-body {
+  min-width: 0;
+  flex: 1 1 0;
+  display: grid;
+  gap: 2px;
+}
+.uc-body b {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text-0);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.uc-ver {
+  font-size: 0.78rem;
+  color: var(--text-3);
+  font-weight: 600;
+}
+.uc-note {
+  font-size: 0.8rem;
+  line-height: 1.65;
+  color: var(--text-3);
+}
+.uc-meta {
+  font-size: 0.74rem;
+  color: var(--text-4);
+}
+.uc-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.uc-progress[hidden] {
+  display: none;
+}
+.uc-track {
+  position: relative;
+  flex: 1 1 auto;
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.08);
+}
+.uc-track i {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ffd88f, #f7a94f 60%, #e8853a);
+  transition: width 0.35s var(--ease);
+}
+.update-card[data-phase='downloading'] .uc-track i {
+  animation: uc-shimmer 1.6s ease-in-out infinite;
+}
+.uc-pct {
+  flex: 0 0 auto;
+  font-size: 0.74rem;
+  color: var(--text-3);
+  min-width: 34px;
+  text-align: end;
+}
+@keyframes uc-shimmer {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.28);
+  }
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (max-width: 640px) {
+  .uc-head {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+  .uc-mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+  .uc-head .btn {
+    width: 100%;
+  }
+}

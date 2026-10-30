@@ -28,3 +28,7 @@ Thumbs.db
 # logs
 *.log
 npm-debug.log*
+
+# signing credentials (never commit release secrets)
+src-tauri/updater/*.key
+src-tauri/keystore/*.p12

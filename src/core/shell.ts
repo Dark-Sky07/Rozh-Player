@@ -5,18 +5,22 @@ import { icon, hydrateIcons } from './icons';
 import { t, n } from './i18n';
 import { mountPlayer, type Playable } from './player';
 import { applySettings, store, type MediaItem } from './store';
-import { onNativeCommand, probeFile, urlForFile } from './native';
+import { convertFileSrc as convertNativePath, NativeFile, onNativeCommand, probeFile, urlForFile } from './native';
 import { openDrawer, toast } from './ui';
-import { isAndroidDevice, syncDeviceLibrary } from './device';
+import { applyDeviceStatus, isAndroidDevice, pickDeviceFolder, syncDeviceLibrary } from './device';
+import { autoCheckForUpdates } from './updateUI';
 import { focusView, initTv } from './tv';
-import { $, $$, escapeHtml, isTextEntry, pickFiles, platform } from './util';
+import { $, $$, escapeHtml, guessMime, isAudioFile, isTextEntry, isWindowsDesktop, pickFiles, platform } from './util';
 import { renderHistory } from '../views/history';
 import { renderLibrary, generateThumb } from '../views/library';
+import { renderTvHome } from '../views/tvHome';
+import { renderDesktopHome } from '../views/desktopHome';
 import { renderAbout, renderShortcuts } from '../views/misc';
 import { renderSettings } from '../views/settings';
 import { openUrlModal, renderStreams } from '../views/streams';
 
-const VIEWS: { id: ViewId; icon: string; group: string; mobile?: boolean }[] = [
+const VIEWS: { id: ViewId; icon: string; group: string; mobile?: boolean; desktopOnly?: boolean }[] = [
+  { id: 'home', icon: 'home', group: 'play', desktopOnly: true },
   { id: 'player', icon: 'play', group: 'play', mobile: true },
   { id: 'library', icon: 'film', group: 'play', mobile: true },
   { id: 'streams', icon: 'broadcast', group: 'play', mobile: true },
@@ -26,9 +30,11 @@ const VIEWS: { id: ViewId; icon: string; group: string; mobile?: boolean }[] = [
   { id: 'about', icon: 'info', group: 'app' },
 ];
 
-let activeView: ViewId = 'player';
+let activeView: ViewId = platform.tv ? 'home' : 'player';
 let player: ReturnType<typeof mountPlayer>;
 const session = new Map<string, { url: string; name: string; size: number }>();
+let shellReady = false;
+const pendingWindowsOpenPaths: string[][] = [];
 
 /* ------------------------------------------------------------------ */
 
@@ -42,7 +48,9 @@ function navMarkup(primaryOnly = false): string {
     .map(
       (g) => `
           <div class="nav-title">${escapeHtml(g.label)}</div>
-          ${VIEWS.filter((v) => v.group === g.key && (!primaryOnly || v.mobile))
+          ${VIEWS.filter(
+            (v) => v.group === g.key && (!primaryOnly || v.mobile) && (!v.desktopOnly || isWindowsDesktop),
+          )
             .map(
               (v) => `<button class="nav-item" data-view="${v.id}">
                 <span class="nav-ico">${icon(v.icon)}</span>
@@ -77,6 +85,7 @@ function brandMarkup(fold: boolean): string {
 function viewsMarkup(): string {
   return `
       <main class="views">
+        <section class="view" data-view="home"></section>
         <section class="view" data-view="player"><div class="player-host" style="height:100%"></div></section>
         <section class="view" data-view="library"></section>
         <section class="view" data-view="streams"></section>
@@ -91,28 +100,46 @@ const ambientMarkup = (): string => `
     <div class="bg-aura" aria-hidden="true"></div>
     <div class="embers" aria-hidden="true">${Array.from({ length: 14 }, () => '<i></i>').join('')}</div>`;
 
+/** Dedicated, focus-first living-room navigation. */
+function tvNavMarkup(): string {
+  const items: { id: ViewId; icon: string; label: string }[] = [
+    { id: 'home', icon: 'home', label: t('nav.home') },
+    { id: 'player', icon: 'play', label: t('nav.player') },
+    { id: 'library', icon: 'film', label: t('nav.library') },
+    { id: 'streams', icon: 'radio', label: t('nav.streams') },
+    { id: 'history', icon: 'history', label: t('nav.history') },
+    { id: 'settings', icon: 'gear', label: t('nav.settings') },
+  ];
+  return items
+    .map(
+      (item) => `<button class="nav-item tv-nav-item" data-view="${item.id}" aria-label="${escapeHtml(item.label)}">
+        <span class="nav-ico">${icon(item.icon)}</span><span class="nav-label">${escapeHtml(item.label)}</span>
+        <span class="count" data-count="${item.id}" hidden></span>
+      </button>`,
+    )
+    .join('');
+}
+
 /**
- * The 10-foot shell. A television is not a laptop: no permanent rail, no
- * hover-only chrome, no tiny text. Everything lives in one top bar (brand,
- * destinations, actions) and the content owns the rest of the screen.
+ * An Android TV app should feel native to a couch and a directional remote:
+ * fixed destination rail, focused hero, horizontal media shelves and no
+ * desktop-like row of web tabs.
  */
 function tvTemplate(): string {
   return `
-  <div class="shell shell-tv" data-tv-shell="true">
+  <div class="shell shell-tv tv-shell" data-tv-shell="true">
     ${ambientMarkup()}
-    <header class="tvbar">
-      ${brandMarkup(false)}
-      <nav class="nav" aria-label="ROZH Player">${navMarkup(true)}</nav>
-      <div class="tvbar-actions">
-        <button class="btn btn-ghost" data-act="url">${icon('link')}<span>${escapeHtml(
-          t('player.openUrl'),
-        )}</span></button>
-        <button class="btn btn-primary" data-act="open">${icon('folder-open')}<span>${escapeHtml(
-          t('player.openFile'),
-        )}</span></button>
+    <header class="tv-rail" aria-label="ROZH Player">
+      <div class="tv-brand">${brandMarkup(false)}</div>
+      <nav class="tv-nav" aria-label="${escapeHtml(t('nav.home'))}">${tvNavMarkup()}</nav>
+      <div class="tv-header-actions">
+        ${isAndroidDevice() ? `<button class="tv-toolbar-btn" data-act="tv-scan" aria-label="${escapeHtml(t('tv.scan'))}">${icon('rotate')}<b data-tv-scan-label>${escapeHtml(t('tv.scan'))}</b></button>
+        <button class="tv-toolbar-btn" data-act="tv-folder" aria-label="${escapeHtml(t('tv.folder'))}">${icon('folder')}<b>${escapeHtml(t('tv.folder'))}</b></button>` : ''}
+        <button class="tv-toolbar-btn" data-act="url" aria-label="${escapeHtml(t('player.openUrl'))}">${icon('link')}<b>${escapeHtml(t('player.openUrl'))}</b></button>
+        <button class="tv-toolbar-btn tv-toolbar-primary" data-act="open" aria-label="${escapeHtml(t('player.openFile'))}">${icon('folder-open')}<b>${escapeHtml(t('player.openFile'))}</b></button>
       </div>
     </header>
-    <div class="main">${viewsMarkup()}</div>
+    <div class="main tv-main">${viewsMarkup()}</div>
   </div>
   <div class="toasts" role="status" aria-live="polite" hidden></div>`;
 }
@@ -121,7 +148,7 @@ function shellTemplate(): string {
   if (document.documentElement.dataset.tv === 'true') return tvTemplate();
 
   return `
-  <div class="shell" data-sidebar="${
+  <div class="shell ${isWindowsDesktop ? 'windows-shell' : ''}" data-sidebar="${
     platform.mobile || window.innerWidth <= 900 ? 'closed' : store.settings.sidebar
   }">
     ${ambientMarkup()}
@@ -134,9 +161,9 @@ function shellTemplate(): string {
       <nav class="nav">${navMarkup()}</nav>
 
       <div class="sidebar-foot">
-        <button class="btn btn-primary open-btn" data-act="open">${icon('folder-open')}<span>${t(
+        ${isWindowsDesktop ? '' : `<button class="btn btn-primary open-btn" data-act="open">${icon('folder-open')}<span>${t(
           'nav.openFile',
-        )}</span></button>
+        )}</span></button>`}
         <div class="side-card">
           <span class="foot-text"><span class="dot"></span>${platform.tauri ? platform.os : 'web'}</span>
           <span class="badge mono">v${__APP_VERSION__}</span>
@@ -203,6 +230,10 @@ function renderActiveView(): void {
   if (!host) return;
   const ctx = makeContext();
   switch (activeView) {
+    case 'home':
+      if (platform.tv) renderTvHome(host, ctx);
+      else renderDesktopHome(host, ctx);
+      break;
     case 'library':
       renderLibrary(host, ctx);
       break;
@@ -246,6 +277,7 @@ export function navigate(view: ViewId): void {
   if (sub) sub.textContent = meta.sub;
 
   const shell = $('.shell');
+  if (shell?.classList.contains('tv-shell')) shell.dataset.tvView = view;
   if (shell && window.innerWidth <= 900) shell.setAttribute('data-sidebar', 'closed');
   $('.scrim')?.setAttribute('hidden', '');
   focusView(view);
@@ -299,7 +331,7 @@ async function playMedia(item: MediaItem): Promise<void> {
     return;
   }
   // A local file from a previous session: ask for it again, then match by name.
-  toast(`${t('player.openFile')} · ${escapeHtml(item.title)}`, 'info', 2600);
+  toast(`${t('player.openFile')} · ${item.title}`, 'info', 2600);
   const files = await pickFiles();
   const match =
     files.find((f) => f.name === item.name && f.size === item.size) ??
@@ -338,7 +370,7 @@ function ingestFiles(files: File[], opts: { autoplay?: boolean } = {}): Playable
     const item = store.addMedia({
       name: file.name,
       title: file.name.replace(/\.[^.]+$/, ''),
-      kind: /\.(mp3|m4a|aac|flac|wav|ogg|opus)$/i.test(file.name) ? 'audio' : 'video',
+      kind: isAudioFile(file.name) ? 'audio' : 'video',
       source: 'local',
       size: file.size,
       ext: (file.name.split('.').pop() ?? '').toLowerCase(),
@@ -356,7 +388,7 @@ function ingestFiles(files: File[], opts: { autoplay?: boolean } = {}): Playable
       void probeFile(nativePath).then((probe) => {
         if (!probe) return;
         if (probe.duration > 0) store.updateMedia(item.id, { duration: probe.duration });
-        if (activeView === 'library' || activeView === 'history') renderActiveView();
+        if (activeView === 'library' || activeView === 'history' || activeView === 'home') renderActiveView();
       });
     }
 
@@ -364,14 +396,14 @@ function ingestFiles(files: File[], opts: { autoplay?: boolean } = {}): Playable
       void generateThumb(file).then((thumb) => {
         if (!thumb) return;
         store.updateMedia(item.id, { thumb });
-        if (activeView === 'library' || activeView === 'history') renderActiveView();
+        if (activeView === 'library' || activeView === 'history' || activeView === 'home') renderActiveView();
       });
     }
   }
 
   refreshNav();
   if (media.length) toast(t('library.added', { n: n(media.length) }), 'ok', 2000);
-  if (activeView === 'library' || activeView === 'history') renderActiveView();
+  if (activeView === 'library' || activeView === 'history' || activeView === 'home') renderActiveView();
 
   if (opts.autoplay !== false && playables.length && !player.current) {
     navigate('player');
@@ -398,24 +430,219 @@ async function registerOpenedFiles(files: File[]): Promise<void> {
   }
 }
 
+const WINDOWS_MEDIA_EXTENSIONS = new Set([
+  'mp4', 'm4v', 'mov', 'mkv', 'avi', 'webm', 'wmv', 'flv', 'ts', 'm2ts', 'mpg', 'mpeg', '3gp', 'ogv',
+  'mp3', 'm4a', 'm4b', 'aac', 'flac', 'wav', 'ogg', 'oga', 'opus', 'wma', 'aif', 'aiff', 'ape', 'alac', 'm3u8',
+]);
+
+function receiveWindowsOpenPaths(paths: string[]): void {
+  const accepted = [...new Set(paths.filter((path) => typeof path === 'string' && path.trim()))];
+  if (!accepted.length) return;
+  if (!shellReady) pendingWindowsOpenPaths.push(accepted);
+  else void openWindowsPaths(accepted);
+}
+
+async function initializeWindowsOpenBridge(): Promise<void> {
+  if (!isWindowsDesktop || !platform.tauri) return;
+  try {
+    const [{ listen }, { invoke }] = await Promise.all([
+      import('@tauri-apps/api/event'),
+      import('@tauri-apps/api/core'),
+    ]);
+    // Subscribe before reading startup argv so Explorer launches during webview
+    // startup cannot lose a second-open request.
+    await listen<string[]>('rozh:open-files', (event) => receiveWindowsOpenPaths(event.payload));
+    const initial = await invoke<string[]>('take_initial_open_files');
+    if (initial?.length) pendingWindowsOpenPaths.push(initial);
+  } catch (error) {
+    console.warn('[rozh] Windows Explorer open integration unavailable', error);
+  }
+}
+
+async function openWindowsPaths(paths: string[]): Promise<void> {
+  try {
+    const files: NativeFile[] = [];
+    for (const raw of paths) {
+      const path = raw.replace(/^\"|\"$/g, '');
+      const name = path.split(/[\\/]/).filter(Boolean).pop() ?? '';
+      const extension = name.split('.').pop()?.toLowerCase() ?? '';
+      if (!name || !WINDOWS_MEDIA_EXTENSIONS.has(extension)) continue;
+      const file = new File([], name, { type: guessMime(name) }) as NativeFile;
+      file.__path = path;
+      file.__url = await convertNativePath(path);
+      files.push(file);
+    }
+    if (!files.length) return;
+    navigate('player');
+    await player.loadFiles(files);
+  } catch (error) {
+    console.error('[rozh] opening media from Explorer failed', error);
+    toast(t('player.openFailed'), 'bad', 3200);
+  }
+}
+
 async function openLocalFiles(): Promise<void> {
-  const files = await pickFiles();
-  if (!files.length) return;
-  await player.loadFiles(files);
+  try {
+    const files = await pickFiles();
+    if (!files.length) return;
+    // The global toolbar stays available from every destination. After a
+    // selection, make the player visible before loading so the action never
+    // appears to do nothing while the library or settings page stays on top.
+    navigate('player');
+    await player.loadFiles(files);
+  } catch (error) {
+    console.error('[rozh] opening media failed', error);
+    toast(t('player.openFailed'), 'bad', 3200);
+  }
 }
 
 /* ------------------------------------------------------------------ */
 /* chrome behaviour                                                    */
 /* ------------------------------------------------------------------ */
 
+function bindSmartTooltips(): void {
+  const tooltip = document.createElement('div');
+  tooltip.className = 'smart-tooltip';
+  tooltip.id = 'rozh-smart-tooltip';
+  tooltip.setAttribute('role', 'tooltip');
+  tooltip.hidden = true;
+  document.body.append(tooltip);
+
+  let hovered: HTMLElement | null = null;
+  let focused: HTMLElement | null = null;
+  let active: HTMLElement | null = null;
+  let timer = 0;
+  const resolve = (target: EventTarget | null): HTMLElement | null =>
+    target instanceof Element ? target.closest<HTMLElement>('[data-tip]') : null;
+
+  const position = (): void => {
+    if (!active || tooltip.hidden || !active.isConnected) return;
+    const fullscreenRoot = document.fullscreenElement;
+    if (fullscreenRoot && tooltip.parentElement !== fullscreenRoot) fullscreenRoot.append(tooltip);
+    else if (!fullscreenRoot && tooltip.parentElement !== document.body) document.body.append(tooltip);
+
+    const anchor = active.getBoundingClientRect();
+    const box = tooltip.getBoundingClientRect();
+    const gap = 10;
+    const edge = 12;
+    const spaces = {
+      top: anchor.top,
+      bottom: window.innerHeight - anchor.bottom,
+      right: window.innerWidth - anchor.right,
+      left: anchor.left,
+    };
+    const order: Array<keyof typeof spaces> = ['top', 'bottom', 'right', 'left'];
+    const side = order.find((candidate) => spaces[candidate] >= (candidate === 'top' || candidate === 'bottom' ? box.height : box.width) + gap)
+      ?? order.reduce((best, candidate) => spaces[candidate] > spaces[best] ? candidate : best, order[0]);
+
+    let left = anchor.left + (anchor.width - box.width) / 2;
+    let top = anchor.top - box.height - gap;
+    if (side === 'bottom') top = anchor.bottom + gap;
+    if (side === 'right') {
+      left = anchor.right + gap;
+      top = anchor.top + (anchor.height - box.height) / 2;
+    }
+    if (side === 'left') {
+      left = anchor.left - box.width - gap;
+      top = anchor.top + (anchor.height - box.height) / 2;
+    }
+    left = Math.max(edge, Math.min(left, window.innerWidth - box.width - edge));
+    top = Math.max(edge, Math.min(top, window.innerHeight - box.height - edge));
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+  };
+
+  const hide = (): void => {
+    window.clearTimeout(timer);
+    active = null;
+    tooltip.classList.remove('is-visible');
+    tooltip.hidden = true;
+  };
+
+  const update = (): void => {
+    const next = focused ?? hovered;
+    if (!next || !next.dataset.tip?.trim()) {
+      hide();
+      return;
+    }
+    if (active === next && !tooltip.hidden) {
+      position();
+      return;
+    }
+    hide();
+    active = next;
+    timer = window.setTimeout(() => {
+      if (!active || !active.isConnected) {
+        hide();
+        return;
+      }
+      tooltip.textContent = active.dataset.tip ?? '';
+      tooltip.hidden = false;
+      tooltip.style.visibility = 'hidden';
+      position();
+      tooltip.style.visibility = '';
+      requestAnimationFrame(() => tooltip.classList.add('is-visible'));
+    }, 260);
+  };
+
+  document.addEventListener('pointerover', (event) => {
+    if (event.pointerType === 'touch') return;
+    hovered = resolve(event.target);
+    update();
+  });
+  document.addEventListener('pointerout', (event) => {
+    const leaving = resolve(event.target);
+    if (leaving && leaving === hovered && !(event.relatedTarget instanceof Node && leaving.contains(event.relatedTarget))) {
+      hovered = null;
+      update();
+    }
+  });
+  document.addEventListener('pointermove', (event) => {
+    if (event.pointerType === 'touch') return;
+    hovered = resolve(event.target);
+    update();
+  }, { passive: true });
+  window.addEventListener('rozh:controls-hidden', () => {
+    hovered = null;
+    focused = null;
+    hide();
+  });
+  window.addEventListener('rozh:controls-shown', () => {
+    focused = resolve(document.activeElement);
+    update();
+  });
+  document.addEventListener('focusin', (event) => {
+    focused = resolve(event.target);
+    update();
+  });
+  document.addEventListener('focusout', (event) => {
+    const leaving = resolve(event.target);
+    if (leaving && leaving === focused && !(event.relatedTarget instanceof Node && leaving.contains(event.relatedTarget))) {
+      focused = null;
+      update();
+    }
+  });
+  window.addEventListener('resize', position, { passive: true });
+  window.addEventListener('scroll', position, { capture: true, passive: true });
+  document.addEventListener('fullscreenchange', position);
+}
+
 function bindChrome(): void {
+  bindSmartTooltips();
   document.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;
-    const viewBtn = target.closest<HTMLElement>('[data-view]');
+    // Route markers also live on the containing <section class="view">. Only
+    // actual navigation controls should switch views; otherwise every click
+    // inside a view bubbles up and gets routed back to its parent (breaking
+    // playback cards, settings links, and TV shelf actions).
+    const viewBtn = target.closest<HTMLElement>('button[data-view], a[data-view], [role="tab"][data-view]');
     if (viewBtn?.dataset.view) {
       navigate(viewBtn.dataset.view as ViewId);
       return;
     }
+    // Player owns controls rendered inside its own surface. Letting both its
+    // handler and the shell handle Open/URL clicks launches two native dialogs.
+    if (target.closest('.player-view [data-act]')) return;
     const act = target.closest<HTMLElement>('[data-act]')?.dataset.act;
     if (!act) return;
     switch (act) {
@@ -429,12 +656,26 @@ function bindChrome(): void {
           title: title || url,
           url,
           isStream: true,
-          kind: /\.(m3u8|mpd)$/i.test(url) ? 'stream' : /\.(mp3|m4a|aac|flac|wav|ogg)$/i.test(url) ? 'audio' : 'video',
+          kind: /\.(m3u8|mpd)$/i.test(url) ? 'stream' : isAudioFile(url.split('?')[0]) ? 'audio' : 'video',
           size: 0,
         }));
         break;
       case 'settings':
         navigate('settings');
+        break;
+      case 'tv-scan':
+        void syncDeviceLibrary({ reason: 'manual' }).then((result) => {
+          if (result.status?.state === 'error') toast(t('device.error'), 'bad', 2400);
+          if (activeView === 'home' || activeView === 'library') renderActiveView();
+          refreshNav();
+        });
+        break;
+      case 'tv-folder':
+        void pickDeviceFolder().then((status) => {
+          applyDeviceStatus(status);
+          if (activeView === 'home' || activeView === 'library') renderActiveView();
+          refreshNav();
+        });
         break;
       case 'menu':
         toggleSidebar(true);
@@ -584,14 +825,18 @@ export async function rebuild(): Promise<void> {
 }
 
 export async function bootApp(): Promise<void> {
+  await initializeWindowsOpenBridge();
   await store.init();
   applySettings(store.settings);
 
   const hash = location.hash.replace('#', '') as ViewId;
-  if (VIEWS.some((v) => v.id === hash)) activeView = hash;
+  if (platform.tv || isWindowsDesktop) activeView = 'home';
+  else if (VIEWS.some((v) => v.id === hash)) activeView = hash;
 
   paint();
   bindChrome();
+  shellReady = true;
+  for (const paths of pendingWindowsOpenPaths.splice(0)) await openWindowsPaths(paths);
 
   // tray / menu-bar transport (desktop only; the promise resolves to a no-op on web)
   void onNativeCommand((cmd) => {
@@ -606,20 +851,27 @@ export async function bootApp(): Promise<void> {
     void syncDeviceLibrary({ reason: 'launch' }).then((res) => {
       if (!res.added && !res.removed) return;
       refreshNav();
-      if (activeView === 'library' || activeView === 'history') renderActiveView();
+      if (activeView === 'library' || activeView === 'history' || activeView === 'home') renderActiveView();
     });
   }
 
+  // Ask the release channel once per launch, without getting in the way.
+  autoCheckForUpdates();
+
   // TV mode: spatial navigation, back-button handling and a sane first focus
   initTv();
-  if (document.documentElement.dataset.tv === 'true') {
-    $('.nav-item.is-active')?.focus();
-  }
+  if (document.documentElement.dataset.tv === 'true') focusView(activeView);
 
   // First-run niceties. Not on Android (the device scan is the onboarding and
   // the permission dialog owns the first frame) and not on TV (a modal before
   // the remote has been explained is a trap).
-  if (!store.settings.seenWelcome && store.media.length === 0 && !platform.tv && !isAndroidDevice()) {
+  if (
+    !store.settings.seenWelcome &&
+    store.media.length === 0 &&
+    !platform.tv &&
+    !isAndroidDevice() &&
+    !isWindowsDesktop
+  ) {
     setTimeout(() => {
       openDrawer({
         title: 'ROZH Player',

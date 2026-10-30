@@ -1,7 +1,7 @@
 {
   "name": "rozh-player",
   "private": true,
-  "version": "1.0.4",
+  "version": "1.1.0",
   "description": "ROZH Player — a fast, beautiful, universal media player for Windows, macOS, Linux, Android, Android TV and the web.",
   "type": "module",
   "license": "MIT",
@@ -22,10 +22,9 @@
   "dependencies": {
     "@tauri-apps/api": "^2.12.4",
     "@tauri-apps/plugin-dialog": "^2.4.0",
-    "@tauri-apps/plugin-fs": "^2.4.2",
     "@tauri-apps/plugin-http": "^2.8.3",
-    "@tauri-apps/plugin-opener": "^2.2.6",
-    "@tauri-apps/plugin-os": "^2.3.1",
+    "@tauri-apps/plugin-process": "^2.4.0",
+    "@tauri-apps/plugin-updater": "^2.14.1",
     "dashjs": "^5.2.1",
     "hls.js": "^1.7.4",
     "jassub": "^2.5.23",

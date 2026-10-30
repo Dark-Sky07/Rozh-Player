@@ -23,11 +23,13 @@ import {
   haptic,
   isAudioFile,
   isTextEntry,
+  isWindowsDesktop,
   pickFiles,
   platform,
   saveBlob,
   ext,
 } from './util';
+import { streamableUrl, openInSystemPlayer, canHandOff } from './mediaServer';
 
 interface MpegtsNamespace {
   isSupported?: () => boolean;
@@ -83,12 +85,12 @@ const TEMPLATE = `
         <div class="empty-inner">
           <img class="empty-logo" src="/icons/rozh-logo.png" alt="" />
           <h3>${t('player.empty.title')}</h3>
-          <p>${t('player.empty.sub')}</p>
+          <p>${t(isWindowsDesktop ? 'desktop.playerEmpty' : 'player.empty.sub')}</p>
           <div class="drop-zone">
             <div class="dz-title">${t('player.empty.drop')}</div>
-            <div class="dz-sub">${t('player.empty.dropSub')}</div>
+            <div class="dz-sub">${t(isWindowsDesktop ? 'desktop.dropHint' : 'player.empty.dropSub')}</div>
           </div>
-          <div class="empty-actions">
+          ${isWindowsDesktop ? '' : `<div class="empty-actions">
             <button class="btn btn-primary btn-lg" data-act="open">${icon('folder-open')}<span>${t(
               'player.openFile',
             )}</span></button>
@@ -96,7 +98,7 @@ const TEMPLATE = `
             <button class="btn btn-ghost btn-lg" data-act="demo">${icon('sparkles')}<span>${t(
               'player.sample',
             )}</span></button>
-          </div>
+          </div>`}
           <div class="empty-formats">
             ${['MP4', 'MKV', 'WebM', 'MOV', 'AVI', 'TS', 'MP3', 'FLAC', 'WAV', 'M4A', 'OGG', 'HLS', 'DASH']
               .map((f) => `<span class="badge muted">${f}</span>`)
@@ -216,12 +218,12 @@ const TEMPLATE = `
         <button class="iconbtn" data-act="addqueue" data-tip="${t('player.addQueue')}" aria-label="${t(
           'player.addQueue',
         )}">${icon('plus')}</button>
-        <button class="iconbtn" data-act="open" data-tip="${t('player.openFile')}" aria-label="${t(
+        ${isWindowsDesktop ? '' : `<button class="iconbtn" data-act="open" data-tip="${t('player.openFile')}" aria-label="${t(
           'player.openFile',
         )}">${icon('folder-open')}</button>
         <button class="iconbtn" data-act="url" data-tip="${t('player.openUrl')}" aria-label="${t('player.openUrl')}">${icon(
           'link',
-        )}</button>
+        )}</button>`}
         ${
           platform.tauri
             ? `<button class="iconbtn" data-act="reveal" data-tip="${t('player.reveal')}" aria-label="${t(
@@ -374,11 +376,15 @@ export class Player {
     this.updateMeta(item);
     this.renderChapters([]);
 
-    const url = item.url;
-    const clean = url.split('#')[0].split('?')[0].toLowerCase();
+    // The media reference (a path, a content:// URI or a network URL) decides how
+    // the file is played; the *source* may be a loopback stream when the webview
+    // cannot read the reference itself.
+    const reference = item.url;
+    const clean = reference.split('#')[0].split('?')[0].toLowerCase();
     const isHls = /\.m3u8$/.test(clean);
     const isDash = /\.mpd$/.test(clean);
     const isMpegTs = /\.(ts|m2ts|mts|flv|f4v)$/.test(clean);
+    const url = await streamableUrl(reference, item.name);
     this.hlsAttempt = 0;
 
     // resume position (set before we attach so loadedmetadata sees it)
@@ -436,7 +442,9 @@ export class Player {
       lowLatencyMode: true,
       backBufferLength: 90,
       maxBufferLength: 42,
-      capLevelToPlayerSize: true,
+      // Never cap a stream's rendition to the CSS/player dimensions: let ABR use
+      // the best source resolution allowed by bandwidth and device decoding.
+      capLevelToPlayerSize: false,
       startLevel: store.settings.hlsQuality >= 0 ? store.settings.hlsQuality : -1,
       ...extra,
     });
@@ -840,13 +848,13 @@ export class Player {
     if (e === 'ass' || e === 'ssa') {
       const text = await file.text();
       await this.renderAss(text, file.name);
-      toast(`${t('player.subLoaded')} · ${escapeHtml(file.name)}`, 'ok');
+      toast(`${t('player.subLoaded')} · ${file.name}`, 'ok');
       return;
     }
     const raw = await file.text();
     const cues = parseCues(e === 'vtt' ? raw : srtToVtt(raw));
     if (!cues.length) {
-      toast(`${t('player.error')} · ${escapeHtml(file.name)}`, 'warn');
+      toast(`${t('player.error')} · ${file.name}`, 'warn');
       return;
     }
     const url = URL.createObjectURL(
@@ -854,7 +862,7 @@ export class Player {
     );
     this.objectUrls.push(url);
     this.attachTextTrack(url, file.name, true, cues);
-    toast(`${t('player.subLoaded')} · ${escapeHtml(file.name)}`, 'ok');
+    toast(`${t('player.subLoaded')} · ${file.name}`, 'ok');
   }
 
   private attachTextTrack(url: string, label: string, show: boolean, cues?: SubCue[]): void {
@@ -922,7 +930,7 @@ export class Player {
       });
       const canvas = this.stage.querySelector('canvas');
       if (canvas) canvas.classList.add('jassub-canvas');
-      toast(`${t('player.assNote')} · ${escapeHtml(label)}`, 'ok');
+      toast(`${t('player.assNote')} · ${label}`, 'ok');
     } catch (err) {
       console.warn('[rozh] libass unavailable', err);
       toast(t('player.subNone'), 'warn');
@@ -1386,12 +1394,12 @@ export class Player {
       return `<div class="q-list">${marks
         .map(
           (m) =>
-            `<div class="q-item is-active" data-jump="${m.t}">
+            `<div class="q-item is-active" data-jump="${escapeHtml(String(m.t))}">
               <span class="q-idx">${icon('bookmark')}</span>
               <span class="q-meta"><span class="q-name">${escapeHtml(m.label)}</span><span class="q-sub mono">${fmtTime(
                 m.t,
               )}</span></span>
-              <button class="iconbtn btn-sm" data-drop="${m.at}" aria-label="${t('common.remove')}">${icon('trash')}</button>
+              <button class="iconbtn btn-sm" data-drop="${escapeHtml(String(m.at))}" aria-label="${escapeHtml(t('common.remove'))}">${icon('trash')}</button>
             </div>`,
         )
         .join('')}</div>`;
@@ -1643,21 +1651,33 @@ export class Player {
       webkitExitFullscreen?: () => Promise<void>;
       webkitFullscreenElement?: Element;
     };
-    const isFs = !!document.fullscreenElement || !!d.webkitFullscreenElement;
+    const isFs = !!document.fullscreenElement || !!d.webkitFullscreenElement || this.wrap.classList.contains('fs-fallback');
     try {
       if (isFs) {
-        await (document.exitFullscreen?.() ?? d.webkitExitFullscreen?.());
+        if (document.fullscreenElement) await document.exitFullscreen?.();
+        else if (d.webkitFullscreenElement) await d.webkitExitFullscreen?.();
+        this.wrap.classList.remove('fs-fallback');
+        this.wrap.dataset.fs = 'false';
       } else if (this.wrap.requestFullscreen) {
         await this.wrap.requestFullscreen({ navigationUI: 'hide' });
-      } else if ((this.video as HTMLVideoElement & { webkitEnterFullscreen?: () => void }).webkitEnterFullscreen) {
-        (this.video as HTMLVideoElement & { webkitEnterFullscreen: () => void }).webkitEnterFullscreen();
       } else {
-        this.wrap.classList.toggle('fs-fallback');
+        // Keep our own controls on platforms whose native video fullscreen
+        // cannot be styled or auto-hidden (notably mobile WebKit).
+        this.wrap.classList.add('fs-fallback');
+        this.wrap.dataset.fs = 'true';
       }
     } catch {
-      this.wrap.classList.toggle('fs-fallback');
-      this.wrap.dataset.fs = this.wrap.classList.contains('fs-fallback') ? 'true' : 'false';
+      // If a platform rejects the Fullscreen API, use the in-app full-window
+      // presentation rather than handing control visibility to native chrome.
+      if (isFs) {
+        this.wrap.classList.remove('fs-fallback');
+        this.wrap.dataset.fs = 'false';
+      } else {
+        this.wrap.classList.add('fs-fallback');
+        this.wrap.dataset.fs = 'true';
+      }
     }
+    this.showUi();
   }
 
   async togglePip(): Promise<void> {
@@ -1735,6 +1755,9 @@ export class Player {
           break;
         case 'url':
           this.openUrlDialog();
+          break;
+        case 'external':
+          void this.openExternally();
           break;
         case 'demo':
           this.playDemo();
@@ -1871,11 +1894,12 @@ export class Player {
     });
 
     const onFs = (): void => {
-      const fs = !!document.fullscreenElement;
+      const fs = !!document.fullscreenElement || this.wrap.classList.contains('fs-fallback');
       this.wrap.dataset.fs = String(fs);
       $$('[data-act="fullscreen"]', this.root).forEach((b) => {
         b.innerHTML = icon(fs ? 'fullscreen-exit' : 'maximize');
       });
+      this.showUi();
       window.setTimeout(() => this.renderProgress(), 120);
     };
     document.addEventListener('fullscreenchange', onFs);
@@ -2051,6 +2075,14 @@ export class Player {
     }
   }
 
+  /** Android: let the device's own player decode what the webview refuses. */
+  private async openExternally(): Promise<void> {
+    const url = this.current?.url;
+    if (!url) return;
+    const ok = await openInSystemPlayer(url, this.current?.name ?? '');
+    if (ok) this.pause();
+  }
+
   private showError(message: string, detail = ''): void {
     const code = this.video.error?.code ?? 0;
     const codeText = code ? `MEDIA_ERR_${['', 'ABORTED', 'NETWORK', 'DECODE', 'SRC_NOT_SUPPORTED'][code] ?? code}` : '';
@@ -2074,10 +2106,17 @@ export class Player {
           : ''
       }
       <div class="empty-actions">
-        <button class="btn btn-primary btn-lg" data-act="open">${icon('folder-open')}<span>${escapeHtml(
-          t('player.openFile'),
-        )}</span></button>
-        <button class="btn btn-lg" data-act="url">${icon('link')}<span>${escapeHtml(t('player.openUrl'))}</span></button>
+        ${
+          canHandOff(this.current?.url)
+            ? `<button class="btn btn-primary btn-lg" data-act="external">${icon('play')}<span>${escapeHtml(
+                t('player.external'),
+              )}</span></button>`
+            : ''
+        }
+        ${isWindowsDesktop ? '' : `<button class="btn ${canHandOff(this.current?.url) ? '' : 'btn-primary'} btn-lg" data-act="open">${icon(
+          'folder-open',
+        )}<span>${escapeHtml(t('player.openFile'))}</span></button>
+        <button class="btn btn-lg" data-act="url">${icon('link')}<span>${escapeHtml(t('player.openUrl'))}</span></button>`}
       </div>`;
     this.events.onError?.(message);
   }
@@ -2231,6 +2270,8 @@ export class Player {
       }
     });
     this.disposers = [];
+    clearTimeout(this.hideTimer);
+    clearTimeout(this.hudTimer);
     this.teardownEngine();
     this.stopProgressTicker();
     this.queue.forEach((q) => this.revokeIfOwned(q));
@@ -2258,6 +2299,7 @@ export class Player {
   showUi(): void {
     this.wrap.dataset.idle = 'false';
     this.wrap.classList.add('ui-visible');
+    window.dispatchEvent(new Event('rozh:controls-shown'));
     this.scheduleHide();
   }
 
@@ -2266,6 +2308,7 @@ export class Player {
     if (visible) {
       this.wrap.classList.remove('ui-visible');
       this.wrap.dataset.idle = 'true';
+      window.dispatchEvent(new Event('rozh:controls-hidden'));
       $('.big-play', this.root)?.classList.remove('show');
     } else {
       this.showUi();
@@ -2273,13 +2316,21 @@ export class Player {
     }
   }
 
+  private isFullscreen(): boolean {
+    const d = document as Document & { webkitFullscreenElement?: Element };
+    return !!document.fullscreenElement || !!d.webkitFullscreenElement || this.wrap.dataset.fs === 'true' || this.wrap.classList.contains('fs-fallback');
+  }
+
   private scheduleHide(): void {
     clearTimeout(this.hideTimer);
-    if (!this.playing) return;
+    // In fullscreen, controls must clear away even when paused; outside
+    // fullscreen keep the familiar paused-player controls on screen.
+    if (!this.playing && !this.isFullscreen()) return;
     this.hideTimer = window.setTimeout(() => {
-      if (this.playing) {
+      if (this.playing || this.isFullscreen()) {
         this.wrap.classList.remove('ui-visible');
         this.wrap.dataset.idle = 'true';
+        window.dispatchEvent(new Event('rozh:controls-hidden'));
       }
     }, 2800);
   }
@@ -2319,6 +2370,7 @@ export class Player {
     this.onWindow('keydown', (e) => {
       if (isTextEntry(e.target)) return;
       if (document.documentElement.dataset.kbdHelp === 'open') return;
+      if (this.isFullscreen() && !e.repeat) this.showUi();
       const tv = document.documentElement.dataset.tv === 'true';
       // On a TV the D-pad drives the media surface; only when a control or a
       // sheet has focus does it fall back to moving between elements.
@@ -2697,7 +2749,7 @@ export class Player {
     const clean = url.split('?')[0].toLowerCase();
     const isHls = /\.m3u8$/.test(clean);
     const isDash = /\.mpd$/.test(clean);
-    const isAudio = /\.(mp3|m4a|aac|flac|wav|ogg|opus)$/.test(clean);
+    const isAudio = isAudioFile(clean);
     const item: Playable = {
       key: `url::${url}`,
       name: title || url.split('/').pop() || url,

@@ -75,23 +75,49 @@ small Java class is generated into the project by the second patch script:
 node scripts/patch-android-native.mjs
 ```
 
-It does three things:
+It does four things:
 
 1. copies `scripts/android/MediaBridge.java` into the generated project, using
    the package the Tauri template actually produced (read from
    `MainActivity.kt`, never hard-coded);
 2. wires `MainActivity` — `MediaBridge.attach(this)` in `onCreate` plus
    `onRequestPermissionsResult` and `onActivityResult` forwarding;
-3. declares `READ_MEDIA_VIDEO`, `READ_MEDIA_AUDIO` and (Android 12 and older)
-   `READ_EXTERNAL_STORAGE`.
+3. declares `READ_MEDIA_VIDEO`, `READ_MEDIA_AUDIO`, `REQUEST_INSTALL_PACKAGES`
+   and (Android 12 and older) `READ_EXTERNAL_STORAGE`;
+4. adds a `FileProvider` (`@xml/rozh_file_paths`) so the downloaded update APK
+   can be handed to the package installer as a `content://` URI instead of a
+   `file://` URI, which Android 7+ refuses.
 
 `MediaBridge` queries **MediaStore** for videos and audio, resolves thumbnails,
 and enumerates any folder the user picked with `ACTION_OPEN_DOCUMENT_TREE`
 (persisted with `takePersistableUriPermission`). Results are written to a JSON
 state file in the app cache directory; Rust (`android_media_scan`,
-`android_media_status`, `android_media_pick_folder`) is only the mailbox that
-carries it to the UI. No JNI, no reflection, no binder from the Rust side — a
-failed scan can never take the player down.
+`android_media_status`, `android_media_pick_folder`, `android_open_external`,
+`android_media_server`, `android_update_install`, `android_update_status`) is only
+the mailbox that carries it to the UI. No JNI, no reflection, no binder from the
+Rust side — a failed scan can never take the player down.
+
+Mailbox ids come from `next_token()`, which mixes wall-clock milliseconds with a
+counter: a fresh process must never reuse an id a previous run left on disk, or
+the bridge would ignore the first commands of the session.
+
+### Loopback media server
+
+`content://` URIs are readable by the app but not by `<video src>` in a WebView,
+and no JS player can fetch them. `MediaBridge` therefore opens a `ServerSocket`
+on `127.0.0.1` (random port, written to `server.json`) and serves any URI the app
+can open:
+
+```
+GET http://127.0.0.1:<port>/s/<base64url(uri)>/<name>   200 | 206 + Range
+```
+
+`src/core/mediaServer.ts` rewrites device-library URLs through it and leaves
+`http(s)://` sources untouched. The file name stays in the path so the player
+still recognises the container. When even the server cannot help — AC-3, DTS or
+VC-1 that the device decoder has no support for — the player offers **Play in
+system player** (`android_open_external`), which hands the URI to the device's
+own player or VLC.
 
 ### Dedicated Android TV package
 
@@ -101,10 +127,13 @@ interface compiled in (`VITE_TV_BUILD=1`) instead of detected at runtime:
 ```bash
 node scripts/patch-android-tv.mjs
 node scripts/patch-android-native.mjs
-VITE_TV_BUILD=1 npx tauri android build --apk --aab   # phone package
+npx tauri android build --apk --aab                   # phone package
 node scripts/make-tv-variant.mjs                      # own applicationId + banner
 VITE_TV_BUILD=1 npx tauri android build --apk --aab   # TV package
 ```
+
+`VITE_TV_BUILD=1` is set only for the second build: the phone package must not
+bake the 10-foot interface in.
 
 `make-tv-variant.mjs` changes `applicationId` to `…rozh.player.tv`, sets the
 label to **ROZH Player TV**, installs `icons/tv-banner.png` as the 320×180
@@ -134,16 +163,59 @@ pushed and attaches everything to a published release (`draft: false`):
 | Linux | `ubuntu-22.04` | `.deb`, `.rpm`, `.AppImage` |
 | Android | `ubuntu-latest` + NDK 27 | `.apk`, `.aab` (phone **and** `-TV-` variants) |
 | Web | `ubuntu-latest` | `rozh-player-web.zip` |
+| Manifest | `ubuntu-latest` (after desktop) | `latest.json` |
 
-The release workflow can also be started by hand
-(`workflow_dispatch` with a `tag` and an optional `only` filter).
+The release workflow runs only for version tags and validates that each tag matches `package.json` and points to a commit already reachable from `main`. Manual dispatch is intentionally disabled because release jobs use signing secrets.
 
-Installers are **unsigned** — add the usual Tauri signing keys as repository
-secrets before shipping to end users. The Android job creates an ephemeral
-keystore so the APK installs; put a real keystore in `src-tauri/keystore/` and
-a matching `keystore.properties` to sign with your own key.
+## 5. Signing and in-app updates
 
-## 5. Troubleshooting
+**Release signing material must never be stored in Git.** The repository
+previously contained the desktop updater private key and Android release
+keystore, and the Android password was hard-coded in the release workflow.
+Treat all of them as compromised. The tracked files are removed from the
+current tree, but this does not erase them from existing Git history or revoke
+signatures already trusted by installed applications.
+
+The release workflow now fails closed unless these protected GitHub Actions
+repository secrets are configured:
+
+| Secret | Purpose |
+| --- | --- |
+| `TAURI_SIGNING_PRIVATE_KEY` | Desktop updater private-key content |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Desktop updater key password |
+| `ANDROID_KEYSTORE_BASE64` | Base64-encoded PKCS#12 keystore |
+| `ANDROID_KEYSTORE_PASSWORD` | Android keystore password |
+| `ANDROID_KEY_PASSWORD` | Android signing key password |
+| `ANDROID_KEY_ALIAS` | Android signing key alias |
+
+Do not reuse the exposed Android password or upload the compromised material as
+a long-term replacement. A secure migration must be planned before publishing
+a new release. Desktop clients trust the updater public key embedded in
+`src-tauri/tauri.conf.json`; existing clients need a transition release signed
+by the old key before they can trust a new key. Android's signing certificate
+is also part of the installed package identity: rotating it can prevent
+in-place upgrades on older Android versions unless a valid signing-certificate
+lineage or a store-managed signing migration is used. Do not simply replace
+these keys without testing the full upgrade path on existing installations.
+
+The updater public key is intentionally public and stays in
+`src-tauri/tauri.conf.json` (`plugins.updater.pubkey`). Desktop bundles use
+`createUpdaterArtifacts: true`, which writes a `.sig` next to every updater
+artifact. `scripts/collect-desktop-artifacts.mjs` renames them deterministically,
+and the `latest` job merges per-runner manifests into the `latest.json` polled
+by the app. The release validator checks that the selected `vMAJOR.MINOR.PATCH`
+tag matches `package.json` before any platform build starts.
+
+Android updates go through the system installer: `android_update_install(url)`
+accepts only version-matched APK URLs from this repository's official GitHub
+release path, then `MediaBridge` uses `DownloadManager`, polls progress into
+`update.json`, and opens the installer through the `FileProvider`.
+
+`node scripts/fetch-ffmpeg.mjs` downloads FFmpeg 6.1.1 and verifies its exact
+size and pinned SHA-256 digest before the binary can be bundled. Release builds
+fail if this verification fails; the binary is not committed to Git.
+
+## 6. Troubleshooting
 
 | Symptom | Fix |
 | --- | --- |

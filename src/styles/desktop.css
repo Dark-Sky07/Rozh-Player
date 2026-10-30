@@ -1,0 +1,567 @@
+/* ======================================================================
+   ROZH Player — Windows desktop workspace
+   ====================================================================== */
+.windows-shell {
+  --win-side-width: 250px;
+  padding: 12px;
+  gap: 12px;
+  grid-template-columns: var(--win-side-width) minmax(0, 1fr);
+}
+.windows-shell[data-sidebar='collapsed'] {
+  grid-template-columns: 76px minmax(0, 1fr);
+}
+.windows-shell .sidebar {
+  padding: 18px 14px 14px;
+}
+.windows-shell .brand {
+  padding: 6px 8px 22px;
+}
+.windows-shell .nav {
+  gap: 4px;
+}
+.windows-shell .nav-title {
+  padding-top: 20px;
+}
+.windows-shell .nav-item {
+  height: 44px;
+}
+.windows-shell .sidebar-foot {
+  padding-top: 14px;
+}
+.windows-shell .side-card {
+  min-height: 38px;
+}
+.windows-shell .main {
+  min-width: 0;
+  overflow: hidden;
+}
+.windows-shell .topbar {
+  min-height: 72px;
+  height: 72px;
+  padding-inline: clamp(20px, 2.3vw, 34px);
+  margin: 0;
+  background: linear-gradient(180deg, rgba(17, 20, 29, 0.76), rgba(10, 12, 18, 0.18));
+}
+.windows-shell .topbar-tools {
+  gap: 8px;
+  padding: 5px;
+  border-radius: 15px;
+  background: rgba(9, 12, 18, 0.6);
+}
+.windows-shell .topbar-open {
+  --btn-h: 42px;
+  padding-inline: 17px;
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+.windows-shell .topbar-tools > .iconbtn {
+  width: 42px;
+  height: 42px;
+}
+.windows-shell .topbar .crumb-sub {
+  max-width: 60ch;
+}
+.windows-shell .view[data-view='home'] {
+  overflow: auto;
+  padding: 28px clamp(24px, 3vw, 46px) 44px;
+  scroll-behavior: smooth;
+}
+.windows-shell .view[data-view='player'] {
+  padding: 0;
+  overflow: hidden;
+}
+.windows-shell .view[data-view='library'],
+.windows-shell .view[data-view='streams'],
+.windows-shell .view[data-view='history'],
+.windows-shell .view[data-view='settings'] {
+  padding: 20px clamp(24px, 3vw, 46px) 38px;
+}
+.windows-shell .view-head {
+  padding-top: 8px;
+}
+.windows-shell .view[data-view='home']::-webkit-scrollbar {
+  width: 8px;
+}
+.windows-shell .view[data-view='home']::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.13);
+  background-clip: padding-box;
+}
+
+.win-home {
+  display: flex;
+  width: min(100%, 1480px);
+  margin-inline: auto;
+  flex-direction: column;
+  gap: clamp(24px, 3vw, 38px);
+}
+.win-home-hero {
+  position: relative;
+  display: flex;
+  min-height: 310px;
+  height: clamp(310px, 39vh, 430px);
+  align-items: center;
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 26px;
+  background:
+    radial-gradient(55% 90% at 82% 15%, rgba(var(--accent-rgb), 0.21), transparent 75%),
+    linear-gradient(125deg, #1a202d, #11151e 64%, #10131a);
+  box-shadow: 0 24px 65px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+.win-hero-backdrop,
+.win-hero-shade {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+}
+.win-hero-backdrop {
+  overflow: hidden;
+}
+.win-hero-image {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 65%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 38%;
+  opacity: 0.72;
+  mask-image: linear-gradient(90deg, transparent 0%, #000 42%);
+}
+.win-hero-shade {
+  background:
+    linear-gradient(90deg, rgba(11, 14, 20, 0.96) 0%, rgba(11, 14, 20, 0.84) 38%, rgba(11, 14, 20, 0.22) 78%, rgba(11, 14, 20, 0.08) 100%),
+    linear-gradient(0deg, rgba(11, 14, 20, 0.56), transparent 52%);
+}
+html[dir='rtl'] .win-hero-image {
+  inset: 0 auto 0 0;
+  mask-image: linear-gradient(270deg, transparent 0%, #000 42%);
+}
+html[dir='rtl'] .win-hero-shade {
+  background:
+    linear-gradient(270deg, rgba(11, 14, 20, 0.96) 0%, rgba(11, 14, 20, 0.84) 38%, rgba(11, 14, 20, 0.22) 78%, rgba(11, 14, 20, 0.08) 100%),
+    linear-gradient(0deg, rgba(11, 14, 20, 0.56), transparent 52%);
+}
+.win-hero-emblem {
+  position: absolute;
+  inset-inline-end: 12%;
+  top: 50%;
+  display: grid;
+  width: clamp(170px, 20vw, 280px);
+  aspect-ratio: 1;
+  place-items: center;
+  transform: translateY(-50%);
+  border: 1px solid rgba(255, 220, 166, 0.12);
+  border-radius: 50%;
+  color: rgba(255, 205, 133, 0.24);
+  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.12), transparent 68%);
+}
+.win-hero-emblem .ico {
+  width: 35%;
+  height: 35%;
+  filter: drop-shadow(0 16px 44px rgba(var(--accent-rgb), 0.32));
+}
+.win-hero-copy {
+  position: relative;
+  z-index: 1;
+  width: min(70%, 720px);
+  padding: clamp(30px, 4vw, 58px);
+}
+.win-overline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--accent-2);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.win-overline > i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.72);
+}
+.win-hero-copy h2 {
+  display: -webkit-box;
+  overflow: hidden;
+  margin-top: 16px;
+  color: #fff;
+  font-size: clamp(2rem, 3.3vw, 3.45rem);
+  font-weight: 820;
+  letter-spacing: -0.045em;
+  line-height: 1.07;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.win-hero-copy p {
+  max-width: 56ch;
+  margin-top: 12px;
+  color: rgba(229, 232, 239, 0.68);
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+.win-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 24px;
+}
+.win-hero-actions .btn {
+  --btn-h: 44px;
+  border-radius: 12px;
+  font-size: 0.79rem;
+}
+.win-hero-count {
+  position: absolute;
+  inset-inline-end: 26px;
+  bottom: 24px;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.7rem;
+}
+.win-hero-count b {
+  color: #fff;
+  font-size: 1.05rem;
+}
+.win-home-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: rgba(237, 240, 246, 0.56);
+  font-size: 0.75rem;
+}
+.win-home-hint .ico {
+  width: 17px;
+  height: 17px;
+  color: var(--accent-2);
+}
+.win-hero-progress {
+  display: flex;
+  width: min(390px, 100%);
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+}
+.win-hero-progress > span {
+  height: 5px;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.15);
+}
+.win-hero-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent-1), var(--accent-3));
+}
+.win-hero-progress small {
+  color: rgba(255, 255, 255, 0.66);
+  font-size: 0.63rem;
+  white-space: nowrap;
+}
+.win-quick-links {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.win-quick-link {
+  display: flex;
+  min-height: 80px;
+  align-items: center;
+  gap: 13px;
+  padding: 14px 16px;
+  border: 1px solid var(--line-1);
+  border-radius: 16px;
+  text-align: start;
+  background: linear-gradient(145deg, rgba(21, 25, 35, 0.88), rgba(13, 16, 23, 0.82));
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+.win-quick-link:hover {
+  transform: translateY(-2px);
+  border-color: rgba(var(--accent-rgb), 0.28);
+  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.09), rgba(13, 16, 23, 0.9));
+}
+.win-quick-link > .ico:last-child {
+  width: 16px;
+  height: 16px;
+  margin-inline-start: auto;
+  color: var(--text-4);
+}
+.win-quick-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: none;
+  place-items: center;
+  border: 1px solid rgba(var(--accent-rgb), 0.16);
+  border-radius: 13px;
+  color: var(--accent-2);
+  background: rgba(var(--accent-rgb), 0.085);
+}
+.win-quick-icon .ico {
+  width: 20px;
+  height: 20px;
+}
+.win-quick-link b,
+.win-quick-link small {
+  display: block;
+}
+.win-quick-link b {
+  color: var(--text-0);
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+.win-quick-link small {
+  margin-top: 4px;
+  color: var(--text-4);
+  font-size: 0.66rem;
+}
+.win-home-section {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 15px;
+}
+.win-section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+}
+.win-section-heading > div > span {
+  color: var(--accent-2);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+.win-section-heading h2 {
+  margin-top: 5px;
+  color: var(--text-0);
+  font-size: 1.22rem;
+  font-weight: 780;
+  letter-spacing: -0.02em;
+}
+.win-section-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 4px;
+  color: var(--text-3);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.win-section-link:hover {
+  color: var(--accent-2);
+}
+.win-section-link .ico {
+  width: 15px;
+  height: 15px;
+}
+.win-media-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(174px, 1fr));
+  gap: 14px;
+}
+.win-media-tile {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 15px;
+  text-align: start;
+  background: rgba(16, 19, 27, 0.84);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.win-media-tile:hover {
+  transform: translateY(-3px);
+  border-color: rgba(var(--accent-rgb), 0.35);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.2);
+}
+.win-tile-art {
+  position: relative;
+  display: grid;
+  aspect-ratio: 16 / 9;
+  place-items: center;
+  overflow: hidden;
+  background: linear-gradient(145deg, rgba(var(--accent-rgb), 0.15), #141925);
+}
+.win-tile-art > img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.win-art-fallback {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+  color: rgba(255, 218, 166, 0.62);
+  background: radial-gradient(circle at 70% 30%, rgba(var(--accent-rgb), 0.24), transparent 65%), #151a24;
+}
+.win-art-fallback .ico {
+  width: 28px;
+  height: 28px;
+}
+.win-tile-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  background: rgba(5, 7, 10, 0.35);
+  transition: opacity 140ms ease;
+}
+.win-tile-play .ico {
+  width: 31px;
+  height: 31px;
+  padding: 8px;
+  border-radius: 50%;
+  color: #1b140b;
+  background: var(--accent-2);
+}
+.win-media-tile:hover .win-tile-play,
+.win-media-tile:focus-visible .win-tile-play {
+  opacity: 1;
+}
+.win-tile-kind {
+  position: absolute;
+  top: 9px;
+  inset-inline-start: 9px;
+  padding: 4px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 7px;
+  color: rgba(255, 255, 255, 0.84);
+  background: rgba(7, 9, 13, 0.62);
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.win-tile-progress {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.25);
+}
+.win-tile-progress i {
+  display: block;
+  height: 100%;
+  background: var(--accent-2);
+}
+.win-tile-meta {
+  display: block;
+  padding: 11px 12px 12px;
+}
+.win-tile-meta b,
+.win-tile-meta small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.win-tile-meta b {
+  color: var(--text-0);
+  font-size: 0.73rem;
+  font-weight: 720;
+}
+.win-tile-meta small {
+  margin-top: 5px;
+  color: var(--text-4);
+  font-size: 0.62rem;
+}
+.win-home-empty {
+  display: flex;
+  min-height: 88px;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px dashed rgba(255, 255, 255, 0.13);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.018);
+}
+.win-empty-icon {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  place-items: center;
+  border-radius: 13px;
+  color: var(--accent-2);
+  background: rgba(var(--accent-rgb), 0.09);
+}
+.win-empty-icon .ico {
+  width: 21px;
+  height: 21px;
+}
+.win-home-empty b {
+  color: var(--text-1);
+  font-size: 0.76rem;
+}
+.win-home-empty p {
+  margin-top: 4px;
+  color: var(--text-4);
+  font-size: 0.68rem;
+}
+.win-empty-shortcut {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-inline-start: auto;
+  color: var(--text-4);
+  font-size: 0.65rem;
+}
+.win-empty-shortcut kbd {
+  min-width: 24px;
+  padding: 4px 6px;
+  border: 1px solid var(--line-1);
+  border-radius: 6px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.04);
+}
+.windows-shell .tv-focus,
+.windows-shell :focus-visible {
+  outline: 2px solid rgba(var(--accent-rgb), 0.8);
+  outline-offset: 3px;
+}
+@media (max-width: 1080px) {
+  .windows-shell {
+    --win-side-width: 218px;
+  }
+  .windows-shell .view[data-view='home'] {
+    padding-inline: 22px;
+  }
+  .win-home-hero {
+    min-height: 280px;
+    height: 34vh;
+  }
+  .win-hero-copy {
+    width: min(78%, 650px);
+  }
+  .win-media-row {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  }
+}
+@media (max-width: 900px) {
+  .windows-shell {
+    grid-template-columns: 1fr;
+  }
+  .windows-shell .sidebar-foot .open-btn {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .win-quick-link,
+  .win-media-tile,
+  .win-tile-play {
+    transition: none;
+  }
+}

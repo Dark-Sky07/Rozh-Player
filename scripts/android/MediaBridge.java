@@ -23,6 +23,7 @@ package app.rozh.player;
  */
 
 import android.app.Activity;
+import android.app.DownloadManager;
 import android.content.ContentUris;
 import android.content.Context;
 import android.content.Intent;
@@ -32,22 +33,36 @@ import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Environment;
 import android.provider.DocumentsContract;
 import android.provider.MediaStore;
+import android.provider.Settings;
+import android.util.Base64;
 import android.util.Size;
+
+import androidx.core.content.FileProvider;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.util.concurrent.Semaphore;
 
 public final class MediaBridge {
 
@@ -65,6 +80,12 @@ public final class MediaBridge {
     private static volatile int lastToken = -1;
     private static volatile boolean busy;
     private static volatile boolean askingPermissions;
+    /** Port of the loopback media server (0 = not running). */
+    private static volatile int serverPort;
+    /** Per-process bearer secret; the route token is not a base64-encoded URI. */
+    private static volatile String serverToken = "";
+    private static final Semaphore SERVER_CONNECTIONS = new Semaphore(8);
+    private static volatile long downloadId = -1L;
     private static final Object LOCK = new Object();
 
     private MediaBridge() {}
@@ -87,6 +108,7 @@ public final class MediaBridge {
             return;
         }
         writeHello();
+        startMediaServer();
         if (!new File(workDir, "state.json").exists()) {
             JSONObject idle = new JSONObject();
             try {
@@ -145,6 +167,10 @@ public final class MediaBridge {
                     scan(audio);
                 } else if ("pick".equals(name)) {
                     pickFolder();
+                } else if ("play".equals(name)) {
+                    play(cmd.optString("uri", ""), cmd.optString("mime", "video/*"));
+                } else if ("install".equals(name)) {
+                    install(cmd.optString("url", ""));
                 }
             } catch (InterruptedException stop) {
                 return;
@@ -583,6 +609,548 @@ public final class MediaBridge {
     }
 
     /* ------------------------------------------------------------------ */
+    /* loopback media server                                              */
+    /* ------------------------------------------------------------------ */
+    /*
+     * A content:// URI is readable by the app but not by <video src> on every
+     * Android WebView, and it cannot be fetched by hls.js / mpegts.js at all.
+     * This tiny HTTP server (127.0.0.1, random port) turns any URI the app can
+     * open into a normal http:// source with Range support, which is what both
+     * the native player and the MSE-based engines expect.
+     *
+     *   GET /s/<base64url(uri)>     200 / 206 with Accept-Ranges: bytes
+     */
+
+    private static void startMediaServer() {
+        try {
+            byte[] secret = new byte[32];
+            new SecureRandom().nextBytes(secret);
+            serverToken = Base64.encodeToString(secret, Base64.URL_SAFE | Base64.NO_PADDING | Base64.NO_WRAP);
+            ServerSocket socket = new ServerSocket(0, 16, InetAddress.getByName("127.0.0.1"));
+            serverPort = socket.getLocalPort();
+            Thread t = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    acceptLoop(socket);
+                }
+            }, "rozh-media-server");
+            t.setDaemon(true);
+            t.start();
+            JSONObject o = new JSONObject();
+            o.put("port", serverPort);
+            o.put("token", serverToken);
+            writeFile(new File(workDir, "server.json"), o.toString());
+        } catch (Throwable ignored) {
+            /* no server: the UI falls back to content:// URIs */
+        }
+    }
+
+    private static void acceptLoop(ServerSocket server) {
+        while (!server.isClosed()) {
+            try {
+                final Socket client = server.accept();
+                if (!SERVER_CONNECTIONS.tryAcquire()) {
+                    try { client.close(); } catch (Throwable ignored) { /* ignore */ }
+                    continue;
+                }
+                Thread t = new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            serve(client);
+                        } finally {
+                            SERVER_CONNECTIONS.release();
+                        }
+                    }
+                }, "rozh-media-conn");
+                t.setDaemon(true);
+                t.start();
+            } catch (Throwable stopped) {
+                return;
+            }
+        }
+    }
+
+    private static void serve(Socket client) {
+        InputStream raw = null;
+        OutputStream out = null;
+        try {
+            client.setSoTimeout(20000);
+            raw = client.getInputStream();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(raw, "ISO-8859-1"));
+            String requestLine = readBoundedLine(reader, 4096);
+            if (requestLine == null) return;
+            String rangeHeader = null;
+            String line;
+            int guard = 0;
+            while ((line = readBoundedLine(reader, 2048)) != null && line.length() > 0 && guard++ < 32) {
+                int colon = line.indexOf(':');
+                if (colon > 0) {
+                    String key = line.substring(0, colon).trim().toLowerCase();
+                    if (key.equals("range")) rangeHeader = line.substring(colon + 1).trim();
+                }
+            }
+            String[] parts = requestLine.split(" ", 3);
+            if (parts.length != 3 || !parts[2].startsWith("HTTP/1.")) {
+                writeSimple(out, 400, "bad request");
+                return;
+            }
+            String method = parts[0];
+            String path = parts[1];
+            out = new BufferedOutputStream(client.getOutputStream(), 64 * 1024);
+            if (!("GET".equals(method) || "HEAD".equals(method) || "OPTIONS".equals(method))) {
+                writeSimple(out, 405, "method not allowed");
+                return;
+            }
+
+            int q = path.indexOf('?');
+            if (q >= 0) path = path.substring(0, q);
+            if (!path.startsWith("/s/")) {
+                writeSimple(out, 404, "not found");
+                return;
+            }
+            // /s/<random bearer token>/<base64url URI>/<display name>.
+            // Base64 is only encoding; authorization is the independent 256-bit token.
+            String rest = path.substring(3);
+            int tokenSlash = rest.indexOf('/');
+            if (tokenSlash <= 0) {
+                writeSimple(out, 404, "not found");
+                return;
+            }
+            String presented = rest.substring(0, tokenSlash);
+            boolean authorized;
+            try {
+                authorized = MessageDigest.isEqual(
+                    serverToken.getBytes("UTF-8"), presented.getBytes("UTF-8")
+                );
+            } catch (Throwable ignored) {
+                authorized = false;
+            }
+            if (!authorized || serverToken.length() != 43) {
+                writeSimple(out, 401, "unauthorized");
+                return;
+            }
+            String encodedUri = rest.substring(tokenSlash + 1);
+            int nameSlash = encodedUri.indexOf('/');
+            if (nameSlash >= 0) encodedUri = encodedUri.substring(0, nameSlash);
+            if (encodedUri.length() > 8192) {
+                writeSimple(out, 414, "URI too long");
+                return;
+            }
+            String uriText;
+            try {
+                byte[] decoded = Base64.decode(encodedUri, Base64.URL_SAFE | Base64.NO_PADDING | Base64.NO_WRAP);
+                uriText = new String(decoded, "UTF-8");
+            } catch (Throwable bad) {
+                writeSimple(out, 400, "bad media URI");
+                return;
+            }
+
+            Uri uri = Uri.parse(uriText);
+            String scheme = uri.getScheme();
+            if (!("content".equalsIgnoreCase(scheme) || "file".equalsIgnoreCase(scheme))) {
+                writeSimple(out, 400, "unsupported media URI");
+                return;
+            }
+            if ("OPTIONS".equals(method)) {
+                writeOptions(out);
+                return;
+            }
+            String mime = null;
+            long total = -1;
+            try {
+                mime = activity.getContentResolver().getType(uri);
+            } catch (Throwable ignored) {
+                /* guess below */
+            }
+            try {
+                android.content.res.AssetFileDescriptor afd = activity.getContentResolver().openAssetFileDescriptor(uri, "r");
+                if (afd != null) {
+                    total = afd.getLength();
+                    afd.close();
+                }
+            } catch (Throwable ignored) {
+                /* unknown length */
+            }
+            if (mime == null || !mime.matches("[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+")) mime = guessMime(uriText);
+
+            long start = 0;
+            long end = -1;
+            boolean ranged = false;
+            if (rangeHeader != null && rangeHeader.startsWith("bytes=") && total > 0) {
+                String spec = rangeHeader.substring(6).split(",")[0].trim();
+                int dash = spec.indexOf('-');
+                try {
+                    if (dash >= 0) {
+                        String from = spec.substring(0, dash).trim();
+                        String to = spec.substring(dash + 1).trim();
+                        if (from.length() == 0) {
+                            long suffix = Long.parseLong(to);
+                            if (suffix > 0) {
+                                start = Math.max(0, total - suffix);
+                                end = total - 1;
+                                ranged = true;
+                            }
+                        } else {
+                            start = Long.parseLong(from);
+                            end = to.length() == 0 ? total - 1 : Long.parseLong(to);
+                            ranged = start >= 0 && end >= start;
+                        }
+                    }
+                } catch (Throwable ignored) {
+                    ranged = false;
+                }
+            }
+            if (ranged && total > 0) {
+                if (start < 0) start = 0;
+                if (start >= total) {
+                    writeSimple(out, 416, "range not satisfiable");
+                    return;
+                }
+                if (end < 0 || end >= total) end = total - 1;
+                long length = end - start + 1;
+                StringBuilder head = new StringBuilder();
+                head.append("HTTP/1.1 206 Partial Content\r\n");
+                head.append("Content-Type: ").append(mime).append("\r\n");
+                head.append("Accept-Ranges: bytes\r\n");
+                appendCorsHeaders(head);
+                head.append("Content-Range: bytes ").append(start).append('-').append(end).append('/').append(total).append("\r\n");
+                head.append("Content-Length: ").append(length).append("\r\n");
+                head.append("Connection: close\r\n\r\n");
+                out.write(head.toString().getBytes("ISO-8859-1"));
+                if (!"HEAD".equals(method)) copyRange(uri, out, start, length);
+                out.flush();
+                return;
+            }
+
+            StringBuilder head = new StringBuilder();
+            head.append("HTTP/1.1 200 OK\r\n");
+            head.append("Content-Type: ").append(mime).append("\r\n");
+            head.append("Accept-Ranges: bytes\r\n");
+            appendCorsHeaders(head);
+            if (total > 0) head.append("Content-Length: ").append(total).append("\r\n");
+            head.append("Connection: close\r\n\r\n");
+            out.write(head.toString().getBytes("ISO-8859-1"));
+            if (!"HEAD".equals(method)) copyRange(uri, out, 0, -1);
+            out.flush();
+        } catch (Throwable ignored) {
+            /* a browser that closes early is not an error */
+        } finally {
+            try {
+                if (out != null) out.flush();
+            } catch (Throwable ignored) {
+                /* ignore */
+            }
+            try {
+                client.close();
+            } catch (Throwable ignored) {
+                /* ignore */
+            }
+        }
+    }
+
+    private static void copyRange(Uri uri, OutputStream out, long start, long length) throws Exception {
+        InputStream in = null;
+        try {
+            in = activity.getContentResolver().openInputStream(uri);
+            if (in == null) return;
+            long skipped = 0;
+            while (skipped < start) {
+                long step = in.skip(start - skipped);
+                if (step <= 0) {
+                    // skip() may refuse; read and drop instead
+                    if (in.read() < 0) return;
+                    skipped += 1;
+                } else {
+                    skipped += step;
+                }
+            }
+            byte[] buf = new byte[64 * 1024];
+            long left = length;
+            while (true) {
+                int want = buf.length;
+                if (left >= 0) {
+                    if (left <= 0) break;
+                    want = (int) Math.min(buf.length, left);
+                }
+                int read = in.read(buf, 0, want);
+                if (read <= 0) break;
+                out.write(buf, 0, read);
+                if (left > 0) left -= read;
+            }
+        } finally {
+            if (in != null) {
+                try {
+                    in.close();
+                } catch (Throwable ignored) {
+                    /* ignore */
+                }
+            }
+        }
+    }
+
+    private static String readBoundedLine(BufferedReader reader, int maxChars) throws Exception {
+        StringBuilder line = new StringBuilder();
+        int value;
+        while ((value = reader.read()) != -1) {
+            if (value == '\n') {
+                int n = line.length();
+                if (n > 0 && line.charAt(n - 1) == '\r') line.setLength(n - 1);
+                return line.toString();
+            }
+            if (line.length() >= maxChars) throw new java.io.IOException("HTTP line too long");
+            line.append((char) value);
+        }
+        return line.length() == 0 ? null : line.toString();
+    }
+
+    private static void appendCorsHeaders(StringBuilder headers) {
+        headers.append("Access-Control-Allow-Origin: *\r\n");
+        headers.append("Access-Control-Allow-Methods: GET, HEAD, OPTIONS\r\n");
+        headers.append("Access-Control-Allow-Headers: Range\r\n");
+        headers.append("Access-Control-Expose-Headers: Accept-Ranges, Content-Length, Content-Range\r\n");
+        headers.append("Vary: Origin\r\n");
+    }
+
+    private static void writeOptions(OutputStream out) throws Exception {
+        StringBuilder head = new StringBuilder("HTTP/1.1 204 No Content\r\n");
+        appendCorsHeaders(head);
+        head.append("Content-Length: 0\r\nConnection: close\r\n\r\n");
+        out.write(head.toString().getBytes("ISO-8859-1"));
+        out.flush();
+    }
+
+    private static void writeSimple(OutputStream out, int code, String body) throws Exception {
+        byte[] bytes = body.getBytes("UTF-8");
+        StringBuilder head = new StringBuilder("HTTP/1.1 ").append(code).append(" Error\r\nContent-Type: text/plain\r\n");
+        appendCorsHeaders(head);
+        head.append("Content-Length: ").append(bytes.length).append("\r\nConnection: close\r\n\r\n");
+        out.write(head.toString().getBytes("ISO-8859-1"));
+        out.write(bytes);
+        out.flush();
+    }
+
+    private static String guessMime(String path) {
+        String lower = path.toLowerCase();
+        if (lower.contains(".mp4") || lower.contains(".m4v")) return "video/mp4";
+        if (lower.contains(".webm")) return "video/webm";
+        if (lower.contains(".mkv")) return "video/x-matroska";
+        if (lower.contains(".ts") || lower.contains(".m2ts")) return "video/mp2t";
+        if (lower.contains(".m3u8")) return "application/vnd.apple.mpegurl";
+        if (lower.contains(".mp3")) return "audio/mpeg";
+        if (lower.contains(".m4a") || lower.contains(".aac")) return "audio/mp4";
+        if (lower.contains(".flac")) return "audio/flac";
+        if (lower.contains(".wav")) return "audio/wav";
+        if (lower.contains(".ogg") || lower.contains(".opus")) return "audio/ogg";
+        return "application/octet-stream";
+    }
+
+    /** Hand a media URI to the device's own player or to VLC if it is installed. */
+    private static void play(final String uri, final String mime) {
+        final Activity a = activity;
+        if (a == null || uri == null || uri.length() == 0 || uri.length() > 8192
+            || !(uri.startsWith("content://") || uri.startsWith("file://"))
+            || mime == null || mime.length() > 128
+            || !(mime.matches("(?:video|audio)/[A-Za-z0-9!#$&^_.+-]+")
+                || "video/*".equals(mime) || "audio/*".equals(mime))) return;
+        a.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Intent intent = new Intent(Intent.ACTION_VIEW);
+                    intent.setDataAndType(Uri.parse(uri), mime);
+                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    a.startActivity(intent);
+                } catch (Throwable t) {
+                    try {
+                        Intent plain = new Intent(Intent.ACTION_VIEW);
+                        plain.setData(Uri.parse(uri));
+                        a.startActivity(plain);
+                    } catch (Throwable ignored) {
+                        /* nothing can open it */
+                    }
+                }
+            }
+        });
+    }
+
+    /* ------------------------------------------------------------------ */
+    /* self update (APK)                                                  */
+    /* ------------------------------------------------------------------ */
+
+    private static void writeUpdate(String state, int progress, String message) {
+        JSONObject o = new JSONObject();
+        try {
+            o.put("state", state);
+            o.put("progress", progress);
+            o.put("ts", System.currentTimeMillis());
+            if (message != null) o.put("message", message);
+        } catch (Throwable ignored) {
+            /* never happens */
+        }
+        if (workDir == null) return;
+        try {
+            writeFile(new File(workDir, "update.json"), o.toString());
+        } catch (Throwable ignored) {
+            /* ignore */
+        }
+    }
+
+
+    private static boolean isOfficialUpdateUrl(String raw, String packageName) {
+        if (raw == null || raw.length() > 512) return false;
+        try {
+            Uri uri = Uri.parse(raw);
+            if (!"https".equalsIgnoreCase(uri.getScheme())
+                || !"github.com".equalsIgnoreCase(uri.getHost())
+                || uri.getPort() != -1
+                || uri.getUserInfo() != null
+                || uri.getQuery() != null
+                || uri.getFragment() != null) return false;
+            String path = uri.getPath();
+            if (path == null || !path.equals(uri.getEncodedPath())) return false;
+            String prefix = "/Dark-Sky07/Rozh-Player/releases/download/v";
+            if (!path.startsWith(prefix)) return false;
+            String[] parts = path.substring(prefix.length()).split("/", -1);
+            if (parts.length != 2 || !parts[0].matches("[0-9]+\\.[0-9]+\\.[0-9]+")) return false;
+            String tag = parts[0];
+            String file = parts[1];
+            if (!file.equals("ROZH-Player-" + tag + ".apk")
+                && !file.equals("ROZH-Player-TV-" + tag + ".apk")) return false;
+            boolean tv = "app.rozh.player.tv".equals(packageName) || packageName.endsWith(".tv");
+            return tv ? file.startsWith("ROZH-Player-TV-") : file.startsWith("ROZH-Player-") && !file.startsWith("ROZH-Player-TV-");
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /** Download an APK with the system download manager, then open the installer. */
+    private static void install(String url) {
+        final Activity a = activity;
+        if (a == null) {
+            writeUpdate("error", 0, "no-activity");
+            return;
+        }
+        if (!isOfficialUpdateUrl(url, a.getPackageName())) {
+            writeUpdate("error", 0, "invalid-update-url");
+            return;
+        }
+        try {
+            if (Build.VERSION.SDK_INT >= 26 && !a.getPackageManager().canRequestPackageInstalls()) {
+                writeUpdate("permission", 0, "allow installs");
+                a.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            Intent intent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
+                            intent.setData(Uri.parse("package:" + a.getPackageName()));
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            a.startActivity(intent);
+                        } catch (Throwable ignored) {
+                            /* the user can grant it by hand */
+                        }
+                    }
+                });
+                return;
+            }
+            DownloadManager dm = (DownloadManager) a.getSystemService(Context.DOWNLOAD_SERVICE);
+            if (dm == null) {
+                writeUpdate("error", 0, "no download manager");
+                return;
+            }
+            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
+            request.setTitle("ROZH Player update");
+            request.setMimeType("application/vnd.android.package-archive");
+            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            request.setDestinationInExternalFilesDir(a, Environment.DIRECTORY_DOWNLOADS, "rozh-player-update.apk");
+            downloadId = dm.enqueue(request);
+            writeUpdate("downloading", 0, null);
+            pollDownload(dm, downloadId);
+        } catch (Throwable t) {
+            writeUpdate("error", 0, String.valueOf(t.getMessage()));
+        }
+    }
+
+    private static void pollDownload(final DownloadManager dm, final long id) {
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while (true) {
+                    try {
+                        Thread.sleep(700);
+                        DownloadManager.Query query = new DownloadManager.Query().setFilterById(id);
+                        Cursor c = dm.query(query);
+                        if (c == null) return;
+                        if (!c.moveToFirst()) {
+                            c.close();
+                            return;
+                        }
+                        int status = c.getInt(c.getColumnIndex(DownloadManager.COLUMN_STATUS));
+                        long soFar = c.getLong(c.getColumnIndex(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+                        long total = c.getLong(c.getColumnIndex(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+                        c.close();
+                        if (status == DownloadManager.STATUS_SUCCESSFUL) {
+                            writeUpdate("installing", 100, null);
+                            openInstaller(dm, id);
+                            return;
+                        }
+                        if (status == DownloadManager.STATUS_FAILED) {
+                            writeUpdate("error", 0, "download failed");
+                            return;
+                        }
+                        int pct = total > 0 ? (int) Math.min(99, soFar * 100 / total) : 0;
+                        writeUpdate("downloading", pct, null);
+                    } catch (InterruptedException stop) {
+                        return;
+                    } catch (Throwable t) {
+                        writeUpdate("error", 0, String.valueOf(t.getMessage()));
+                        return;
+                    }
+                }
+            }
+        }, "rozh-update");
+        t.setDaemon(true);
+        t.start();
+    }
+
+    private static void openInstaller(DownloadManager dm, long id) {
+        final Activity a = activity;
+        if (a == null) {
+            writeUpdate("error", 0, "no-activity");
+            return;
+        }
+        File apk = new File(a.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), "rozh-player-update.apk");
+        if (!apk.exists()) {
+            writeUpdate("error", 0, "no apk");
+            return;
+        }
+        final Uri uri;
+        try {
+            // file:// URIs are rejected by the installer on Android 7+, so the
+            // app writes the APK to its own external files dir and exposes it
+            // through the FileProvider declared in the manifest.
+            uri = FileProvider.getUriForFile(a, a.getPackageName() + ".fileprovider", apk);
+        } catch (Throwable t) {
+            writeUpdate("error", 0, String.valueOf(t.getMessage()));
+            return;
+        }
+        writeUpdate("installing", 100, null);
+        a.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    Intent intent = new Intent(Intent.ACTION_VIEW);
+                    intent.setDataAndType(uri, "application/vnd.android.package-archive");
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    a.startActivity(intent);
+                } catch (Throwable t) {
+                    writeUpdate("error", 0, String.valueOf(t.getMessage()));
+                }
+            }
+        });
+    }
+
+    /* ------------------------------------------------------------------ */
     /* json plumbing                                                      */
     /* ------------------------------------------------------------------ */
 
@@ -656,6 +1224,7 @@ public final class MediaBridge {
     private static synchronized void writeState(JSONObject o) {
         if (workDir == null) return;
         try {
+            if (serverPort > 0) o.put("serverPort", serverPort);
             File tmp = new File(workDir, "state.tmp");
             File target = new File(workDir, "state.json");
             writeFile(tmp, o.toString());

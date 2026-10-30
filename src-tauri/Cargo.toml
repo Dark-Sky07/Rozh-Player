@@ -1,6 +1,6 @@
 [package]
 name = "rozh-player"
-version = "1.0.4"
+version = "1.1.0"
 description = "ROZH Player — a fast, beautiful, universal media player"
 authors = ["ROZH"]
 edition = "2021"
@@ -18,14 +18,28 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 tauri = { version = "2.1", features = ["protocol-asset", "tray-icon", "image-png"] }
 tauri-plugin-dialog = "2"
-tauri-plugin-fs = "2"
-tauri-plugin-opener = "2"
-tauri-plugin-os = "2"
 # network requests performed in Rust: makes HLS/IPTV panels that do not send
 # CORS headers playable inside the webview (Android included)
 tauri-plugin-http = "2"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+# Desktop updater relaunch after a signed update installation
+tauri-plugin-process = "2"
+
+# Windows Explorer launches media files as a second process. The plugin
+# forwards those arguments to the running ROZH Player instance.
+[target.'cfg(target_os = "windows")'.dependencies]
+tauri-plugin-single-instance = "2"
+
+# In-app updates: signed bundles + latest.json. Desktop only — the Android
+# builds update through the system package installer instead.
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+
+[dependencies.serde]
+version = "1"
+features = ["derive"]
+
+[dependencies.serde_json]
+version = "1"
 
 [profile.release]
 panic = "abort"

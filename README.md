@@ -7,7 +7,7 @@
   **Windows · macOS · Linux · Android · Android TV · Web**
 
   [![CI](https://img.shields.io/badge/build-passing-4ecf9a?style=flat-square)](.github/workflows/ci.yml)
-  [![Release](https://img.shields.io/badge/release-v1.0.4-f8da7e?style=flat-square)](../../releases/latest)
+  [![Release](https://img.shields.io/badge/release-v1.1.0-f8da7e?style=flat-square)](../../releases/latest)
   [![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square)](https://tauri.app)
   [![License](https://img.shields.io/badge/license-MIT-f8a24a?style=flat-square)](LICENSE)
   [![Languages](https://img.shields.io/badge/languages-47-6ba8ff?style=flat-square)](#languages)
@@ -22,6 +22,7 @@
 ## Contents
 
 - [Download](#download)
+- [Updates](#updates)
 - [Why ROZH](#why-rozh)
 - [Features](#features)
 - [Run and install](#run-and-install)
@@ -41,20 +42,38 @@ Every version ships ready-to-install builds for all platforms on the
 
 | Platform | File |
 | --- | --- |
-| **Windows 10/11 (x64)** | `ROZH.Player_1.0.4_x64-setup.exe` |
-| **macOS — Apple Silicon (M1–M4)** | `ROZH.Player_1.0.4_aarch64.dmg` |
-| **macOS — Intel** | `ROZH.Player_1.0.4_x64.dmg` |
-| **Linux (Debian/Ubuntu)** | `ROZH.Player_1.0.4_amd64.deb` |
-| **Linux (Fedora/RHEL/openSUSE)** | `ROZH.Player-1.0.4-1.x86_64.rpm` |
-| **Linux (any distribution)** | `ROZH.Player_1.0.4_amd64.AppImage` |
-| **Android 7.0+ (phones, tablets)** | `ROZH-Player-1.0.4.apk` |
-| **Android TV (dedicated build)** | `ROZH-Player-TV-1.0.4.apk` |
-| **Android TV (Google Play bundle)** | `ROZH-Player-TV-1.0.4.aab` |
-| **Web / PWA** | `rozh-player-web.zip` — unzip and serve as static files |
+| **Windows 10/11 (x64)** | [ROZH-Player_1.1.0_x64-setup.exe](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/ROZH-Player_1.1.0_x64-setup.exe) |
+| **macOS — Apple Silicon (M1–M4)** | [ROZH-Player_1.1.0_aarch64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/ROZH-Player_1.1.0_aarch64.dmg) |
+| **macOS — Intel** | [ROZH-Player_1.1.0_x64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/ROZH-Player_1.1.0_x64.dmg) |
+| **Linux (Debian/Ubuntu)** | [ROZH-Player_1.1.0_amd64.deb](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/ROZH-Player_1.1.0_amd64.deb) |
+| **Linux (Fedora/RHEL/openSUSE)** | [ROZH-Player-1.1.0-1.x86_64.rpm](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/ROZH-Player-1.1.0-1.x86_64.rpm) |
+| **Linux (any distribution)** | [ROZH-Player_1.1.0_amd64.AppImage](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/ROZH-Player_1.1.0_amd64.AppImage) |
+| **Android 7.0+ (phones, tablets)** | [ROZH-Player-1.1.0.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/ROZH-Player-1.1.0.apk) |
+| **Android (Google Play bundle)** | [ROZH-Player-1.1.0.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/ROZH-Player-1.1.0.aab) |
+| **Android TV (dedicated build)** | [ROZH-Player-TV-1.1.0.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/ROZH-Player-TV-1.1.0.apk) |
+| **Android TV (Google Play bundle)** | [ROZH-Player-TV-1.1.0.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/ROZH-Player-TV-1.1.0.aab) |
+| **Web / PWA** | [rozh-player-web.zip](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/rozh-player-web.zip) — unzip and serve as static files |
 
 > Builds are unsigned: Windows may show SmartScreen and macOS Gatekeeper needs a
 > right-click → **Open** on first launch. Details in the
 > [release notes](docs/RELEASE_NOTES.md).
+
+## Updates
+
+ROZH updates itself from inside the app — **Settings → Updates**:
+
+- **Windows, macOS, Linux** — the next version is downloaded in the background,
+  verified against the embedded public key and started; the app relaunches into
+  it. Nothing to uninstall, no installer to hunt for.
+- **Android, Android TV** — the matching APK is downloaded through Android's
+  download manager and the package installer takes over; the app is replaced in
+  place. Every release is signed with the same key and a higher version code, so
+  Android always treats it as an upgrade.
+- A quiet check runs on every launch (it can be switched off) and only talks to
+  the public release feed.
+
+Linux `.deb`/`.rpm` installations are reported but updated by your package
+manager; the AppImage updates itself.
 
 ## Screenshots
 
@@ -65,9 +84,8 @@ Every version ships ready-to-install builds for all platforms on the
 
 <div align="center">
   <img src="docs/screenshots/05-mobile.jpg" width="270" alt="ROZH Player on a phone" />
-  <img src="docs/screenshots/06-android-tv.jpg" width="560" alt="ROZH Player on Android TV, driven with a remote" />
   <br />
-  <sub>Phone and the dedicated Android TV build — big focus rings, D-pad transport.</sub>
+  <sub>ROZH Player on a phone.</sub>
 </div>
 
 ## Why ROZH
@@ -87,19 +105,25 @@ midnight black. Three simple rules:
 ## Features
 
 ### Interfaces
-- **Desktop**: floating glass panels around a persistent rail
+- **Windows**: a dedicated home for recent media and continue-watching, a simple
+  Library / Streams / History rail, one global Open media action, and a focused
+  playback surface. Explorer file associations launch the selected media
+  directly; a second launch forwards it to the existing window.
+- **macOS / Linux**: floating glass panels around a persistent rail
 - **Phone**: a real mobile shell — compact app bar, thumb-sized controls, a
   bottom tab bar with safe-area padding, no hover-only affordances, 2–3 column
   grid, `dvh`-aware player that survives rotation
-- **Android TV**: a dedicated 10-foot layout — one top bar instead of a side
-  rail, overscan-safe margins, large focus rings, D-pad spatial navigation and
-  remote transport keys. No pointer anywhere in the design
+- **Android TV**: a dedicated, remote-first 10-foot home with a persistent
+  left navigation rail, media-led feature area, resume and recent shelves, and
+  separate video/music rows. Large focus targets, overscan-safe spacing, D-pad
+  spatial navigation and remote transport keys; no pointer-only controls
 - 47 interface languages including Persian, Kurdish and full RTL
 
 ### Playback
 - Custom player surface on top of `<video>` with a complete control set
 - **HLS** (`.m3u8`) and **DASH** (`.mpd`) with lazy loading and manual/auto quality
-- Open local media by drag-and-drop, the native file dialog, or the Open button
+- Open local media by drag-and-drop, the native file dialog, or Windows Explorer;
+  on Windows the toolbar Open media action is the single visible file picker
 - **Queue**, shuffle, repeat (one / all)
 - **Resume where you left off** — every file restarts at the second you stopped
 - Playback speed 0.25×–4× with pitch preservation
@@ -133,6 +157,8 @@ midnight black. Three simple rules:
 - Local library with **automatic poster frames** captured off the playback path
 - Search and filters (video / audio / network)
 - Playback history with progress percentage and "continue from…"
+- Windows file associations for common media types; choose ROZH Player once in
+  Windows **Open with → Always** if another app already owns that file type
 - Everything stays on your device: no account, no server, no telemetry
 
 ### Experience
@@ -212,7 +238,7 @@ from the first frame instead of relying on device detection.
 | `OK` / `Enter` | Activate the focused control; on the video surface: play / pause |
 | `▲ ▼` on the video surface | Bring the control bar up and focus it |
 | `◀ ▶` on the video surface | Seek by the configured step |
-| `Back` / `Esc` | Close the sheet, hide the controls, then return to the player |
+| `Back` / `Esc` | Close the sheet, exit fullscreen, then return to TV Home |
 
 ## Formats
 
@@ -223,6 +249,13 @@ from the first frame instead of relying on device detection.
 | Desktop with native FFmpeg | **MKV, AVI, MOV, TS, M2TS, WMV, FLV, 3GP, ProRes…** | AC3, DTS, EAC3, ALAC, WMA, APE… | all | all |
 
 \* H.265/HEVC depends on the codec installed in the operating system.
+
+ROZH does not impose a fixed resolution ceiling or re-encode ordinary playback.
+HLS/DASH can adapt to available bandwidth or be set to a listed rendition in
+**Playback → Quality**. The source, operating-system codecs, WebView/browser,
+and device decoder still determine which codecs and resolutions can actually
+be decoded smoothly; no player can guarantee every codec or resolution on every
+piece of hardware.
 
 On desktop, if the webview cannot decode a file, ROZH automatically remuxes it
 with FFmpeg — or transcodes when necessary — without asking you anything.
@@ -268,7 +301,7 @@ Pushing a tag that matches `v*` builds the full matrix and publishes a new
 GitHub release with every asset attached:
 
 ```bash
-git tag v1.0.4 && git push origin v1.0.4
+git tag v1.1.0 && git push origin v1.1.0
 ```
 
 | Job | Tooling | Output |
@@ -277,7 +310,8 @@ git tag v1.0.4 && git push origin v1.0.4
 | macOS | `macos-latest`, both architectures | `aarch64.dmg` · `x64.dmg` |
 | Linux | `ubuntu-22.04` | `deb` · `rpm` · `AppImage` |
 | Android | JDK 17 + NDK 27 | `apk` · `aab` (phone **and** TV builds) |
-| Web | `ubuntu-latest` | `rozh-player-web.zip` |
+| Web | `ubuntu-latest` | [rozh-player-web.zip](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/rozh-player-web.zip) |
+| Manifest | after every desktop job | `latest.json` (in-app updates) |
 
 The release body is generated from [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md).
 

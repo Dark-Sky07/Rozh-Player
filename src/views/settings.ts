@@ -7,6 +7,7 @@ import { LANGS } from '../core/langs';
 import { isAndroidDevice, pickDeviceFolder, syncDeviceLibrary } from '../core/device';
 import { store, type Accent } from '../core/store';
 import { confirmDialog, toast } from '../core/ui';
+import { bindUpdateSection, updateSection } from '../core/updateUI';
 import { $, $$, escapeHtml, fmtBytes } from '../core/util';
 
 const ACCENTS: { id: Accent; color: string }[] = [
@@ -79,6 +80,7 @@ export function renderSettings(host: HTMLElement, ctx: AppContext): void {
       <button data-jump="sec-gestures">${icon('target')}<span>${t('settings.gestures')}</span></button>
       <button data-jump="sec-subtitles">${icon('subtitles')}<span>${t('settings.subtitles')}</span></button>
       <button data-jump="sec-audio">${icon('audio-wave')}<span>${t('settings.audio')}</span></button>
+      <button data-jump="sec-update">${icon('download')}<span>${t('update.title')}</span></button>
       <button data-jump="sec-about">${icon('info')}<span>${t('settings.about')}</span></button>
     </nav>
 
@@ -353,6 +355,8 @@ export function renderSettings(host: HTMLElement, ctx: AppContext): void {
         </div>
       </section>
 
+      ${updateSection()}
+
       <section class="setting-group" id="sec-about">
         <header>${icon('info')}<h3>${t('settings.about')}</h3></header>
         <div class="setting-row">
@@ -382,6 +386,7 @@ export function renderSettings(host: HTMLElement, ctx: AppContext): void {
     </div>`;
 
   hydrateIcons(host);
+  bindUpdateSection(host);
 
   const rerender = (): void => renderSettings(host, ctx);
 

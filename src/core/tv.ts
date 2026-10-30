@@ -171,6 +171,28 @@ export function moveFocus(dir: Dir): boolean {
     focusEl(next);
     return true;
   }
+
+  // Treat the side rail and the content as two deliberate regions. Spatial
+  // scoring alone can miss the transition when a tall hero sits below a short
+  // navigation item; every TV app must have a reliable Right-to-enter path.
+  const focused = current();
+  const activeView = document.querySelector<HTMLElement>('.view.is-active');
+  if (focused?.closest('.tv-nav') && dir === 'right' && activeView) {
+    const content = Array.from(activeView.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(visible);
+    const target = content.find((el) => el.matches('.tv-action-primary, .tv-card, button, a[href]')) ?? content[0];
+    if (target) {
+      focusEl(target);
+      return true;
+    }
+  }
+  if (focused?.closest('.view.is-active') && dir === 'left') {
+    const activeNav = document.querySelector<HTMLElement>('.tv-nav-item.is-active');
+    if (activeNav && visible(activeNav)) {
+      focusEl(activeNav);
+      return true;
+    }
+  }
+
   // Nothing in that direction: on the player view, ↑/↓ from the top bar lands
   // on the video surface itself, which is where a remote expects to be.
   const stage = document.querySelector<HTMLElement>('.stage');
@@ -227,7 +249,9 @@ function playerOwnsDpad(): boolean {
 }
 
 function pressSpaceLike(): void {
-  window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+  // `k` is the player's play/pause shortcut; using Space here would re-enter
+  // this TV capture handler and synthesize another activation indefinitely.
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', bubbles: true, cancelable: true }));
 }
 
 export function initTv(): void {
@@ -257,12 +281,42 @@ export function initTv(): void {
         ArrowDown: 'down',
         ArrowLeft: 'left',
         ArrowRight: 'right',
+        DpadUp: 'up',
+        DpadDown: 'down',
+        DpadLeft: 'left',
+        DpadRight: 'right',
+        DPAD_UP: 'up',
+        DPAD_DOWN: 'down',
+        DPAD_LEFT: 'left',
+        DPAD_RIGHT: 'right',
       };
-      const dir = dirs[e.key];
+      const keyCode = (e as KeyboardEvent & { keyCode?: number }).keyCode;
+      const dir = dirs[e.key] ?? ({ 19: 'up', 20: 'down', 21: 'left', 22: 'right' } as Record<number, Dir>)[keyCode ?? -1];
 
       if (dir) {
         if (typing) return;
-        if (onRange) return;
+        const focused = current();
+        const idlePlayerControl = document.body.dataset.view === 'player' &&
+          !!focused?.closest('.stage-wrap[data-idle="true"]');
+        if (idlePlayerControl) {
+          // When fullscreen chrome has faded while a button still owns focus,
+          // the next remote press reveals it instead of navigating into hidden UI.
+          e.preventDefault();
+          e.stopPropagation();
+          window.dispatchEvent(new CustomEvent('rozh:show-ui'));
+          const reveal = (tries: number): void => {
+            const button = Array.from(document.querySelectorAll<HTMLElement>(
+              '.ctrl-row .play-btn, .stage-bottom button, .stage-top-actions button',
+            )).find(visible);
+            if (button) focusEl(button);
+            else if (tries > 0) window.setTimeout(() => reveal(tries - 1), 90);
+          };
+          window.setTimeout(() => reveal(6), 60);
+          return;
+        }
+        // Let left/right adjust a focused slider; up/down must still escape it,
+        // otherwise a D-pad user can get stuck on volume or seek controls.
+        if (onRange && (dir === 'left' || dir === 'right')) return;
 
         if (playerOwnsDpad()) {
           // Left/Right scrub the timeline (the player owns those keys); Up/Down
@@ -310,31 +364,47 @@ export function initTv(): void {
         return;
       }
 
-      if (e.key === 'Enter') {
+      const activationCode = keyCode === 23 || keyCode === 66 || keyCode === 62;
+      if (['Enter', 'NumpadEnter', 'Select', 'Accept', ' '].includes(e.key) || activationCode) {
         if (typing) return;
         if (playerOwnsDpad()) {
-          // OK on the video surface = play/pause, like every TV player
+          // OK on the video surface = play/pause, like every TV player.
           e.preventDefault();
+          e.stopPropagation();
           pressSpaceLike();
           return;
         }
         const el = current();
-        if (el && !(el instanceof HTMLButtonElement) && !(el instanceof HTMLAnchorElement)) {
-          el.click();
+        if (el) {
+          // Android TV remotes disagree on whether the center button produces
+          // Enter, Select, or DPAD_CENTER. Trigger the focused action once and
+          // cancel the WebView's own synthesized click to avoid double firing.
           e.preventDefault();
+          e.stopPropagation();
+          el.click();
         }
         return;
       }
 
-      if (e.key === 'Backspace' || e.key === 'BrowserBack' || e.key === 'GoBack') {
-        e.preventDefault();
+      const isBack = ['Backspace', 'BrowserBack', 'GoBack', 'Escape'].includes(e.key) || keyCode === 4 || keyCode === 111;
+      if (isBack) {
         const sheet = overlayRoot();
         if (sheet) {
+          e.preventDefault();
           (sheet.querySelector<HTMLElement>('[data-close]') ?? sheet).click();
           return;
         }
-        if (document.body.dataset.view !== 'player') {
-          document.querySelector<HTMLElement>('.nav-item[data-view="player"]')?.click();
+        const fullscreen = document.fullscreenElement || document.querySelector('.stage-wrap[data-fs="true"]');
+        if (fullscreen) {
+          e.preventDefault();
+          document.querySelector<HTMLElement>('.stage-wrap [data-act="fullscreen"]')?.click();
+          return;
+        }
+        // Back consistently returns to the media hub; from Home the Android
+        // system may handle it (rather than unexpectedly opening a blank player).
+        if (document.body.dataset.view !== 'home') {
+          e.preventDefault();
+          document.querySelector<HTMLElement>('.tv-nav-item[data-view="home"]')?.click();
         }
         return;
       }

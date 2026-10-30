@@ -67,6 +67,7 @@ export async function nativeHlsLoader(Hls: unknown): Promise<{ loader: unknown }
     }
 
     destroy(): void {
+      this.abort();
       this.inner.destroy?.();
     }
 
@@ -85,13 +86,15 @@ export async function nativeHlsLoader(Hls: unknown): Promise<{ loader: unknown }
 
     load(context: LoaderContext, _config: unknown, callbacks: HlsCallbacks): void {
       const started = performance.now();
+      this.controller?.abort();
       this.controller = new AbortController();
+      const signal = this.controller.signal;
       const stats = (this.stats ?? this.inner?.stats ?? {}) as Record<string, unknown>;
       const loading = (stats.loading ?? (stats.loading = { start: 0, first: 0, end: 0 })) as Record<string, number>;
       loading.start = started;
       stats.chunkCount = Number(stats.chunkCount ?? 0) + 1;
 
-      doFetch(context.url)
+      doFetch(context.url, { signal })
         .then(async (res) => {
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const bin = context.responseType === 'arraybuffer';
@@ -103,6 +106,7 @@ export async function nativeHlsLoader(Hls: unknown): Promise<{ loader: unknown }
           callbacks.onSuccess?.({ url: context.url, data }, stats, context, res);
         })
         .catch((err: unknown) => {
+          if (signal.aborted) return;
           const message = err instanceof Error ? err.message : String(err);
           callbacks.onError?.({ code: 0, text: message }, context, null, stats);
         });

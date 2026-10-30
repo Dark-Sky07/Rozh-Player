@@ -15,6 +15,10 @@
  *      folder-picker requests.
  *   3. Declares the media permissions the MediaStore query needs, including the
  *      legacy READ_EXTERNAL_STORAGE for Android 12 and older.
+ *   4. Adds the self-update plumbing: REQUEST_INSTALL_PACKAGES plus a
+ *      FileProvider so the downloaded APK can be handed to the package
+ *      installer as a `content://` URI (a bare `file://` URI throws
+ *      FileUriExposedException on Android 7+).
  */
 import { readFile, writeFile, mkdir, readdir, access } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -25,6 +29,7 @@ const gen = join(root, 'src-tauri', 'gen', 'android');
 const javaRoot = join(gen, 'app', 'src', 'main', 'java');
 const manifest = join(gen, 'app', 'src', 'main', 'AndroidManifest.xml');
 const source = join(root, 'scripts', 'android', 'MediaBridge.java');
+const resXml = join(gen, 'app', 'src', 'main', 'res', 'xml');
 
 const fail = (msg) => {
   console.error(`::error title=android-native::${msg}`);
@@ -121,6 +126,7 @@ const wanted = [
   { name: 'android.permission.READ_MEDIA_VIDEO', extra: '' },
   { name: 'android.permission.READ_MEDIA_AUDIO', extra: '' },
   { name: 'android.permission.READ_EXTERNAL_STORAGE', extra: ' android:maxSdkVersion="32"' },
+  { name: 'android.permission.REQUEST_INSTALL_PACKAGES', extra: '' },
 ];
 const missing = wanted.filter((p) => !xml.includes(p.name));
 if (missing.length) {
@@ -131,7 +137,58 @@ if (missing.length) {
 }
 if (xml !== before) await writeFile(manifest, xml);
 
-/* ---- 4. assert --------------------------------------------------------- */
+/* ---- 4a. make sure androidx.core is on the compile classpath ----------- */
+const gradlePath = join(gen, 'app', 'build.gradle.kts');
+let gradle = '';
+try {
+  gradle = await readFile(gradlePath, 'utf8');
+} catch {
+  gradle = '';
+}
+if (gradle && !/androidx\.core:core/.test(gradle)) {
+  const injected = gradle.replace(
+    /dependencies\s*\{/,
+    `dependencies {\n    implementation("androidx.core:core-ktx:1.13.1")`,
+  );
+  if (injected !== gradle) {
+    await writeFile(gradlePath, injected);
+    gradle = injected;
+  }
+}
+
+/* ---- 4. FileProvider for the downloaded update -------------------------- */
+await mkdir(resXml, { recursive: true });
+const pathsFile = join(resXml, 'rozh_file_paths.xml');
+const pathsXml = `<?xml version="1.0" encoding="utf-8"?>
+<!-- Paths the in-app updater is allowed to expose through FileProvider. -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <external-files-path name="updates" path="Download/" />
+    <cache-path name="cache" path="rozh-media/" />
+</paths>
+`;
+await writeFile(pathsFile, pathsXml);
+
+let providerXml = await readFile(manifest, 'utf8');
+if (!providerXml.includes('rozh.fileprovider.PROVIDER')) {
+  const provider = `
+    <!-- rozh.fileprovider.PROVIDER -->
+    <provider
+      android:name="androidx.core.content.FileProvider"
+      android:authorities="\${applicationId}.fileprovider"
+      android:exported="false"
+      android:grantUriPermissions="true">
+      <meta-data
+        android:name="android.support.FILE_PROVIDER_PATHS"
+        android:resource="@xml/rozh_file_paths" />
+    </provider>`;
+  if (!/\n\s*<application\b/.test(providerXml)) fail('manifest has no <application> element');
+  // insert as the first child of <application>
+  providerXml = providerXml.replace(/(<application\b[^>]*>)/, `$1${provider}`);
+  await writeFile(manifest, providerXml);
+}
+xml = providerXml;
+
+/* ---- 5. assert --------------------------------------------------------- */
 const checks = [
   ['bridge source', bridge.includes(`package ${pkg};`)],
   ['bridge file', await access(bridgeTarget).then(() => true).catch(() => false)],
@@ -141,10 +198,14 @@ const checks = [
   ['manifest video permission', xml.includes('android.permission.READ_MEDIA_VIDEO')],
   ['manifest audio permission', xml.includes('android.permission.READ_MEDIA_AUDIO')],
   ['manifest legacy permission', xml.includes('android.permission.READ_EXTERNAL_STORAGE')],
+  ['manifest install permission', xml.includes('android.permission.REQUEST_INSTALL_PACKAGES')],
+  ['file provider', xml.includes('androidx.core.content.FileProvider')],
+  ['androidx.core on classpath', !gradle || /androidx\.core:core/.test(gradle)],
+  ['provider paths', xml.includes('@xml/rozh_file_paths')],
 ];
 const broken = checks.filter(([, ok]) => !ok).map(([name]) => name);
 if (broken.length) fail(`not applied: ${broken.join(', ')}`);
 
 console.log(
-  `[rozh] Android media bridge installed (package ${pkg}): MediaBridge.java, MainActivity hooks, media permissions`,
+  `[rozh] Android bridge installed (package ${pkg}): MediaBridge.java, MainActivity hooks, media + install permissions, FileProvider`,
 );

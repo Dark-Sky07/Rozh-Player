@@ -1,7 +1,144 @@
-# ROZH Player 1.0.4
+# ROZH Player 1.1.0
 
-**A phone build that feels like an app, a TV build that feels like a TV, and a
-library that fills itself.**
+**Immersive fullscreen playback, more capable rendition selection, and a more responsive TV experience**
+
+## Direct downloads
+
+| Platform | Download |
+| --- | --- |
+| Windows 10/11 (x64) | [Windows installer](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/ROZH-Player_1.1.0_x64-setup.exe) |
+| macOS — Apple Silicon | [DMG](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/ROZH-Player_1.1.0_aarch64.dmg) |
+| macOS — Intel | [DMG](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/ROZH-Player_1.1.0_x64.dmg) |
+| Linux — Debian/Ubuntu | [DEB](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/ROZH-Player_1.1.0_amd64.deb) |
+| Linux — Fedora/RHEL/openSUSE | [RPM](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/ROZH-Player-1.1.0-1.x86_64.rpm) |
+| Linux — AppImage | [AppImage](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/ROZH-Player_1.1.0_amd64.AppImage) |
+| Android phones and tablets | [APK](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/ROZH-Player-1.1.0.apk) · [Google Play bundle](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/ROZH-Player-1.1.0.aab) |
+| Android TV (dedicated build) | [TV APK](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/ROZH-Player-TV-1.1.0.apk) · [TV Google Play bundle](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/ROZH-Player-TV-1.1.0.aab) |
+| Web / PWA | [Static bundle](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.1.0/rozh-player-web.zip) |
+
+## What changed
+
+### Fullscreen playback and quality
+
+- Fullscreen controls now fade away after 2.8 seconds of inactivity on desktop, mobile, and TV, including while paused. Pointer, touch, keyboard, and remote activity brings them back; fullscreen no longer stays visible just because a mouse is resting over the video.
+- Platforms without a usable Fullscreen API use ROZH's own full-window layout instead of native video controls that the app cannot hide. TV Back also exits fullscreen before leaving playback.
+- Removed HLS's player-size rendition cap. Adaptive HLS/DASH can use the source's available renditions, and the quality menu still lets users select a listed rendition manually.
+- Playback does not add an app-imposed resolution ceiling or routinely re-encode source media. Actual playback remains bounded by the source, available codecs, network throughput, and the device's decoder/display; this is not a promise that every codec or resolution decodes on every device.
+
+### Android TV and shared controls
+
+- Expanded D-pad handling for Android key names/keycodes, center/OK activation, and safe movement away from seek/volume sliders.
+- Reworked TV navigation into a horizontal header, with softer item-specific focus treatment and a content-first startup focus.
+- Centered the animated startup logo and added viewport-aware, keyboard-focusable tooltips that reposition around edges and fullscreen layouts.
+- Kept file and URL actions routed through the player and corrected the view-click delegation that could undo actions inside a view.
+
+### Compatibility and upgrades
+
+- Bumped the app to 1.1.0 and Android version code to 1001000; release signing identity remains unchanged for in-place Android upgrades.
+- The dedicated Android TV package remains separate from the phone/tablet build. Desktop in-app updates continue to use the signed updater feed.
+
+### Validation
+
+- `npm run build` — TypeScript check and Vite production build passed.
+- `git diff --check` passed.
+- CI release jobs build the native platform packages. This sandbox cannot verify playback or remote behavior on physical devices; representative Windows, Android, and TV-device checks remain recommended.
+
+
+---
+
+# ROZH Player 1.0.8
+
+**A dedicated, remote-first Android TV home**
+
+## Download
+
+| Platform | Release asset |
+| --- | --- |
+| Windows 10/11 (x64) | [ROZH-Player_1.0.8_x64-setup.exe](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player_1.0.8_x64-setup.exe) |
+| macOS — Apple Silicon | [ROZH-Player_1.0.8_aarch64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player_1.0.8_aarch64.dmg) |
+| macOS — Intel | [ROZH-Player_1.0.8_x64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player_1.0.8_x64.dmg) |
+| Linux — Debian/Ubuntu | [ROZH-Player_1.0.8_amd64.deb](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player_1.0.8_amd64.deb) |
+| Linux — Fedora/RHEL/openSUSE | [ROZH-Player-1.0.8-1.x86_64.rpm](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player-1.0.8-1.x86_64.rpm) |
+| Linux — AppImage | [ROZH-Player_1.0.8_amd64.AppImage](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player_1.0.8_amd64.AppImage) |
+| Android phones and tablets (APK) | [ROZH-Player-1.0.8.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player-1.0.8.apk) |
+| Android phones and tablets (Google Play bundle) | [ROZH-Player-1.0.8.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player-1.0.8.aab) |
+| Android TV (dedicated APK) | [ROZH-Player-TV-1.0.8.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player-TV-1.0.8.apk) |
+| Android TV (Google Play bundle) | [ROZH-Player-TV-1.0.8.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player-TV-1.0.8.aab) |
+| Web / PWA | [rozh-player-web.zip](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/rozh-player-web.zip) |
+
+## What changed
+
+### Android TV
+
+- Added a dedicated Home destination with a persistent left navigation rail, a featured media area, and browsable resume, recent, video, and music shelves.
+- Put device-library scan, folder selection, open-file, and open-link actions within easy reach from the TV home.
+- Reworked the TV shell into a 10-foot layout with larger type, stronger focus states, overscan-safe spacing, and D-pad navigation between the rail and content.
+- TV builds now launch directly into Home; the Back key returns to Home from other views. Playback keeps its immersive TV presentation and remote controls.
+- Added English and Persian Home labels. The existing phone and tablet shell is unchanged.
+
+### Compatibility and upgrades
+
+- The dedicated Android TV package remains separate from the Android phone/tablet package.
+- Android version code is incremented and release signing identity is retained so existing installations can update in place.
+- Other platform builds and the in-app update feeds remain part of the standard release workflow.
+
+### Validation
+
+- `npm run build` — TypeScript check and Vite production build passed.
+- `git diff --check` passed.
+- This environment has no browser runtime or physical Android TV, so visual browser QA, device navigation, and playback on a real TV have not been verified. Please validate D-pad behavior on representative devices.
+
+---
+
+# ROZH Player 1.0.7
+
+**Android touch usability and responsive playback controls**
+
+## Download
+
+| Platform | Release asset |
+| --- | --- |
+| Windows 10/11 (x64) | [ROZH-Player_1.0.7_x64-setup.exe](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/ROZH-Player_1.0.7_x64-setup.exe) |
+| macOS — Apple Silicon | [ROZH-Player_1.0.7_aarch64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/ROZH-Player_1.0.7_aarch64.dmg) |
+| macOS — Intel | [ROZH-Player_1.0.7_x64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/ROZH-Player_1.0.7_x64.dmg) |
+| Linux — Debian/Ubuntu | [ROZH-Player_1.0.7_amd64.deb](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/ROZH-Player_1.0.7_amd64.deb) |
+| Linux — Fedora/RHEL/openSUSE | [ROZH-Player-1.0.7-1.x86_64.rpm](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/ROZH-Player-1.0.7-1.x86_64.rpm) |
+| Linux — AppImage | [ROZH-Player_1.0.7_amd64.AppImage](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/ROZH-Player_1.0.7_amd64.AppImage) |
+| Android phones and tablets (APK) | [ROZH-Player-1.0.7.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/ROZH-Player-1.0.7.apk) |
+| Android phones and tablets (Google Play bundle) | [ROZH-Player-1.0.7.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/ROZH-Player-1.0.7.aab) |
+| Android TV (dedicated APK) | [ROZH-Player-TV-1.0.7.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/ROZH-Player-TV-1.0.7.apk) |
+| Android TV (Google Play bundle) | [ROZH-Player-TV-1.0.7.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/ROZH-Player-TV-1.0.7.aab) |
+| Web / PWA | [rozh-player-web.zip](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/rozh-player-web.zip) |
+
+## What changed
+
+### Android phone, tablet, and TV usability
+
+- Reworked the phone transport bar so play, seek, volume, time, and fullscreen stay on-screen instead of being pushed beyond the edge by desktop-only actions.
+- Kept the advanced player actions available in the player's action tray while simplifying the primary touch controls.
+- Made volume adjustment directly reachable by touch; narrowed the controls and safely prioritised essential actions on very small phones.
+- Reflowed the Android media-library scan and folder actions into a full-width, thumb-friendly row on narrow screens.
+- Kept settings section names visible in the horizontally scrollable settings navigation instead of relying on unlabeled icons.
+- Improved tab-label clipping and top-bar sizing at very narrow widths; retained safe-area spacing for notched devices.
+- The responsive changes apply to Android phones and tablets; the separate Android TV package retains its 10-foot layout and focus controls.
+
+### Compatibility and upgrades
+
+- Android minimum remains 7.0 (API 24). The Android phone and dedicated Android TV packages use the same persistent signing identity and an incremented version code for in-place upgrades.
+- Desktop, Android, Android TV, and web release artifacts are built by the release workflow. Desktop in-app updates and Android package-installer updates remain enabled.
+
+### Validation
+
+- [npm run build](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/npm run build) (TypeScript check and Vite production build).
+- Android phone/TV native project generation and packaging remain covered by the release workflow. This sandbox has no Android SDK or physical Android devices; real-device verification is still recommended for OEM-specific touch, permission, and media-decoder behaviour.
+
+---
+
+# ROZH Player 1.0.6
+
+**Updates that install over the old version — on every platform.**
+
+_1.0.6 corrected the updater manifest so every platform points at the package its updater can install — the AppImage on Linux, the `.app` archive on macOS, and the NSIS installer on Windows. Installing 1.0.6 by hand once puts you on the fixed update channel._
 
 Windows · macOS · Linux · Android · Android TV · Web
 
@@ -9,114 +146,49 @@ Windows · macOS · Linux · Android · Android TV · Web
 
 | Platform | File |
 | --- | --- |
-| **Windows 10/11 (x64)** | `ROZH.Player_1.0.4_x64-setup.exe` |
-| **macOS — Apple Silicon (M1–M4)** | `ROZH.Player_1.0.4_aarch64.dmg` |
-| **macOS — Intel** | `ROZH.Player_1.0.4_x64.dmg` |
-| **Linux (Debian/Ubuntu)** | `ROZH.Player_1.0.4_amd64.deb` |
-| **Linux (Fedora/RHEL/openSUSE)** | `ROZH.Player-1.0.4-1.x86_64.rpm` |
-| **Linux (any distribution)** | `ROZH.Player_1.0.4_amd64.AppImage` |
-| **Android 7.0+ (phones, tablets)** | `ROZH-Player-1.0.4.apk` |
-| **Android TV (dedicated build)** | `ROZH-Player-TV-1.0.4.apk` |
-| **Google Play bundles** | `ROZH-Player-1.0.4.aab`, `ROZH-Player-TV-1.0.4.aab` |
-| **Web / PWA** | `rozh-player-web.zip` — unzip and serve from any static host |
+| **Windows 10/11 (x64)** | `ROZH-Player_1.0.6_x64-setup.exe` |
+| **macOS — Apple Silicon (M1–M4)** | `ROZH-Player_1.0.6_aarch64.dmg` |
+| **macOS — Intel** | `ROZH-Player_1.0.6_x64.dmg` |
+| **Linux (Debian/Ubuntu)** | `ROZH-Player_1.0.6_amd64.deb` |
+| **Linux (Fedora/RHEL/openSUSE)** | `ROZH-Player-1.0.6-1.x86_64.rpm` |
+| **Linux (any distribution)** | `ROZH-Player_1.0.6_amd64.AppImage` |
+| **Android 7.0+ (phones, tablets)** | `ROZH-Player-1.0.6.apk` |
+| **Android TV (dedicated build)** | `ROZH-Player-TV-1.0.6.apk` |
+| **Google Play bundles** | `ROZH-Player-1.0.6.aab`, `ROZH-Player-TV-1.0.6.aab` |
+| **Web / PWA** | `rozh-player-web.zip` |
 
 ## Install
 
-**Windows** — run the `setup.exe`. SmartScreen shows "Windows protected your PC"
-because the build carries no commercial code-signing certificate; choose
-**More info → Run anyway**.
+**Windows** — run the setup executable. **macOS** — open the DMG and move ROZH Player to Applications. **Linux** — install the DEB/RPM or run the AppImage. **Android** — open the APK and allow installation from this source if prompted. **Android TV / Fire TV** — sideload the dedicated TV APK; it is a separate package with its own Leanback launcher entry and banner.
 
-**macOS** — open the `dmg` and drag ROZH Player into Applications. On first launch
-Gatekeeper may refuse an unidentified developer; right-click the app and choose
-**Open** (or allow it in System Settings → Privacy & Security).
+## What is new in 1.0.6
 
-**Linux** — `sudo apt install ./ROZH.Player_1.0.4_amd64.deb`, or `chmod +x` the
-AppImage and run it.
+### Update from inside the app
 
-**Android** — sideload `ROZH-Player-1.0.4.apk`. Allow "install unknown apps" for
-your file manager when Android asks. On first launch Android asks for media
-access — grant it and the library fills itself.
+Settings → **Updates** checks, downloads, and installs the next version without leaving ROZH Player. The card shows the version, download progress, and a restart action when ready.
 
-**Android TV / Fire TV** — sideload `ROZH-Player-TV-1.0.4.apk` (USB stick,
-`adb install`, or a file manager on the box). It is a separate package
-(`…rozh.player.tv`), so it can sit next to the phone app, and it declares
-`LEANBACK_LAUNCHER`, so it appears in the TV launcher with its own banner.
+- **Windows, macOS, Linux** — signed updater manifests are verified against the embedded public key; the updater downloads and installs the compatible package in place.
+- **Android and Android TV** — the matching phone or TV APK is handed to Android's package installer; the installed app is replaced rather than duplicated.
+- An optional quiet check runs after launch. It can be disabled in Settings.
 
-## What is new
+### Android media support
 
-### The device library indexes itself
+- Automatically indexes device media and lets users add folders through Android's document picker.
+- A loopback HTTP media server serves readable `content://` files with byte-range support for seeking.
+- Offers a system-player handoff when the embedded decoder cannot handle a file.
 
-Every time the phone or the TV app starts, ROZH asks Android for the media index
-and adds everything it finds — videos and (optionally) music — to the library:
+### Upgrade signing
 
-- **MediaStore scan** of all video and audio on internal storage and SD cards,
-  with name, size, duration, folder and a system-generated thumbnail.
-- **Folder picker** for anything the system index does not know about. ROZH
-  remembers the folder across launches (persisted SAF grant) and re-indexes it
-  next time.
-- **Stays in sync**: entries removed from the device disappear from the library;
-  nothing is duplicated on the next launch.
-- The permission prompt appears once. If access is refused, the library shows a
-  card explaining how to grant it instead of an empty grid.
-- Controls: **Settings → Device library** (auto-index on/off, include audio,
-  scan now, add folder) and the device strip at the top of the library.
+Android in-place upgrades require the same signing identity and a higher version code. From 1.0.5 onward the APKs use a persistent release key and an incremented version code. **Users upgrading directly from 1.0.4 must uninstall that one version first**, because 1.0.4 used a different temporary key; install 1.0.6 (or later) after that one-time migration.
 
-### Two new interfaces
+### Fixed in 1.0.6
 
-The desktop shell was being stretched onto phones and televisions. It is not any
-more — both platforms now have their own layout:
+- Corrected the updater manifest to select the installable package for each desktop platform.
+- Removed stray Android signature sidecar files from release assets.
+- Added checks that fail release builds when an expected desktop updater artifact is missing.
 
-**Phones** — a real mobile app:
-- compact app bar with the logo, current destination and the three actions that
-  matter; the destination list lives in a drawer and a bottom tab bar
-- thumb-sized controls, 48 px tab targets, safe-area padding on notched phones
-- two-column library (three on tablets), horizontal filter chips, no hover-only
-  affordances, no 300 px sidebar eating a third of the screen
-- the player is edge to edge, ignores browser scroll chaining, and survives
-  rotation and landscape (chrome hides, video keeps the full frame)
+---
 
-**Android TV** — a 10-foot interface:
-- one horizontal top bar (brand · Player · Library · Live & links · Recent ·
-  Settings · Open link · Open file) instead of a desktop side rail
-- overscan-safe margins, larger type, larger cards, larger transport buttons
-- every control shows a focus ring; nothing depends on hover
-- **spatial D-pad navigation** with a corridor-aware neighbour search: arrows
-  move to the control the viewer is looking at, OK activates, Back closes the
-  topmost sheet or returns to the player
-- remote transport keys (`MediaPlayPause`), timeline scrubbing from the video
-  surface, and the first focus lands on something usable after every route
-  change
+# ROZH Player 1.0.5 and earlier
 
-### Also in this release
-
-- Typography: Latin text and numbers now use the platform UI font, so an English
-  interface never shows Persian-shaped digits; Persian still uses Vazirmatn
-- `hidden` is now authoritative — elements marked hidden can no longer be forced
-  visible by a component rule (sleep chip, stats panel, lock veil)
-- Empty player no longer shows drop targets and codec badges on TV/phone
-- Shortcuts and About are reachable from Settings (needed on TV, handy on phone)
-- CI asserts the Android bridge wiring (manifest permissions, `MediaBridge.java`,
-  `MainActivity` hooks) before the APK is built, next to the existing manifest
-  and TV-package checks
-
-## Formats
-
-Everything the platform decodes, plus:
-
-- **Containers** MP4, MKV, WebM, MOV, AVI, TS, M2TS, FLV, WMV, 3GP, OGG
-- **Codecs** H.264, H.265/HEVC, VP8/VP9, AV1, MPEG-2/4, AAC, MP3, FLAC, Opus,
-  Vorbis, WAV, AC-3 and more — subject to the platform decoder
-- **Streams** HLS (`.m3u8`), DASH (`.mpd`), MPEG-TS / FLV over HTTP with the
-  bundled software demuxer
-- **Subtitles** SRT, WebVTT, ASS/SSA (libass), embedded text tracks
-- Desktop adds an FFmpeg fallback that remuxes or transcodes anything the
-  webview refuses (MKV with AC-3, AVI, old MPEG-4 …)
-
-Android plays what the system decoder supports; exotic codecs that only FFmpeg
-can open are available in the desktop builds.
-
-## Notes
-
-- Builds are unsigned; Windows SmartScreen and macOS Gatekeeper will ask once.
-- No account, no telemetry, no server: the library lives on your device.
-- ROZH Player is MIT licensed.
+See the [GitHub releases](https://github.com/Dark-Sky07/Rozh-Player/releases) for previous version assets and notes.

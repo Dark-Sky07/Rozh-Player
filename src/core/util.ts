@@ -182,6 +182,11 @@ function detect(): PlatformInfo {
 
 export const platform: PlatformInfo = detect();
 
+/** Windows desktop shell, with an opt-in preview flag for browser QA. */
+export const isWindowsDesktop =
+  (platform.os === 'windows' && !platform.mobile) ||
+  String((import.meta.env as Record<string, unknown> | undefined)?.VITE_WINDOWS_BUILD ?? '') === '1';
+
 /** Hidden `<input type=file>` picker — the universally available fallback. */
 export function pickWebFiles(accept: string): Promise<File[]> {
   return new Promise<File[]>((resolve) => {
@@ -253,11 +258,18 @@ const MIME_MAP: Record<string, string> = {
   ogv: 'video/ogg',
   mp3: 'audio/mpeg',
   m4a: 'audio/mp4',
+  m4b: 'audio/mp4',
   aac: 'audio/aac',
   flac: 'audio/flac',
   wav: 'audio/wav',
   ogg: 'audio/ogg',
+  oga: 'audio/ogg',
   opus: 'audio/opus',
+  wma: 'audio/x-ms-wma',
+  aif: 'audio/aiff',
+  aiff: 'audio/aiff',
+  ape: 'audio/x-ape',
+  alac: 'audio/mp4',
   srt: 'text/plain',
   vtt: 'text/vtt',
   ass: 'text/plain',
@@ -283,7 +295,7 @@ export function baseName(name: string): string {
 }
 
 export function isAudioFile(name: string): boolean {
-  return /^(mp3|m4a|aac|flac|wav|ogg|opus|wma|aiff?|alac)$/i.test(ext(name));
+  return /^(mp3|m4a|m4b|aac|flac|wav|ogg|oga|opus|wma|aiff?|ape|alac)$/i.test(ext(name));
 }
 
 export function isSubtitleFile(name: string): boolean {

@@ -28,14 +28,14 @@ export function renderHistory(host: HTMLElement, ctx: AppContext): void {
         ? `<div class="history-list">
             ${items
               .map((item) => {
-                const pct = item.duration > 0 ? Math.min(100, (item.position / item.duration) * 100) : 0;
+                const pct = item.duration > 0 ? Math.min(100, Math.max(0, (item.position / item.duration) * 100)) : 0;
                 const done = pct > 96;
                 const left = Math.max(0, item.duration - item.position);
-                return `<button class="history-item" data-id="${item.id}">
+                return `<button class="history-item" data-id="${escapeHtml(item.id)}">
                   <span class="history-thumb">
                     ${
                       item.thumb
-                        ? `<img src="${item.thumb}" alt="" loading="lazy" />`
+                        ? `<img src="${escapeHtml(item.thumb)}" alt="" loading="lazy" />`
                         : `<span class="ph">${icon(
                             item.kind === 'audio' ? 'music' : item.source === 'url' ? 'broadcast' : 'film',
                           )}</span>`

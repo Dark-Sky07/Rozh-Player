@@ -66,11 +66,11 @@ const RECENT_KEY = 'streams.recent';
 /** Clean, validated URL or null. Accepts bare hosts by adding https:// */
 export function normalizeUrl(raw: string): string | null {
   let value = raw.trim();
-  if (!value) return null;
+  if (!value || value.length > 8192) return null;
   if (!/^[a-z]+:\/\//i.test(value)) value = `https://${value}`;
   try {
     const u = new URL(value);
-    if (!/^https?:$/.test(u.protocol)) return null;
+    if (!/^https?:$/.test(u.protocol) || u.username || u.password) return null;
     return u.toString();
   } catch {
     return null;

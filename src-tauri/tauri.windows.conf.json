@@ -1,0 +1,30 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "fileAssociations": [
+      { "ext": ["mp4", "m4v"], "mimeType": "video/mp4", "name": "ROZH Player video", "description": "Video media supported by ROZH Player" },
+      { "ext": ["mov"], "mimeType": "video/quicktime", "name": "QuickTime video", "description": "Video media supported by ROZH Player" },
+      { "ext": ["mkv"], "mimeType": "video/x-matroska", "name": "Matroska video", "description": "Video media supported by ROZH Player" },
+      { "ext": ["avi"], "mimeType": "video/x-msvideo", "name": "AVI video", "description": "Video media supported by ROZH Player" },
+      { "ext": ["webm"], "mimeType": "video/webm", "name": "WebM video", "description": "Video media supported by ROZH Player" },
+      { "ext": ["wmv"], "mimeType": "video/x-ms-wmv", "name": "Windows Media video", "description": "Video media supported by ROZH Player" },
+      { "ext": ["flv"], "mimeType": "video/x-flv", "name": "Flash video", "description": "Video media supported by ROZH Player" },
+      { "ext": ["ts", "m2ts"], "mimeType": "video/mp2t", "name": "Transport stream video", "description": "Video media supported by ROZH Player" },
+      { "ext": ["mpg", "mpeg"], "mimeType": "video/mpeg", "name": "MPEG video", "description": "Video media supported by ROZH Player" },
+      { "ext": ["3gp"], "mimeType": "video/3gpp", "name": "3GPP video", "description": "Video media supported by ROZH Player" },
+      { "ext": ["ogv"], "mimeType": "video/ogg", "name": "Ogg video", "description": "Video media supported by ROZH Player" },
+      { "ext": ["mp3"], "mimeType": "audio/mpeg", "name": "MP3 audio", "description": "Audio media supported by ROZH Player" },
+      { "ext": ["m4a", "m4b"], "mimeType": "audio/mp4", "name": "MPEG-4 audio", "description": "Audio media supported by ROZH Player" },
+      { "ext": ["aac"], "mimeType": "audio/aac", "name": "AAC audio", "description": "Audio media supported by ROZH Player" },
+      { "ext": ["flac"], "mimeType": "audio/flac", "name": "FLAC audio", "description": "Audio media supported by ROZH Player" },
+      { "ext": ["wav"], "mimeType": "audio/wav", "name": "WAV audio", "description": "Audio media supported by ROZH Player" },
+      { "ext": ["ogg", "oga"], "mimeType": "audio/ogg", "name": "Ogg audio", "description": "Audio media supported by ROZH Player" },
+      { "ext": ["opus"], "mimeType": "audio/opus", "name": "Opus audio", "description": "Audio media supported by ROZH Player" },
+      { "ext": ["wma"], "mimeType": "audio/x-ms-wma", "name": "Windows Media audio", "description": "Audio media supported by ROZH Player" },
+      { "ext": ["aif", "aiff"], "mimeType": "audio/aiff", "name": "AIFF audio", "description": "Audio media supported by ROZH Player" },
+      { "ext": ["ape"], "mimeType": "audio/x-ape", "name": "Monkey's Audio", "description": "Audio media supported by ROZH Player" },
+      { "ext": ["alac"], "mimeType": "audio/mp4", "name": "Apple Lossless audio", "description": "Audio media supported by ROZH Player" },
+      { "ext": ["m3u8"], "mimeType": "application/vnd.apple.mpegurl", "name": "M3U8 media playlist", "description": "Media playlist supported by ROZH Player" }
+    ]
+  }
+}

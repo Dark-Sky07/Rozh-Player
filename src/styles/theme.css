@@ -310,8 +310,10 @@ ol {
   inset: 0;
   display: grid;
   place-content: center;
+  place-items: center;
   justify-items: center;
   gap: 18px;
+  padding: 24px;
   background: radial-gradient(120% 120% at 50% 0%, #141018 0%, #06080e 55%, #04060a 100%);
   z-index: 999;
   transition: opacity 0.5s var(--ease), visibility 0.5s;
@@ -323,8 +325,10 @@ ol {
 }
 .boot-glow {
   position: absolute;
-  width: 520px;
-  height: 520px;
+  inset: 0;
+  width: min(520px, 82vw);
+  height: min(520px, 82vw);
+  margin: auto;
   border-radius: 50%;
   background: radial-gradient(circle, rgba(248, 162, 74, 0.22), transparent 62%);
   filter: blur(30px);
@@ -533,37 +537,31 @@ ol {
   border-radius: 50%;
 }
 
-/* tooltips */
-[data-tip] {
-  position: relative;
-}
-[data-tip]::after {
-  content: attr(data-tip);
-  position: absolute;
-  inset-inline-start: 50%;
-  bottom: calc(100% + 10px);
-  transform: translateX(-50%) translateY(4px);
-  padding: 6px 10px;
-  font-size: 0.72rem;
-  font-weight: 500;
-  white-space: nowrap;
-  color: var(--text-0);
-  background: rgba(10, 12, 18, 0.94);
-  border: 1px solid var(--line-2);
-  border-radius: var(--r-xs);
-  box-shadow: var(--shadow-2);
-  opacity: 0;
+/* One viewport-aware tooltip is positioned by the shell so it stays readable
+   beside every edge, including when the player or app is fullscreen. */
+.smart-tooltip {
+  position: fixed;
+  z-index: 100000;
+  max-width: min(320px, calc(100vw - 24px));
+  padding: 9px 13px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 11px;
+  color: #f8f7f3;
+  background: rgba(12, 15, 22, 0.97);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5);
+  font-size: 0.77rem;
+  font-weight: 620;
+  line-height: 1.45;
+  white-space: normal;
+  overflow-wrap: anywhere;
   pointer-events: none;
-  transition: opacity var(--dur-2), transform var(--dur-2) var(--ease);
-  z-index: 60;
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity 120ms ease, transform 120ms ease;
 }
-[data-tip]:hover::after {
+.smart-tooltip.is-visible {
   opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
-[data-tip-pos='bottom']::after {
-  bottom: auto;
-  top: calc(100% + 10px);
+  transform: translateY(0);
 }
 
 /* ============================================================
