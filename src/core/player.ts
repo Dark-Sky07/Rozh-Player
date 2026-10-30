@@ -848,13 +848,13 @@ export class Player {
     if (e === 'ass' || e === 'ssa') {
       const text = await file.text();
       await this.renderAss(text, file.name);
-      toast(`${t('player.subLoaded')} · ${escapeHtml(file.name)}`, 'ok');
+      toast(`${t('player.subLoaded')} · ${file.name}`, 'ok');
       return;
     }
     const raw = await file.text();
     const cues = parseCues(e === 'vtt' ? raw : srtToVtt(raw));
     if (!cues.length) {
-      toast(`${t('player.error')} · ${escapeHtml(file.name)}`, 'warn');
+      toast(`${t('player.error')} · ${file.name}`, 'warn');
       return;
     }
     const url = URL.createObjectURL(
@@ -862,7 +862,7 @@ export class Player {
     );
     this.objectUrls.push(url);
     this.attachTextTrack(url, file.name, true, cues);
-    toast(`${t('player.subLoaded')} · ${escapeHtml(file.name)}`, 'ok');
+    toast(`${t('player.subLoaded')} · ${file.name}`, 'ok');
   }
 
   private attachTextTrack(url: string, label: string, show: boolean, cues?: SubCue[]): void {
@@ -930,7 +930,7 @@ export class Player {
       });
       const canvas = this.stage.querySelector('canvas');
       if (canvas) canvas.classList.add('jassub-canvas');
-      toast(`${t('player.assNote')} · ${escapeHtml(label)}`, 'ok');
+      toast(`${t('player.assNote')} · ${label}`, 'ok');
     } catch (err) {
       console.warn('[rozh] libass unavailable', err);
       toast(t('player.subNone'), 'warn');
@@ -1394,12 +1394,12 @@ export class Player {
       return `<div class="q-list">${marks
         .map(
           (m) =>
-            `<div class="q-item is-active" data-jump="${m.t}">
+            `<div class="q-item is-active" data-jump="${escapeHtml(String(m.t))}">
               <span class="q-idx">${icon('bookmark')}</span>
               <span class="q-meta"><span class="q-name">${escapeHtml(m.label)}</span><span class="q-sub mono">${fmtTime(
                 m.t,
               )}</span></span>
-              <button class="iconbtn btn-sm" data-drop="${m.at}" aria-label="${t('common.remove')}">${icon('trash')}</button>
+              <button class="iconbtn btn-sm" data-drop="${escapeHtml(String(m.at))}" aria-label="${escapeHtml(t('common.remove'))}">${icon('trash')}</button>
             </div>`,
         )
         .join('')}</div>`;

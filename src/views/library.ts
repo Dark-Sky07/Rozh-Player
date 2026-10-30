@@ -71,14 +71,24 @@ function kindOf(item: MediaItem): 'video' | 'audio' | 'stream' {
   return 'video';
 }
 
+function streamHost(raw?: string): string {
+  if (!raw) return t('player.stream');
+  try {
+    const url = new URL(raw);
+    return url.hostname || t('player.stream');
+  } catch {
+    return t('player.stream');
+  }
+}
+
 function card(item: MediaItem): string {
   const k = kindOf(item);
-  const progress = item.duration > 0 ? Math.min(100, (item.position / item.duration) * 100) : 0;
+  const progress = item.duration > 0 ? Math.min(100, Math.max(0, (item.position / item.duration) * 100)) : 0;
   const thumb = item.thumb
-    ? `<img src="${item.thumb}" alt="" loading="lazy" />`
+    ? `<img src="${escapeHtml(item.thumb)}" alt="" loading="lazy" />`
     : `<div class="ph">${icon(k === 'audio' ? 'music' : k === 'stream' ? 'broadcast' : 'film')}</div>`;
   return `
-    <div class="media-card" data-id="${item.id}" role="button" tabindex="0" aria-label="${escapeHtml(item.title)}">
+    <div class="media-card" data-id="${escapeHtml(item.id)}" role="button" tabindex="0" aria-label="${escapeHtml(item.title)}">
       <div class="media-thumb">
         ${thumb}
         <div class="media-play"><i>${icon('play')}</i></div>
@@ -89,7 +99,7 @@ function card(item: MediaItem): string {
             ? `<div class="media-progress"><i style="width:${progress}%"></i></div>`
             : ''
         }
-        <button class="media-remove" data-remove="${item.id}" aria-label="${escapeHtml(t('library.remove'))}">${icon(
+        <button class="media-remove" data-remove="${escapeHtml(item.id)}" aria-label="${escapeHtml(t('library.remove'))}">${icon(
           'x',
         )}</button>
       </div>
@@ -98,7 +108,7 @@ function card(item: MediaItem): string {
         <div class="media-info">
           <span>${escapeHtml(
             item.source === 'url'
-              ? new URL(item.url ?? 'https://x').hostname
+              ? streamHost(item.url)
               : item.size
                 ? fmtBytes(item.size)
                 : '—',

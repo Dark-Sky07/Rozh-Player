@@ -20,31 +20,41 @@ import { platform } from './util';
 /** Extensions the webview can usually decode on its own — no server needed. */
 const NATIVE_EXT = /\.(mp4|m4v|webm|ogg|oga|ogv|mp3|m4a|aac|wav|flac|opus)$/i;
 
-let port = 0;
-let probing: Promise<number> | null = null;
-
-async function probe(): Promise<number> {
-  if (port) return port;
-  if (!platform.tauri || platform.os !== 'android') return 0;
-  try {
-    const api = await import('@tauri-apps/api/core');
-    const res = await api.invoke<{ port?: number }>('android_media_server');
-    port = Number(res?.port ?? 0) || 0;
-  } catch {
-    port = 0;
-  }
-  return port;
+interface MediaServerInfo {
+  port: number;
+  token: string;
 }
 
-/** Resolve the port once; the bridge writes it when the app starts. */
-export function mediaServerPort(): Promise<number> {
-  if (port) return Promise.resolve(port);
-  if (!probing) {
-    probing = probe().finally(() => {
-      probing = null;
-    });
+let serverInfo: MediaServerInfo | null = null;
+let probing: Promise<MediaServerInfo | null> | null = null;
+
+async function probe(): Promise<MediaServerInfo | null> {
+  if (serverInfo) return serverInfo;
+  if (!platform.tauri || platform.os !== 'android') return null;
+  try {
+    const api = await import('@tauri-apps/api/core');
+    const res = await api.invoke<{ port?: number; token?: string }>('android_media_server');
+    const port = Number(res?.port ?? 0);
+    const token = String(res?.token ?? '');
+    if (Number.isInteger(port) && port > 0 && port <= 65535 && /^[A-Za-z0-9_-]{43}$/.test(token)) {
+      serverInfo = { port, token };
+      return serverInfo;
+    }
+  } catch {
+    /* the bridge may not have started yet */
   }
+  return null;
+}
+
+async function mediaServerInfo(): Promise<MediaServerInfo | null> {
+  if (serverInfo) return serverInfo;
+  if (!probing) probing = probe().finally(() => { probing = null; });
   return probing;
+}
+
+/** Resolve the port once; the bridge writes an authenticated endpoint at launch. */
+export async function mediaServerPort(): Promise<number> {
+  return (await mediaServerInfo())?.port ?? 0;
 }
 
 /** True when the URL is a local, app-owned reference that the webview cannot fetch. */
@@ -78,19 +88,19 @@ function fileName(url: string): string {
   return decoded.replace(/[^\w.\-\s()[\]]+/g, '_').slice(-80) || 'media';
 }
 
-function streamFor(url: string, openPort: number, hint?: string): string {
+function streamFor(url: string, info: MediaServerInfo, hint?: string): string {
   const named = hint && /\.[a-z0-9]{2,4}$/i.test(hint) ? hint : fileName(url);
   // The name stays in the path so `.mkv`, `.ts`, `.m3u8` detection keeps working
   // in the player, and so the server can guess a MIME type.
-  return `http://127.0.0.1:${openPort}/s/${base64Url(url)}/${encodeURIComponent(named)}`;
+  return `http://127.0.0.1:${info.port}/s/${info.token}/${base64Url(url)}/${encodeURIComponent(named)}`;
 }
 
 /** A URL the webview can actually play for this media reference. */
 export async function streamableUrl(url: string, hint?: string): Promise<string> {
   if (!needsServer(url)) return url;
-  const openPort = await mediaServerPort();
-  if (!openPort) return url;
-  return streamFor(url, openPort, hint);
+  const info = await mediaServerInfo();
+  if (!info) return url;
+  return streamFor(url, info, hint);
 }
 
 /**
@@ -99,8 +109,8 @@ export async function streamableUrl(url: string, hint?: string): Promise<string>
  */
 export async function streamableFetchUrl(url: string, hint?: string): Promise<string> {
   if (!needsServer(url)) return url;
-  const openPort = await mediaServerPort();
-  return openPort ? streamFor(url, openPort, hint) : url;
+  const info = await mediaServerInfo();
+  return info ? streamFor(url, info, hint) : url;
 }
 
 /* ------------------------------------------------------------------ */

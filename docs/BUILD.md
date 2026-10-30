@@ -165,57 +165,57 @@ pushed and attaches everything to a published release (`draft: false`):
 | Web | `ubuntu-latest` | `rozh-player-web.zip` |
 | Manifest | `ubuntu-latest` (after desktop) | `latest.json` |
 
-The release workflow can also be started by hand
-(`workflow_dispatch` with a `tag` and an optional `only` filter).
+The release workflow runs only for version tags and validates that each tag matches `package.json` and points to a commit already reachable from `main`. Manual dispatch is intentionally disabled because release jobs use signing secrets.
 
 ## 5. Signing and in-app updates
 
-Three keys matter, and none of them may ever be regenerated:
+**Release signing material must never be stored in Git.** The repository
+previously contained the desktop updater private key and Android release
+keystore, and the Android password was hard-coded in the release workflow.
+Treat all of them as compromised. The tracked files are removed from the
+current tree, but this does not erase them from existing Git history or revoke
+signatures already trusted by installed applications.
 
-| File | Purpose | Password |
-| --- | --- | --- |
-| `src-tauri/updater/rozh-updater.key` | signs desktop update artefacts | `rozh-updater-key` |
-| `src-tauri/keystore/rozh-release.p12` (alias `rozh`) | signs every Android APK/AAB | `rozhplayer` |
+The release workflow now fails closed unless these protected GitHub Actions
+repository secrets are configured:
 
-The updater public key is inlined in `src-tauri/tauri.conf.json`
-(`plugins.updater.pubkey`). The APK key is what makes Android treat a new version
-as an *upgrade*: a different certificate means "App not installed", and a lower
-`versionCode` (`bundle.android.versionCode` in `tauri.conf.json`, currently
-`1000005`) means the installer silently refuses.
+| Secret | Purpose |
+| --- | --- |
+| `TAURI_SIGNING_PRIVATE_KEY` | Desktop updater private-key content |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Desktop updater key password |
+| `ANDROID_KEYSTORE_BASE64` | Base64-encoded PKCS#12 keystore |
+| `ANDROID_KEYSTORE_PASSWORD` | Android keystore password |
+| `ANDROID_KEY_PASSWORD` | Android signing key password |
+| `ANDROID_KEY_ALIAS` | Android signing key alias |
 
-Desktop bundles are produced with `createUpdaterArtifacts: true`, which writes a
-`.sig` next to every updater artifact. `scripts/collect-desktop-artifacts.mjs`
-renames them deterministically (the macOS `.app.tar.gz` name collides across
-architectures), and the `latest` job merges the per-runner manifests into the
-`latest.json` the app polls:
+Do not reuse the exposed Android password or upload the compromised material as
+a long-term replacement. A secure migration must be planned before publishing
+a new release. Desktop clients trust the updater public key embedded in
+`src-tauri/tauri.conf.json`; existing clients need a transition release signed
+by the old key before they can trust a new key. Android's signing certificate
+is also part of the installed package identity: rotating it can prevent
+in-place upgrades on older Android versions unless a valid signing-certificate
+lineage or a store-managed signing migration is used. Do not simply replace
+these keys without testing the full upgrade path on existing installations.
 
-```json
-{
-  "version": "1.0.5",
-  "notes": "…",
-  "pub_date": "…",
-  "platforms": {
-    "windows-x86_64": { "signature": "…", "url": "https://github.com/…" }
-  }
-}
-```
+The updater public key is intentionally public and stays in
+`src-tauri/tauri.conf.json` (`plugins.updater.pubkey`). Desktop bundles use
+`createUpdaterArtifacts: true`, which writes a `.sig` next to every updater
+artifact. `scripts/collect-desktop-artifacts.mjs` renames them deterministically,
+and the `latest` job merges per-runner manifests into the `latest.json` polled
+by the app. The release validator checks that the selected `vMAJOR.MINOR.PATCH`
+tag matches `package.json` before any platform build starts.
 
-Rotating either key breaks updates for everyone already on a release, so rotate
-only with a deliberate migration plan. `src-tauri/updater/*.key` and
-`src-tauri/keystore/*.p12` are committed on purpose — the pipeline has no access
-to repository secrets.
+Android updates go through the system installer: `android_update_install(url)`
+accepts only version-matched APK URLs from this repository's official GitHub
+release path, then `MediaBridge` uses `DownloadManager`, polls progress into
+`update.json`, and opens the installer through the `FileProvider`.
 
-Android updates go through the system: `android_update_install(url)` writes a
-`command.json`, `MediaBridge` enqueues the APK in `DownloadManager`, polls the
-progress into `update.json`, then opens the installer through the `FileProvider`.
-`src/core/updateUI.ts` renders the card in Settings → Updates.
+`node scripts/fetch-ffmpeg.mjs` downloads FFmpeg 6.1.1 and verifies its exact
+size and pinned SHA-256 digest before the binary can be bundled. Release builds
+fail if this verification fails; the binary is not committed to Git.
 
-Installers are **unsigned** — add the usual Tauri signing keys as repository
-secrets before shipping to end users. The Android job creates an ephemeral
-keystore so the APK installs; put a real keystore in `src-tauri/keystore/` and
-a matching `keystore.properties` to sign with your own key.
-
-## 5. Troubleshooting
+## 6. Troubleshooting
 
 | Symptom | Fix |
 | --- | --- |

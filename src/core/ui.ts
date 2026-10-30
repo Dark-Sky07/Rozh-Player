@@ -28,7 +28,10 @@ export function toast(message: string, kind: ToastKind = 'info', ms = 2600): voi
   el.className = 'toast';
   el.dataset.kind = kind;
   const glyph = kind === 'ok' ? 'check' : kind === 'bad' ? 'x' : kind === 'warn' ? 'info' : 'info';
-  el.innerHTML = `${icon(glyph)}<div>${message}</div>`;
+  el.innerHTML = icon(glyph);
+  const text = document.createElement('div');
+  text.textContent = message;
+  el.appendChild(text);
   host().appendChild(el);
   const kill = (): void => {
     el.classList.add('out');

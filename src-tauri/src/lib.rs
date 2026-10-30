@@ -11,6 +11,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
+use std::hash::{Hash, Hasher};
 
 #[derive(Default)]
 struct InitialOpenFiles(Mutex<Vec<String>>);
@@ -24,26 +25,92 @@ fn take_initial_open_files(state: tauri::State<'_, InitialOpenFiles>) -> Vec<Str
         .unwrap_or_default()
 }
 
+const MEDIA_EXTENSIONS: &[&str] = &[
+    "mp4", "m4v", "mov", "mkv", "avi", "webm", "wmv", "flv", "ts", "m2ts", "mpg", "mpeg",
+    "3gp", "ogv", "mp3", "m4a", "m4b", "aac", "flac", "wav", "ogg", "oga", "opus", "wma",
+    "aif", "aiff", "ape", "alac", "m3u8",
+];
+
+fn validate_local_media_path(raw: &str) -> Result<PathBuf, String> {
+    if raw.is_empty() || raw.len() > 4096 || raw.starts_with('-') || raw.contains('\0') {
+        return Err("invalid media path".into());
+    }
+    let path = Path::new(raw)
+        .canonicalize()
+        .map_err(|_| "media file is not accessible".to_string())?;
+    let metadata = path.metadata().map_err(|_| "media file is not accessible".to_string())?;
+    if !metadata.is_file() {
+        return Err("media path is not a regular file".into());
+    }
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(str::to_ascii_lowercase)
+        .ok_or_else(|| "unsupported media file".to_string())?;
+    if !MEDIA_EXTENSIONS.contains(&extension.as_str()) {
+        return Err("unsupported media file".into());
+    }
+    Ok(path)
+}
+
 fn normalize_media_path(raw: &str, cwd: &Path) -> Option<String> {
     let raw = raw.trim().trim_matches('"');
-    if raw.is_empty() || raw.starts_with('-') {
+    if raw.is_empty() || raw.starts_with('-') || raw.len() > 4096 {
         return None;
     }
     let raw_path = PathBuf::from(raw);
     let path = if raw_path.is_absolute() { raw_path } else { cwd.join(raw_path) };
-    if !path.is_file() {
-        return None;
+    let canonical = validate_local_media_path(&path.to_string_lossy()).ok()?;
+    Some(canonical.to_string_lossy().into_owned())
+}
+
+fn validate_android_update_url(raw: &str) -> Result<(), String> {
+    const PREFIX: &str = "https://github.com/Dark-Sky07/Rozh-Player/releases/download/";
+    let rest = raw.strip_prefix(PREFIX).ok_or_else(|| "update URL is not an official ROZH release".to_string())?;
+    if rest.len() > 256 || rest.chars().any(|c| matches!(c, '?' | '#' | '%' | '@' | '\\')) {
+        return Err("invalid update URL".into());
     }
-    let extension = path.extension()?.to_str()?.to_ascii_lowercase();
-    const MEDIA_EXTENSIONS: &[&str] = &[
-        "mp4", "m4v", "mov", "mkv", "avi", "webm", "wmv", "flv", "ts", "m2ts", "mpg", "mpeg",
-        "3gp", "ogv", "mp3", "m4a", "m4b", "aac", "flac", "wav", "ogg", "oga", "opus", "wma",
-        "aif", "aiff", "ape", "alac", "m3u8",
-    ];
-    if !MEDIA_EXTENSIONS.contains(&extension.as_str()) {
-        return None;
+    let (tag, filename) = rest.split_once('/').ok_or_else(|| "invalid update URL".to_string())?;
+    if filename.contains('/') || !tag.starts_with('v') {
+        return Err("invalid update URL".into());
     }
-    Some(path.to_string_lossy().into_owned())
+    let version = &tag[1..];
+    let parts: Vec<&str> = version.split('.').collect();
+    if parts.len() != 3 || parts.iter().any(|part| part.is_empty() || !part.bytes().all(|b| b.is_ascii_digit())) {
+        return Err("invalid release version".into());
+    }
+    if filename != format!("ROZH-Player-{version}.apk") && filename != format!("ROZH-Player-TV-{version}.apk") {
+        return Err("update asset is not an official ROZH APK".into());
+    }
+    Ok(())
+}
+
+fn validate_android_media_uri(uri: &str, mime: &str) -> Result<(), String> {
+    let lower = uri.to_ascii_lowercase();
+    if uri.len() > 8192
+        || uri.bytes().any(|byte| byte.is_ascii_control() || byte.is_ascii_whitespace())
+        || !(lower.starts_with("content://") || lower.starts_with("file://"))
+    {
+        return Err("invalid local media URI".into());
+    }
+    let valid_mime = matches!(mime, "video/*" | "audio/*")
+        || mime.split_once('/').is_some_and(|(major, minor)| {
+            matches!(major, "video" | "audio")
+                && !minor.is_empty()
+                && minor.bytes().all(|b| {
+                    b.is_ascii_alphanumeric() || matches!(b, b'!' | b'#' | b'$' | b'&' | b'^' | b'_' | b'.' | b'+' | b'-' | b'*')
+                })
+        });
+    if !valid_mime || mime.len() > 128 {
+        return Err("invalid media type".into());
+    }
+    Ok(())
+}
+
+fn source_hash(path: &Path) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    path.hash(&mut hasher);
+    hasher.finish()
 }
 
 fn media_paths_from_args<I, S>(args: I, cwd: &Path) -> Vec<String>
@@ -129,6 +196,8 @@ fn run_ffmpeg(bin: &Path, input: &str, output: &Path, args: &[&str]) -> Result<(
     }
     let status = Command::new(bin)
         .arg("-hide_banner")
+        .arg("-protocol_whitelist")
+        .arg("file,crypto,data")
         .arg("-loglevel")
         .arg("error")
         .arg("-y")
@@ -155,11 +224,13 @@ fn run_ffmpeg(bin: &Path, input: &str, output: &Path, args: &[&str]) -> Result<(
 ///    source codecs are not supported by the platform decoder.
 #[tauri::command]
 async fn remux_file(app: tauri::AppHandle, path: String) -> Result<String, String> {
+    let path = validate_local_media_path(&path)?.to_string_lossy().into_owned();
     let bin = ffmpeg_path(&app)?;
     let dir = cache_dir(&app)?;
     let stem = file_stem(&path);
-    let remuxed = dir.join(format!("{stem}.mp4"));
-    let transcoded = dir.join(format!("{stem}.x264.mp4"));
+    let source_id = source_hash(Path::new(&path));
+    let remuxed = dir.join(format!("{stem}-{source_id:016x}.mp4"));
+    let transcoded = dir.join(format!("{stem}-{source_id:016x}.x264.mp4"));
 
     // ---- pass 1: copy the video stream, normalise audio to AAC -----------
     let first = {
@@ -246,10 +317,11 @@ async fn remux_file(app: tauri::AppHandle, path: String) -> Result<String, Strin
 /// Probe a file using FFmpeg's own metadata output.
 #[tauri::command]
 async fn probe_file(app: tauri::AppHandle, path: String) -> Result<serde_json::Value, String> {
+    let path = validate_local_media_path(&path)?.to_string_lossy().into_owned();
     let bin = ffmpeg_path(&app)?;
     let out = tauri::async_runtime::spawn_blocking(move || {
         Command::new(bin)
-            .args(["-hide_banner", "-i"])
+            .args(["-hide_banner", "-protocol_whitelist", "file,crypto,data", "-i"])
             .arg(&path)
             .output()
             .map(|o| String::from_utf8_lossy(&o.stderr).to_string())
@@ -406,6 +478,7 @@ fn android_media_pick_folder(app: tauri::AppHandle) -> Result<serde_json::Value,
 /// Android: hand a media URI to the device's own player.
 #[tauri::command]
 fn android_open_external(app: tauri::AppHandle, uri: String, mime: String) -> Result<(), String> {
+    validate_android_media_uri(&uri, &mime)?;
     let dir = media_dir(&app)?;
     let token = next_token();
     let payload = serde_json::json!({ "cmd": "play", "token": token, "uri": uri, "mime": mime });
@@ -426,9 +499,11 @@ fn android_media_server(app: tauri::AppHandle) -> Result<serde_json::Value, Stri
         Ok(raw) => {
             let parsed: serde_json::Value =
                 serde_json::from_str(&raw).unwrap_or_else(|_| serde_json::json!({ "port": 0 }));
-            Ok(serde_json::json!({ "port": parsed.get("port").and_then(|p| p.as_u64()).unwrap_or(0) }))
+            let port = parsed.get("port").and_then(|p| p.as_u64()).filter(|p| (1..=65535).contains(p)).unwrap_or(0);
+            let token = parsed.get("token").and_then(|v| v.as_str()).filter(|s| s.len() == 43 && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')).unwrap_or("");
+            Ok(serde_json::json!({ "port": port, "token": token }))
         }
-        Err(_) => Ok(serde_json::json!({ "port": 0 })),
+        Err(_) => Ok(serde_json::json!({ "port": 0, "token": "" })),
     }
 }
 
@@ -448,6 +523,7 @@ fn android_update_status(app: tauri::AppHandle) -> Result<serde_json::Value, Str
 /// Download an APK through the system download manager and open the installer.
 #[tauri::command]
 fn android_update_install(app: tauri::AppHandle, url: String) -> Result<serde_json::Value, String> {
+    validate_android_update_url(&url)?;
     let dir = media_dir(&app)?;
     let token = next_token();
     let payload = serde_json::json!({ "cmd": "install", "token": token, "url": url });
@@ -465,11 +541,16 @@ fn android_update_install(app: tauri::AppHandle, url: String) -> Result<serde_js
 /// Open a file/folder in the OS file manager.
 #[tauri::command]
 fn reveal_in_folder(path: String) -> Result<(), String> {
-    let p = Path::new(&path);
+    if path.is_empty() || path.len() > 4096 || path.contains('\0') {
+        return Err("invalid path".into());
+    }
+    let p = Path::new(&path).canonicalize().map_err(|_| "path is not accessible".to_string())?;
     let target = if p.is_file() {
-        p.parent().unwrap_or(p).to_path_buf()
+        p.parent().unwrap_or(&p).to_path_buf()
+    } else if p.is_dir() {
+        p
     } else {
-        p.to_path_buf()
+        return Err("path is not a file or directory".into());
     };
 
     #[cfg(target_os = "windows")]
@@ -526,10 +607,7 @@ pub fn run() {
 
     builder = builder
         .manage(InitialOpenFiles(Mutex::new(startup_open_files)))
-        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_fs::init())
-        .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
@@ -628,12 +706,30 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::file_stem;
+    use super::{file_stem, validate_android_media_uri, validate_android_update_url};
 
     #[test]
     fn stems_are_sanitised() {
         assert_eq!(file_stem("/movies/My Film (2024).mkv"), "My Film 2024");
         assert_eq!(file_stem("/x/y.mkv"), "y");
         assert_eq!(file_stem(""), "media");
+    }
+
+    #[test]
+    fn android_media_handoff_only_accepts_local_media_uris() {
+        assert!(validate_android_media_uri("content://media/external/video/1", "video/mp4").is_ok());
+        assert!(validate_android_media_uri("file:///storage/emulated/0/movie.mkv", "video/*").is_ok());
+        assert!(validate_android_media_uri("https://example.com/movie.mp4", "video/mp4").is_err());
+        assert!(validate_android_media_uri("content://media/video/1\r\nX: y", "video/mp4").is_err());
+        assert!(validate_android_media_uri("content://media/video/1", "text/html").is_err());
+    }
+
+    #[test]
+    fn android_updates_only_accept_exact_official_release_assets() {
+        assert!(validate_android_update_url("https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.2.3/ROZH-Player-1.2.3.apk").is_ok());
+        assert!(validate_android_update_url("https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.2.3/ROZH-Player-TV-1.2.3.apk").is_ok());
+        assert!(validate_android_update_url("http://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.2.3/ROZH-Player-1.2.3.apk").is_err());
+        assert!(validate_android_update_url("https://example.com/ROZH-Player-1.2.3.apk").is_err());
+        assert!(validate_android_update_url("https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.2.3/ROZH-Player-1.2.3.apk?mirror=evil").is_err());
     }
 }

@@ -331,7 +331,7 @@ async function playMedia(item: MediaItem): Promise<void> {
     return;
   }
   // A local file from a previous session: ask for it again, then match by name.
-  toast(`${t('player.openFile')} · ${escapeHtml(item.title)}`, 'info', 2600);
+  toast(`${t('player.openFile')} · ${item.title}`, 'info', 2600);
   const files = await pickFiles();
   const match =
     files.find((f) => f.name === item.name && f.size === item.size) ??

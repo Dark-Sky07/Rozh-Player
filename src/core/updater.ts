@@ -88,10 +88,26 @@ async function latestRelease(): Promise<GithubRelease | null> {
 /** Which APK belongs to this package: the TV build has its own asset. */
 function pickApk(assets: GithubAsset[]): GithubAsset | null {
   const wantsTv = platform.tvBuild || document.documentElement.dataset.tv === 'true';
-  const apks = assets.filter((a) => a.name.toLowerCase().endsWith('.apk'));
-  const tv = apks.find((a) => /-tv-/i.test(a.name) || /TV/i.test(a.name));
-  const phone = apks.find((a) => !/-tv-/i.test(a.name) && !/TV/i.test(a.name));
-  return wantsTv ? tv ?? phone ?? null : phone ?? null;
+  const apks = assets.filter((a) => typeof a.name === 'string' && a.name.toLowerCase().endsWith('.apk'));
+  return wantsTv
+    ? apks.find((asset) => /^ROZH-Player-TV-\d+\.\d+\.\d+\.apk$/i.test(asset.name)) ?? null
+    : apks.find((asset) => /^ROZH-Player-\d+\.\d+\.\d+\.apk$/i.test(asset.name)) ?? null;
+}
+
+function isOfficialReleaseApk(asset: GithubAsset, tag: string): boolean {
+  if (!/^v\d+\.\d+\.\d+$/i.test(tag)) return false;
+  const version = tag.slice(1);
+  if (asset.name !== `ROZH-Player-${version}.apk` && asset.name !== `ROZH-Player-TV-${version}.apk`) return false;
+  if (!Number.isSafeInteger(asset.size) || asset.size <= 0 || asset.size > 2_000_000_000) return false;
+  try {
+    const url = new URL(asset.browser_download_url);
+    return url.protocol === 'https:'
+      && url.hostname === 'github.com'
+      && !url.username && !url.password && !url.search && !url.hash
+      && url.pathname === `/Dark-Sky07/Rozh-Player/releases/download/${tag}/${asset.name}`;
+  } catch {
+    return false;
+  }
 }
 
 /** Ask the channel what the newest version is. */
@@ -103,9 +119,10 @@ export async function checkForUpdate(): Promise<UpdateInfo | null> {
   if (channel === 'android') {
     const release = await latestRelease();
     if (!release?.tag_name) return null;
-    const version = release.tag_name.replace(/^v/i, '');
+    if (!/^v\d+\.\d+\.\d+$/i.test(release.tag_name)) return null;
+    const version = release.tag_name.slice(1);
     const asset = pickApk(release.assets ?? []);
-    if (!asset) return null;
+    if (!asset || !isOfficialReleaseApk(asset, release.tag_name)) return null;
     return {
       channel,
       version,

@@ -11,10 +11,6 @@
   ],
   "permissions": [
     "core:default",
-    "dialog:default",
-    "fs:default",
-    "opener:default",
-    "os:default",
     {
       "identifier": "http:default",
       "allow": [
@@ -25,7 +21,6 @@
           "url": "https://**"
         }
       ]
-    },
-    "process:default"
+    }
   ]
 }

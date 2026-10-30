@@ -60,6 +60,9 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.util.concurrent.Semaphore;
 
 public final class MediaBridge {
 
@@ -79,6 +82,9 @@ public final class MediaBridge {
     private static volatile boolean askingPermissions;
     /** Port of the loopback media server (0 = not running). */
     private static volatile int serverPort;
+    /** Per-process bearer secret; the route token is not a base64-encoded URI. */
+    private static volatile String serverToken = "";
+    private static final Semaphore SERVER_CONNECTIONS = new Semaphore(8);
     private static volatile long downloadId = -1L;
     private static final Object LOCK = new Object();
 
@@ -617,7 +623,10 @@ public final class MediaBridge {
 
     private static void startMediaServer() {
         try {
-            ServerSocket socket = new ServerSocket(0, 50, InetAddress.getByName("127.0.0.1"));
+            byte[] secret = new byte[32];
+            new SecureRandom().nextBytes(secret);
+            serverToken = Base64.encodeToString(secret, Base64.URL_SAFE | Base64.NO_PADDING | Base64.NO_WRAP);
+            ServerSocket socket = new ServerSocket(0, 16, InetAddress.getByName("127.0.0.1"));
             serverPort = socket.getLocalPort();
             Thread t = new Thread(new Runnable() {
                 @Override
@@ -629,6 +638,7 @@ public final class MediaBridge {
             t.start();
             JSONObject o = new JSONObject();
             o.put("port", serverPort);
+            o.put("token", serverToken);
             writeFile(new File(workDir, "server.json"), o.toString());
         } catch (Throwable ignored) {
             /* no server: the UI falls back to content:// URIs */
@@ -639,10 +649,18 @@ public final class MediaBridge {
         while (!server.isClosed()) {
             try {
                 final Socket client = server.accept();
+                if (!SERVER_CONNECTIONS.tryAcquire()) {
+                    try { client.close(); } catch (Throwable ignored) { /* ignore */ }
+                    continue;
+                }
                 Thread t = new Thread(new Runnable() {
                     @Override
                     public void run() {
-                        serve(client);
+                        try {
+                            serve(client);
+                        } finally {
+                            SERVER_CONNECTIONS.release();
+                        }
                     }
                 }, "rozh-media-conn");
                 t.setDaemon(true);
@@ -660,23 +678,30 @@ public final class MediaBridge {
             client.setSoTimeout(20000);
             raw = client.getInputStream();
             BufferedReader reader = new BufferedReader(new InputStreamReader(raw, "ISO-8859-1"));
-            String requestLine = reader.readLine();
+            String requestLine = readBoundedLine(reader, 4096);
             if (requestLine == null) return;
             String rangeHeader = null;
             String line;
             int guard = 0;
-            while ((line = reader.readLine()) != null && line.length() > 0 && guard++ < 64) {
+            while ((line = readBoundedLine(reader, 2048)) != null && line.length() > 0 && guard++ < 32) {
                 int colon = line.indexOf(':');
                 if (colon > 0) {
                     String key = line.substring(0, colon).trim().toLowerCase();
                     if (key.equals("range")) rangeHeader = line.substring(colon + 1).trim();
                 }
             }
-            String[] parts = requestLine.split(" ");
-            if (parts.length < 2) return;
+            String[] parts = requestLine.split(" ", 3);
+            if (parts.length != 3 || !parts[2].startsWith("HTTP/1.")) {
+                writeSimple(out, 400, "bad request");
+                return;
+            }
             String method = parts[0];
             String path = parts[1];
             out = new BufferedOutputStream(client.getOutputStream(), 64 * 1024);
+            if (!("GET".equals(method) || "HEAD".equals(method) || "OPTIONS".equals(method))) {
+                writeSimple(out, 405, "method not allowed");
+                return;
+            }
 
             int q = path.indexOf('?');
             if (q >= 0) path = path.substring(0, q);
@@ -684,21 +709,53 @@ public final class MediaBridge {
                 writeSimple(out, 404, "not found");
                 return;
             }
-            // /s/<base64url(uri)>/<file name> — the name keeps the extension in
-            // the URL so the player still recognises the container.
+            // /s/<random bearer token>/<base64url URI>/<display name>.
+            // Base64 is only encoding; authorization is the independent 256-bit token.
             String rest = path.substring(3);
-            int slash = rest.indexOf('/');
-            String token = slash >= 0 ? rest.substring(0, slash) : rest;
+            int tokenSlash = rest.indexOf('/');
+            if (tokenSlash <= 0) {
+                writeSimple(out, 404, "not found");
+                return;
+            }
+            String presented = rest.substring(0, tokenSlash);
+            boolean authorized;
+            try {
+                authorized = MessageDigest.isEqual(
+                    serverToken.getBytes("UTF-8"), presented.getBytes("UTF-8")
+                );
+            } catch (Throwable ignored) {
+                authorized = false;
+            }
+            if (!authorized || serverToken.length() != 43) {
+                writeSimple(out, 401, "unauthorized");
+                return;
+            }
+            String encodedUri = rest.substring(tokenSlash + 1);
+            int nameSlash = encodedUri.indexOf('/');
+            if (nameSlash >= 0) encodedUri = encodedUri.substring(0, nameSlash);
+            if (encodedUri.length() > 8192) {
+                writeSimple(out, 414, "URI too long");
+                return;
+            }
             String uriText;
             try {
-                byte[] decoded = Base64.decode(token, Base64.URL_SAFE | Base64.NO_PADDING | Base64.NO_WRAP);
+                byte[] decoded = Base64.decode(encodedUri, Base64.URL_SAFE | Base64.NO_PADDING | Base64.NO_WRAP);
                 uriText = new String(decoded, "UTF-8");
             } catch (Throwable bad) {
-                writeSimple(out, 400, "bad token");
+                writeSimple(out, 400, "bad media URI");
                 return;
             }
 
             Uri uri = Uri.parse(uriText);
+            String scheme = uri.getScheme();
+            if (!("content".equalsIgnoreCase(scheme) || "file".equalsIgnoreCase(scheme))) {
+                writeSimple(out, 400, "unsupported media URI");
+                return;
+            }
+            if ("OPTIONS".equals(method)) {
+                writeOptions(out);
+                return;
+            }
             String mime = null;
             long total = -1;
             try {
@@ -715,34 +772,33 @@ public final class MediaBridge {
             } catch (Throwable ignored) {
                 /* unknown length */
             }
-            if (mime == null || mime.length() == 0) mime = guessMime(uriText);
+            if (mime == null || !mime.matches("[A-Za-z0-9!#$&^_.+-]+/[A-Za-z0-9!#$&^_.+-]+")) mime = guessMime(uriText);
 
             long start = 0;
             long end = -1;
             boolean ranged = false;
-            if (rangeHeader != null && rangeHeader.startsWith("bytes=")) {
+            if (rangeHeader != null && rangeHeader.startsWith("bytes=") && total > 0) {
                 String spec = rangeHeader.substring(6).split(",")[0].trim();
                 int dash = spec.indexOf('-');
-                if (dash >= 0) {
-                    String from = spec.substring(0, dash).trim();
-                    String to = spec.substring(dash + 1).trim();
-                    try {
+                try {
+                    if (dash >= 0) {
+                        String from = spec.substring(0, dash).trim();
+                        String to = spec.substring(dash + 1).trim();
                         if (from.length() == 0) {
-                            // suffix range: last N bytes
-                            long n = Long.parseLong(to);
-                            if (total > 0 && n > 0) {
-                                start = Math.max(0, total - n);
+                            long suffix = Long.parseLong(to);
+                            if (suffix > 0) {
+                                start = Math.max(0, total - suffix);
+                                end = total - 1;
                                 ranged = true;
                             }
                         } else {
                             start = Long.parseLong(from);
-                            ranged = true;
+                            end = to.length() == 0 ? total - 1 : Long.parseLong(to);
+                            ranged = start >= 0 && end >= start;
                         }
-                        if (to.length() > 0 && start > 0) end = Long.parseLong(to);
-                        else if (to.length() > 0) end = Long.parseLong(to);
-                    } catch (Throwable ignored) {
-                        ranged = false;
                     }
+                } catch (Throwable ignored) {
+                    ranged = false;
                 }
             }
             if (ranged && total > 0) {
@@ -757,6 +813,7 @@ public final class MediaBridge {
                 head.append("HTTP/1.1 206 Partial Content\r\n");
                 head.append("Content-Type: ").append(mime).append("\r\n");
                 head.append("Accept-Ranges: bytes\r\n");
+                appendCorsHeaders(head);
                 head.append("Content-Range: bytes ").append(start).append('-').append(end).append('/').append(total).append("\r\n");
                 head.append("Content-Length: ").append(length).append("\r\n");
                 head.append("Connection: close\r\n\r\n");
@@ -770,6 +827,7 @@ public final class MediaBridge {
             head.append("HTTP/1.1 200 OK\r\n");
             head.append("Content-Type: ").append(mime).append("\r\n");
             head.append("Accept-Ranges: bytes\r\n");
+            appendCorsHeaders(head);
             if (total > 0) head.append("Content-Length: ").append(total).append("\r\n");
             head.append("Connection: close\r\n\r\n");
             out.write(head.toString().getBytes("ISO-8859-1"));
@@ -831,11 +889,43 @@ public final class MediaBridge {
         }
     }
 
+    private static String readBoundedLine(BufferedReader reader, int maxChars) throws Exception {
+        StringBuilder line = new StringBuilder();
+        int value;
+        while ((value = reader.read()) != -1) {
+            if (value == '\n') {
+                int n = line.length();
+                if (n > 0 && line.charAt(n - 1) == '\r') line.setLength(n - 1);
+                return line.toString();
+            }
+            if (line.length() >= maxChars) throw new java.io.IOException("HTTP line too long");
+            line.append((char) value);
+        }
+        return line.length() == 0 ? null : line.toString();
+    }
+
+    private static void appendCorsHeaders(StringBuilder headers) {
+        headers.append("Access-Control-Allow-Origin: *\r\n");
+        headers.append("Access-Control-Allow-Methods: GET, HEAD, OPTIONS\r\n");
+        headers.append("Access-Control-Allow-Headers: Range\r\n");
+        headers.append("Access-Control-Expose-Headers: Accept-Ranges, Content-Length, Content-Range\r\n");
+        headers.append("Vary: Origin\r\n");
+    }
+
+    private static void writeOptions(OutputStream out) throws Exception {
+        StringBuilder head = new StringBuilder("HTTP/1.1 204 No Content\r\n");
+        appendCorsHeaders(head);
+        head.append("Content-Length: 0\r\nConnection: close\r\n\r\n");
+        out.write(head.toString().getBytes("ISO-8859-1"));
+        out.flush();
+    }
+
     private static void writeSimple(OutputStream out, int code, String body) throws Exception {
         byte[] bytes = body.getBytes("UTF-8");
-        String head = "HTTP/1.1 " + code + " Error\r\nContent-Type: text/plain\r\nContent-Length: "
-            + bytes.length + "\r\nConnection: close\r\n\r\n";
-        out.write(head.getBytes("ISO-8859-1"));
+        StringBuilder head = new StringBuilder("HTTP/1.1 ").append(code).append(" Error\r\nContent-Type: text/plain\r\n");
+        appendCorsHeaders(head);
+        head.append("Content-Length: ").append(bytes.length).append("\r\nConnection: close\r\n\r\n");
+        out.write(head.toString().getBytes("ISO-8859-1"));
         out.write(bytes);
         out.flush();
     }
@@ -858,7 +948,11 @@ public final class MediaBridge {
     /** Hand a media URI to the device's own player or to VLC if it is installed. */
     private static void play(final String uri, final String mime) {
         final Activity a = activity;
-        if (a == null || uri == null || uri.length() == 0) return;
+        if (a == null || uri == null || uri.length() == 0 || uri.length() > 8192
+            || !(uri.startsWith("content://") || uri.startsWith("file://"))
+            || mime == null || mime.length() > 128
+            || !(mime.matches("(?:video|audio)/[A-Za-z0-9!#$&^_.+-]+")
+                || "video/*".equals(mime) || "audio/*".equals(mime))) return;
         a.runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -902,6 +996,34 @@ public final class MediaBridge {
         }
     }
 
+
+    private static boolean isOfficialUpdateUrl(String raw, String packageName) {
+        if (raw == null || raw.length() > 512) return false;
+        try {
+            Uri uri = Uri.parse(raw);
+            if (!"https".equalsIgnoreCase(uri.getScheme())
+                || !"github.com".equalsIgnoreCase(uri.getHost())
+                || uri.getPort() != -1
+                || uri.getUserInfo() != null
+                || uri.getQuery() != null
+                || uri.getFragment() != null) return false;
+            String path = uri.getPath();
+            if (path == null || !path.equals(uri.getEncodedPath())) return false;
+            String prefix = "/Dark-Sky07/Rozh-Player/releases/download/v";
+            if (!path.startsWith(prefix)) return false;
+            String[] parts = path.substring(prefix.length()).split("/", -1);
+            if (parts.length != 2 || !parts[0].matches("[0-9]+\\.[0-9]+\\.[0-9]+")) return false;
+            String tag = parts[0];
+            String file = parts[1];
+            if (!file.equals("ROZH-Player-" + tag + ".apk")
+                && !file.equals("ROZH-Player-TV-" + tag + ".apk")) return false;
+            boolean tv = "app.rozh.player.tv".equals(packageName) || packageName.endsWith(".tv");
+            return tv ? file.startsWith("ROZH-Player-TV-") : file.startsWith("ROZH-Player-") && !file.startsWith("ROZH-Player-TV-");
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
     /** Download an APK with the system download manager, then open the installer. */
     private static void install(String url) {
         final Activity a = activity;
@@ -909,8 +1031,8 @@ public final class MediaBridge {
             writeUpdate("error", 0, "no-activity");
             return;
         }
-        if (url == null || url.length() == 0) {
-            writeUpdate("error", 0, "no-url");
+        if (!isOfficialUpdateUrl(url, a.getPackageName())) {
+            writeUpdate("error", 0, "invalid-update-url");
             return;
         }
         try {
