@@ -1,3 +1,13 @@
+# ROZH Player 1.1.4
+
+**Corrected Android fullscreen sizing and controls**
+
+- Reworked Android fullscreen to size the player from the complete app viewport rather than a fixed child inside the animated player view. This prevents cropped/half-height video after rotating the device.
+- Kept the player, stage, and video dimensions bounded by the landscape viewport; playback overlays remain interactive above the fullscreen surface.
+- See [full release notes](releases/v1.1.4.md).
+
+---
+
 # ROZH Player 1.1.3
 
 **Reliable immersive fullscreen playback on Android**
