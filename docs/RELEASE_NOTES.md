@@ -6,15 +6,17 @@
 
 | Platform | Release asset |
 | --- | --- |
-| Windows 10/11 (x64) | `ROZH-Player_1.0.8_x64-setup.exe` |
-| macOS — Apple Silicon | `ROZH-Player_1.0.8_aarch64.dmg` |
-| macOS — Intel | `ROZH-Player_1.0.8_x64.dmg` |
-| Linux — Debian/Ubuntu | `ROZH-Player_1.0.8_amd64.deb` |
-| Linux — Fedora/RHEL/openSUSE | `ROZH-Player-1.0.8-1.x86_64.rpm` |
-| Linux — AppImage | `ROZH-Player_1.0.8_amd64.AppImage` |
-| Android phones and tablets | `ROZH-Player-1.0.8.apk` |
-| Android TV (dedicated build) | `ROZH-Player-TV-1.0.8.apk` |
-| Web / PWA | `rozh-player-web.zip` |
+| Windows 10/11 (x64) | [ROZH-Player_1.0.8_x64-setup.exe](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player_1.0.8_x64-setup.exe) |
+| macOS — Apple Silicon | [ROZH-Player_1.0.8_aarch64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player_1.0.8_aarch64.dmg) |
+| macOS — Intel | [ROZH-Player_1.0.8_x64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player_1.0.8_x64.dmg) |
+| Linux — Debian/Ubuntu | [ROZH-Player_1.0.8_amd64.deb](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player_1.0.8_amd64.deb) |
+| Linux — Fedora/RHEL/openSUSE | [ROZH-Player-1.0.8-1.x86_64.rpm](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player-1.0.8-1.x86_64.rpm) |
+| Linux — AppImage | [ROZH-Player_1.0.8_amd64.AppImage](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player_1.0.8_amd64.AppImage) |
+| Android phones and tablets (APK) | [ROZH-Player-1.0.8.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player-1.0.8.apk) |
+| Android phones and tablets (Google Play bundle) | [ROZH-Player-1.0.8.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player-1.0.8.aab) |
+| Android TV (dedicated APK) | [ROZH-Player-TV-1.0.8.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player-TV-1.0.8.apk) |
+| Android TV (Google Play bundle) | [ROZH-Player-TV-1.0.8.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/ROZH-Player-TV-1.0.8.aab) |
+| Web / PWA | [rozh-player-web.zip](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.8/rozh-player-web.zip) |
 
 ## What changed
 
@@ -48,15 +50,17 @@
 
 | Platform | Release asset |
 | --- | --- |
-| Windows 10/11 (x64) | `ROZH-Player_1.0.7_x64-setup.exe` |
-| macOS — Apple Silicon | `ROZH-Player_1.0.7_aarch64.dmg` |
-| macOS — Intel | `ROZH-Player_1.0.7_x64.dmg` |
-| Linux — Debian/Ubuntu | `ROZH-Player_1.0.7_amd64.deb` |
-| Linux — Fedora/RHEL/openSUSE | `ROZH-Player-1.0.7-1.x86_64.rpm` |
-| Linux — AppImage | `ROZH-Player_1.0.7_amd64.AppImage` |
-| Android phones and tablets | `ROZH-Player-1.0.7.apk` |
-| Android TV (dedicated build) | `ROZH-Player-TV-1.0.7.apk` |
-| Web / PWA | `rozh-player-web.zip` |
+| Windows 10/11 (x64) | [ROZH-Player_1.0.7_x64-setup.exe](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/ROZH-Player_1.0.7_x64-setup.exe) |
+| macOS — Apple Silicon | [ROZH-Player_1.0.7_aarch64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/ROZH-Player_1.0.7_aarch64.dmg) |
+| macOS — Intel | [ROZH-Player_1.0.7_x64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/ROZH-Player_1.0.7_x64.dmg) |
+| Linux — Debian/Ubuntu | [ROZH-Player_1.0.7_amd64.deb](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/ROZH-Player_1.0.7_amd64.deb) |
+| Linux — Fedora/RHEL/openSUSE | [ROZH-Player-1.0.7-1.x86_64.rpm](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/ROZH-Player-1.0.7-1.x86_64.rpm) |
+| Linux — AppImage | [ROZH-Player_1.0.7_amd64.AppImage](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/ROZH-Player_1.0.7_amd64.AppImage) |
+| Android phones and tablets (APK) | [ROZH-Player-1.0.7.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/ROZH-Player-1.0.7.apk) |
+| Android phones and tablets (Google Play bundle) | [ROZH-Player-1.0.7.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/ROZH-Player-1.0.7.aab) |
+| Android TV (dedicated APK) | [ROZH-Player-TV-1.0.7.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/ROZH-Player-TV-1.0.7.apk) |
+| Android TV (Google Play bundle) | [ROZH-Player-TV-1.0.7.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/ROZH-Player-TV-1.0.7.aab) |
+| Web / PWA | [rozh-player-web.zip](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/rozh-player-web.zip) |
 
 ## What changed
 
@@ -77,7 +81,7 @@
 
 ### Validation
 
-- `npm run build` (TypeScript check and Vite production build).
+- [npm run build](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.0.7/npm run build) (TypeScript check and Vite production build).
 - Android phone/TV native project generation and packaging remain covered by the release workflow. This sandbox has no Android SDK or physical Android devices; real-device verification is still recommended for OEM-specific touch, permission, and media-decoder behaviour.
 
 ---
