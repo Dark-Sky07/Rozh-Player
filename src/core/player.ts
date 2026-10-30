@@ -442,7 +442,9 @@ export class Player {
       lowLatencyMode: true,
       backBufferLength: 90,
       maxBufferLength: 42,
-      capLevelToPlayerSize: true,
+      // Never cap a stream's rendition to the CSS/player dimensions: let ABR use
+      // the best source resolution allowed by bandwidth and device decoding.
+      capLevelToPlayerSize: false,
       startLevel: store.settings.hlsQuality >= 0 ? store.settings.hlsQuality : -1,
       ...extra,
     });
@@ -1649,21 +1651,33 @@ export class Player {
       webkitExitFullscreen?: () => Promise<void>;
       webkitFullscreenElement?: Element;
     };
-    const isFs = !!document.fullscreenElement || !!d.webkitFullscreenElement;
+    const isFs = !!document.fullscreenElement || !!d.webkitFullscreenElement || this.wrap.classList.contains('fs-fallback');
     try {
       if (isFs) {
-        await (document.exitFullscreen?.() ?? d.webkitExitFullscreen?.());
+        if (document.fullscreenElement) await document.exitFullscreen?.();
+        else if (d.webkitFullscreenElement) await d.webkitExitFullscreen?.();
+        this.wrap.classList.remove('fs-fallback');
+        this.wrap.dataset.fs = 'false';
       } else if (this.wrap.requestFullscreen) {
         await this.wrap.requestFullscreen({ navigationUI: 'hide' });
-      } else if ((this.video as HTMLVideoElement & { webkitEnterFullscreen?: () => void }).webkitEnterFullscreen) {
-        (this.video as HTMLVideoElement & { webkitEnterFullscreen: () => void }).webkitEnterFullscreen();
       } else {
-        this.wrap.classList.toggle('fs-fallback');
+        // Keep our own controls on platforms whose native video fullscreen
+        // cannot be styled or auto-hidden (notably mobile WebKit).
+        this.wrap.classList.add('fs-fallback');
+        this.wrap.dataset.fs = 'true';
       }
     } catch {
-      this.wrap.classList.toggle('fs-fallback');
-      this.wrap.dataset.fs = this.wrap.classList.contains('fs-fallback') ? 'true' : 'false';
+      // If a platform rejects the Fullscreen API, use the in-app full-window
+      // presentation rather than handing control visibility to native chrome.
+      if (isFs) {
+        this.wrap.classList.remove('fs-fallback');
+        this.wrap.dataset.fs = 'false';
+      } else {
+        this.wrap.classList.add('fs-fallback');
+        this.wrap.dataset.fs = 'true';
+      }
     }
+    this.showUi();
   }
 
   async togglePip(): Promise<void> {
@@ -1880,11 +1894,12 @@ export class Player {
     });
 
     const onFs = (): void => {
-      const fs = !!document.fullscreenElement;
+      const fs = !!document.fullscreenElement || this.wrap.classList.contains('fs-fallback');
       this.wrap.dataset.fs = String(fs);
       $$('[data-act="fullscreen"]', this.root).forEach((b) => {
         b.innerHTML = icon(fs ? 'fullscreen-exit' : 'maximize');
       });
+      this.showUi();
       window.setTimeout(() => this.renderProgress(), 120);
     };
     document.addEventListener('fullscreenchange', onFs);
@@ -2255,6 +2270,8 @@ export class Player {
       }
     });
     this.disposers = [];
+    clearTimeout(this.hideTimer);
+    clearTimeout(this.hudTimer);
     this.teardownEngine();
     this.stopProgressTicker();
     this.queue.forEach((q) => this.revokeIfOwned(q));
@@ -2282,6 +2299,7 @@ export class Player {
   showUi(): void {
     this.wrap.dataset.idle = 'false';
     this.wrap.classList.add('ui-visible');
+    window.dispatchEvent(new Event('rozh:controls-shown'));
     this.scheduleHide();
   }
 
@@ -2290,6 +2308,7 @@ export class Player {
     if (visible) {
       this.wrap.classList.remove('ui-visible');
       this.wrap.dataset.idle = 'true';
+      window.dispatchEvent(new Event('rozh:controls-hidden'));
       $('.big-play', this.root)?.classList.remove('show');
     } else {
       this.showUi();
@@ -2297,13 +2316,21 @@ export class Player {
     }
   }
 
+  private isFullscreen(): boolean {
+    const d = document as Document & { webkitFullscreenElement?: Element };
+    return !!document.fullscreenElement || !!d.webkitFullscreenElement || this.wrap.dataset.fs === 'true' || this.wrap.classList.contains('fs-fallback');
+  }
+
   private scheduleHide(): void {
     clearTimeout(this.hideTimer);
-    if (!this.playing) return;
+    // In fullscreen, controls must clear away even when paused; outside
+    // fullscreen keep the familiar paused-player controls on screen.
+    if (!this.playing && !this.isFullscreen()) return;
     this.hideTimer = window.setTimeout(() => {
-      if (this.playing) {
+      if (this.playing || this.isFullscreen()) {
         this.wrap.classList.remove('ui-visible');
         this.wrap.dataset.idle = 'true';
+        window.dispatchEvent(new Event('rozh:controls-hidden'));
       }
     }, 2800);
   }
@@ -2343,6 +2370,7 @@ export class Player {
     this.onWindow('keydown', (e) => {
       if (isTextEntry(e.target)) return;
       if (document.documentElement.dataset.kbdHelp === 'open') return;
+      if (this.isFullscreen() && !e.repeat) this.showUi();
       const tv = document.documentElement.dataset.tv === 'true';
       // On a TV the D-pad drives the media surface; only when a control or a
       // sheet has focus does it fall back to moving between elements.

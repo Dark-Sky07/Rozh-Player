@@ -1,22 +1,19 @@
 /* ======================================================================
    Android TV: dedicated 10-foot application shell
    ----------------------------------------------------------------------
-   Remote-first destination rail + media-led home shelves. This intentionally
-   does not reuse the desktop pill navigation or browser-like page header.
+   Remote-first horizontal destinations + media-led home shelves. This uses a
+   compact TV app header, oversized media targets, and clear focus transitions.
    ====================================================================== */
 :root[data-tv='true'] {
   font-size: clamp(15px, 0.92vw + 8px, 24px);
   --tv-safe: clamp(26px, 3.4vw, 84px);
   --gutter: clamp(18px, 2vw, 40px);
   --topbar-h: 0px;
-  --tv-ring:
-    0 0 0 4px var(--accent),
-    0 0 0 9px color-mix(in srgb, var(--accent) 30%, transparent),
-    0 26px 60px rgba(0, 0, 0, 0.6);
+  --tv-focus-shadow: 0 10px 28px rgba(0, 0, 0, 0.28), 0 8px 24px rgba(var(--accent-rgb), 0.16);
 }
 :root[data-tv='true'] .tv-shell {
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   width: 100%;
   height: 100dvh;
   padding: 0;
@@ -29,36 +26,38 @@
   z-index: 20;
   display: flex;
   flex: none;
-  flex-direction: column;
-  width: clamp(156px, 17.2vw, 240px);
-  min-width: 156px;
-  height: 100%;
-  padding: clamp(20px, 2.4vh, 34px) 14px clamp(18px, 2vh, 28px);
-  border-inline-end: 1px solid rgba(255, 255, 255, 0.075);
-  background: linear-gradient(180deg, rgba(15, 19, 28, 0.98), rgba(9, 12, 19, 0.99));
-  box-shadow: 18px 0 54px rgba(0, 0, 0, 0.18);
+  flex-direction: row;
+  align-items: center;
+  gap: clamp(18px, 2.1vw, 36px);
+  width: 100%;
+  min-width: 0;
+  height: clamp(76px, 9.5vh, 104px);
+  padding: 0 var(--tv-safe);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.075);
+  background: linear-gradient(180deg, rgba(15, 19, 28, 0.98), rgba(9, 12, 19, 0.98));
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.2);
 }
 :root[data-tv='true'] .tv-brand {
   flex: none;
-  margin: 0 0 clamp(28px, 4vh, 48px);
-  padding: 0 8px;
+  margin: 0;
+  padding: 0;
 }
 :root[data-tv='true'] .tv-brand .brand {
-  gap: 12px;
+  gap: 10px;
   min-height: 0;
   padding: 0;
 }
 :root[data-tv='true'] .tv-brand .brand-mark {
-  width: 48px;
-  height: 48px;
-  flex-basis: 48px;
+  width: 44px;
+  height: 44px;
+  flex-basis: 44px;
   border-radius: 15px;
   background: linear-gradient(145deg, rgba(255, 211, 142, 0.18), rgba(189, 102, 37, 0.14));
   border-color: rgba(255, 218, 158, 0.2);
 }
 :root[data-tv='true'] .tv-brand .brand-logo {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   border-radius: 11px;
 }
 :root[data-tv='true'] .tv-brand .brand-name {
@@ -72,32 +71,39 @@
 :root[data-tv='true'] .tv-nav {
   display: flex;
   flex: 1;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
+  flex-direction: row;
+  align-items: center;
+  gap: clamp(4px, 0.65vw, 12px);
+  min-width: 0;
   margin: 0;
-  padding: 0 4px;
-  overflow: visible;
+  padding: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: none;
+}
+:root[data-tv='true'] .tv-nav::-webkit-scrollbar {
+  display: none;
 }
 :root[data-tv='true'] .tv-nav .tv-nav-item {
   position: relative;
-  display: flex;
+  display: inline-flex;
   flex: none;
   align-items: center;
-  justify-content: flex-start;
-  gap: 15px;
-  width: 100%;
-  height: clamp(54px, 6.1vh, 70px);
-  padding: 0 16px;
+  justify-content: center;
+  gap: 9px;
+  width: auto;
+  min-width: 52px;
+  height: clamp(48px, 5.8vh, 60px);
+  padding: 0 clamp(13px, 1.35vw, 22px);
   border: 1px solid transparent;
-  border-radius: 16px;
+  border-radius: 999px;
   color: rgba(226, 231, 239, 0.68);
   background: transparent;
-  font-size: 0.83rem;
-  font-weight: 650;
-  text-align: start;
+  font-size: 0.76rem;
+  font-weight: 680;
+  text-align: center;
   white-space: nowrap;
-  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease, border-color 160ms ease;
 }
 :root[data-tv='true'] .tv-nav .tv-nav-item .nav-ico {
   display: grid;
@@ -135,30 +141,22 @@
 :root[data-tv='true'] .tv-nav .tv-nav-item.is-active {
   color: #fff;
   border-color: rgba(var(--accent-rgb), 0.25);
-  background: linear-gradient(90deg, rgba(var(--accent-rgb), 0.22), rgba(var(--accent-rgb), 0.09));
-  box-shadow: inset 3px 0 0 var(--accent-2), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  background: rgba(var(--accent-rgb), 0.16);
+  box-shadow: inset 0 -2px 0 var(--accent-2);
 }
 :root[dir='rtl'][data-tv='true'] .tv-nav .tv-nav-item.is-active {
-  background: linear-gradient(270deg, rgba(var(--accent-rgb), 0.22), rgba(var(--accent-rgb), 0.09));
-  box-shadow: inset -3px 0 0 var(--accent-2), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  background: rgba(var(--accent-rgb), 0.16);
+  box-shadow: inset 0 -2px 0 var(--accent-2);
 }
 :root[data-tv='true'] .tv-nav .tv-nav-item.tv-focus {
-  transform: scale(1.035);
+  transform: translateY(-2px) scale(1.035);
   color: #fff;
-  border-color: rgba(255, 255, 255, 0.32);
-  background-color: rgba(255, 255, 255, 0.1);
-  box-shadow: var(--tv-ring);
+  border-color: rgba(var(--accent-rgb), 0.56);
+  background: rgba(var(--accent-rgb), 0.18);
+  box-shadow: var(--tv-focus-shadow);
 }
 :root[data-tv='true'] .tv-rail-foot {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 16px 12px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.35);
-  font-size: 0.57rem;
-  font-weight: 800;
-  letter-spacing: 0.16em;
+  display: none;
 }
 :root[data-tv='true'] .tv-rail-dot {
   width: 7px;
@@ -171,23 +169,18 @@
   display: flex;
   flex: 1;
   flex-direction: column;
+  width: 100%;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
   background: radial-gradient(70% 48% at 88% 0%, rgba(70, 89, 124, 0.12), transparent 72%), #090c12;
 }
-:root[data-tv='true'] .tv-toolbar {
-  position: relative;
-  z-index: 10;
+:root[data-tv='true'] .tv-header-actions {
   display: flex;
   flex: none;
   align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  height: clamp(82px, 10vh, 112px);
-  padding: 0 clamp(28px, 3.2vw, 62px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
-  background: rgba(9, 12, 18, 0.72);
+  justify-content: flex-end;
+  gap: 8px;
 }
 :root[data-tv='true'] .tv-toolbar-title {
   display: flex;
@@ -243,8 +236,15 @@
   background: linear-gradient(135deg, #ffd28a, #ef9d46 65%, #d9792c);
 }
 :root[data-tv='true'] .tv-toolbar-btn.tv-focus {
-  transform: scale(1.04);
-  box-shadow: var(--tv-ring);
+  transform: translateY(-2px) scale(1.04);
+  color: #fff;
+  border-color: rgba(var(--accent-rgb), 0.65);
+  background: rgba(var(--accent-rgb), 0.2);
+  box-shadow: var(--tv-focus-shadow);
+}
+:root[data-tv='true'] .tv-toolbar-btn.tv-toolbar-primary.tv-focus {
+  color: #241808;
+  background: linear-gradient(135deg, #ffe0a9, #f3ad5b 65%, #df8537);
 }
 :root[data-tv='true'] .tv-main > .views {
   flex: 1;
@@ -437,8 +437,9 @@
   padding: 0;
 }
 :root[data-tv='true'] .tv-action.tv-focus {
-  transform: scale(1.055);
-  box-shadow: var(--tv-ring);
+  transform: translateY(-2px) scale(1.055);
+  border-color: rgba(255, 235, 204, 0.72);
+  box-shadow: var(--tv-focus-shadow);
 }
 :root[data-tv='true'] .tv-hero-empty .tv-hero-mark {
   position: absolute;
@@ -531,7 +532,8 @@
 }
 :root[data-tv='true'] .tv-view-all.tv-focus {
   color: #fff;
-  box-shadow: var(--tv-ring);
+  background: rgba(var(--accent-rgb), 0.15);
+  box-shadow: var(--tv-focus-shadow);
 }
 :root[data-tv='true'] .tv-rail-scroll {
   overflow-x: auto;
@@ -654,12 +656,12 @@
 :root[data-tv='true'] .tv-card:focus-visible {
   z-index: 5;
   color: #fff;
-  transform: scale(1.065) translateY(-4px);
+  transform: scale(1.055) translateY(-7px);
 }
 :root[data-tv='true'] .tv-card.tv-focus .tv-card-art,
 :root[data-tv='true'] .tv-card:focus-visible .tv-card-art {
-  border-color: rgba(255, 226, 177, 0.8);
-  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.95), 0 20px 42px rgba(0, 0, 0, 0.55);
+  border-color: rgba(255, 226, 177, 0.84);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.42), 0 0 22px rgba(var(--accent-rgb), 0.22);
 }
 :root[data-tv='true'] .tv-card.tv-focus .tv-card-art > img,
 :root[data-tv='true'] .tv-card:focus-visible .tv-card-art > img {
@@ -697,7 +699,8 @@
 }
 :root[data-tv='true'] .tv-home-footer > button.tv-focus {
   color: #fff;
-  box-shadow: var(--tv-ring);
+  background: rgba(var(--accent-rgb), 0.16);
+  box-shadow: var(--tv-focus-shadow);
 }
 
 /* Keep the player and library fully legible and usable with a TV remote. */
@@ -731,8 +734,9 @@
 :root[data-tv='true'] .media-card.tv-focus,
 :root[data-tv='true'] .media-card:focus-visible {
   transform: scale(1.035);
-  border-color: transparent;
-  box-shadow: var(--tv-ring);
+  border-color: rgba(var(--accent-rgb), 0.6);
+  background: rgba(20, 24, 31, 0.98);
+  box-shadow: var(--tv-focus-shadow);
   z-index: 4;
 }
 :root[data-tv='true'] .media-card .media-play,
@@ -750,8 +754,8 @@
 :root[data-tv='true'] .tv-shell .tv-focus,
 :root[data-tv='true'] .tv-shell .tv-focus:focus-visible {
   outline: none !important;
-  box-shadow: var(--tv-ring);
-  z-index: 3;
+  box-shadow: none;
+  z-index: 5;
 }
 :root[data-tv='true'] .tv-shell .stage.tv-focus,
 :root[data-tv='true'] .tv-shell .stage:focus-visible {
@@ -879,11 +883,33 @@
   width: 100%;
 }
 
-/* The TV surface uses the same spatial focus manager as every other view,
-   but a warmer, larger ring and no mouse-hover lift. */
+/* Focus is expressed by the actual control (lift, underline, or image emphasis),
+   not by a screen-sized rectangular ring around every item. */
 :root[data-tv='true'] .tv-shell .tv-focus,
 :root[data-tv='true'] .tv-shell :focus-visible {
   outline: none !important;
+  box-shadow: none;
+  z-index: 5;
+}
+:root[data-tv='true'] .tv-shell button.tv-focus:not(.tv-nav-item):not(.tv-card):not(.tv-action):not(.tv-toolbar-btn):not(.tv-view-all) {
+  color: #fff;
+  border-color: rgba(var(--accent-rgb), 0.52);
+  background-color: rgba(var(--accent-rgb), 0.15);
+  transform: translateY(-1px);
+}
+:root[data-tv='true'] .tv-shell .setting-row.tv-focus,
+:root[data-tv='true'] .tv-shell .opt-row.tv-focus,
+:root[data-tv='true'] .tv-shell .chip.tv-focus,
+:root[data-tv='true'] .tv-shell .lang-cell.tv-focus {
+  color: #fff;
+  border-color: rgba(var(--accent-rgb), 0.42);
+  background-color: rgba(var(--accent-rgb), 0.13);
+}
+:root[data-tv='true'] .tv-shell input.tv-focus,
+:root[data-tv='true'] .tv-shell select.tv-focus {
+  border-color: rgba(var(--accent-rgb), 0.75);
+  background-color: rgba(255, 255, 255, 0.09);
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.2);
 }
 @media (max-height: 760px) {
   :root[data-tv='true'] .tv-home {
@@ -897,19 +923,34 @@
 }
 @media (max-width: 900px) {
   :root[data-tv='true'] .tv-shell .tv-rail {
-    width: 146px;
-    min-width: 146px;
-    padding-inline: 9px;
+    gap: 10px;
+    height: 72px;
+    padding-inline: 16px;
+  }
+  :root[data-tv='true'] .tv-brand .brand-text {
+    display: none;
   }
   :root[data-tv='true'] .tv-nav .tv-nav-item {
-    gap: 9px;
-    padding-inline: 9px;
-    font-size: 0.7rem;
+    gap: 6px;
+    min-width: 46px;
+    padding-inline: 10px;
+    font-size: 0.66rem;
+  }
+  :root[data-tv='true'] .tv-nav .tv-nav-item .nav-label {
+    display: none;
+  }
+  :root[data-tv='true'] .tv-header-actions {
+    gap: 4px;
+  }
+  :root[data-tv='true'] .tv-toolbar-btn {
+    min-width: 44px;
+    height: 48px;
+    padding-inline: 11px;
+  }
+  :root[data-tv='true'] .tv-header-actions .tv-toolbar-btn b {
+    display: none;
   }
   :root[data-tv='true'] .tv-hero-copy {
     width: 90%;
-  }
-  :root[data-tv='true'] .tv-toolbar-btn b {
-    display: none;
   }
 }

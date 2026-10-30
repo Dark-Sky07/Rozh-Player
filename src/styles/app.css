@@ -539,8 +539,7 @@ html[dir='rtl'] .nav-item.is-active::before {
   pointer-events: auto;
 }
 .stage-wrap.ui-visible .stage-top,
-.stage-wrap[data-idle='false'] .stage-top,
-.stage-wrap[data-fs='true']:hover .stage-top {
+.stage-wrap[data-idle='false'] .stage-top {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
@@ -824,7 +823,6 @@ html[dir='rtl'] .gesture-hud.show {
   transform: translateY(10px);
 }
 .stage-wrap.ui-visible .stage-bottom,
-.stage-wrap[data-fs='true']:hover .stage-bottom,
 .stage-wrap[data-idle='false'] .stage-bottom {
   opacity: 1;
   visibility: visible;

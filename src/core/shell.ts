@@ -129,23 +129,17 @@ function tvTemplate(): string {
   return `
   <div class="shell shell-tv tv-shell" data-tv-shell="true">
     ${ambientMarkup()}
-    <aside class="tv-rail" aria-label="${escapeHtml(t('nav.home'))}">
+    <header class="tv-rail" aria-label="ROZH Player">
       <div class="tv-brand">${brandMarkup(false)}</div>
-      <nav class="tv-nav" aria-label="ROZH Player">${tvNavMarkup()}</nav>
-      <div class="tv-rail-foot"><span class="tv-rail-dot"></span><span>ROZH PLAYER</span></div>
-    </aside>
-    <div class="main tv-main">
-      <header class="tv-toolbar">
-        <div class="tv-toolbar-title"><span data-tv-eyebrow>ROZH PLAYER</span><h1 data-crumb>${t('view.home')}</h1></div>
-        <div class="tv-toolbar-actions">
-          ${isAndroidDevice() ? `<button class="tv-toolbar-btn" data-act="tv-scan">${icon('rotate')}<b data-tv-scan-label>${escapeHtml(t('tv.scan'))}</b></button>
-          <button class="tv-toolbar-btn" data-act="tv-folder">${icon('folder')}<b>${escapeHtml(t('tv.folder'))}</b></button>` : ''}
-          <button class="tv-toolbar-btn" data-act="url">${icon('link')}<b>${escapeHtml(t('player.openUrl'))}</b></button>
-          <button class="tv-toolbar-btn tv-toolbar-primary" data-act="open">${icon('folder-open')}<b>${escapeHtml(t('player.openFile'))}</b></button>
-        </div>
-      </header>
-      ${viewsMarkup()}
-    </div>
+      <nav class="tv-nav" aria-label="${escapeHtml(t('nav.home'))}">${tvNavMarkup()}</nav>
+      <div class="tv-header-actions">
+        ${isAndroidDevice() ? `<button class="tv-toolbar-btn" data-act="tv-scan" aria-label="${escapeHtml(t('tv.scan'))}">${icon('rotate')}<b data-tv-scan-label>${escapeHtml(t('tv.scan'))}</b></button>
+        <button class="tv-toolbar-btn" data-act="tv-folder" aria-label="${escapeHtml(t('tv.folder'))}">${icon('folder')}<b>${escapeHtml(t('tv.folder'))}</b></button>` : ''}
+        <button class="tv-toolbar-btn" data-act="url" aria-label="${escapeHtml(t('player.openUrl'))}">${icon('link')}<b>${escapeHtml(t('player.openUrl'))}</b></button>
+        <button class="tv-toolbar-btn tv-toolbar-primary" data-act="open" aria-label="${escapeHtml(t('player.openFile'))}">${icon('folder-open')}<b>${escapeHtml(t('player.openFile'))}</b></button>
+      </div>
+    </header>
+    <div class="main tv-main">${viewsMarkup()}</div>
   </div>
   <div class="toasts" role="status" aria-live="polite" hidden></div>`;
 }
@@ -506,10 +500,142 @@ async function openLocalFiles(): Promise<void> {
 /* chrome behaviour                                                    */
 /* ------------------------------------------------------------------ */
 
+function bindSmartTooltips(): void {
+  const tooltip = document.createElement('div');
+  tooltip.className = 'smart-tooltip';
+  tooltip.id = 'rozh-smart-tooltip';
+  tooltip.setAttribute('role', 'tooltip');
+  tooltip.hidden = true;
+  document.body.append(tooltip);
+
+  let hovered: HTMLElement | null = null;
+  let focused: HTMLElement | null = null;
+  let active: HTMLElement | null = null;
+  let timer = 0;
+  const resolve = (target: EventTarget | null): HTMLElement | null =>
+    target instanceof Element ? target.closest<HTMLElement>('[data-tip]') : null;
+
+  const position = (): void => {
+    if (!active || tooltip.hidden || !active.isConnected) return;
+    const fullscreenRoot = document.fullscreenElement;
+    if (fullscreenRoot && tooltip.parentElement !== fullscreenRoot) fullscreenRoot.append(tooltip);
+    else if (!fullscreenRoot && tooltip.parentElement !== document.body) document.body.append(tooltip);
+
+    const anchor = active.getBoundingClientRect();
+    const box = tooltip.getBoundingClientRect();
+    const gap = 10;
+    const edge = 12;
+    const spaces = {
+      top: anchor.top,
+      bottom: window.innerHeight - anchor.bottom,
+      right: window.innerWidth - anchor.right,
+      left: anchor.left,
+    };
+    const order: Array<keyof typeof spaces> = ['top', 'bottom', 'right', 'left'];
+    const side = order.find((candidate) => spaces[candidate] >= (candidate === 'top' || candidate === 'bottom' ? box.height : box.width) + gap)
+      ?? order.reduce((best, candidate) => spaces[candidate] > spaces[best] ? candidate : best, order[0]);
+
+    let left = anchor.left + (anchor.width - box.width) / 2;
+    let top = anchor.top - box.height - gap;
+    if (side === 'bottom') top = anchor.bottom + gap;
+    if (side === 'right') {
+      left = anchor.right + gap;
+      top = anchor.top + (anchor.height - box.height) / 2;
+    }
+    if (side === 'left') {
+      left = anchor.left - box.width - gap;
+      top = anchor.top + (anchor.height - box.height) / 2;
+    }
+    left = Math.max(edge, Math.min(left, window.innerWidth - box.width - edge));
+    top = Math.max(edge, Math.min(top, window.innerHeight - box.height - edge));
+    tooltip.style.left = `${left}px`;
+    tooltip.style.top = `${top}px`;
+  };
+
+  const hide = (): void => {
+    window.clearTimeout(timer);
+    active = null;
+    tooltip.classList.remove('is-visible');
+    tooltip.hidden = true;
+  };
+
+  const update = (): void => {
+    const next = focused ?? hovered;
+    if (!next || !next.dataset.tip?.trim()) {
+      hide();
+      return;
+    }
+    if (active === next && !tooltip.hidden) {
+      position();
+      return;
+    }
+    hide();
+    active = next;
+    timer = window.setTimeout(() => {
+      if (!active || !active.isConnected) {
+        hide();
+        return;
+      }
+      tooltip.textContent = active.dataset.tip ?? '';
+      tooltip.hidden = false;
+      tooltip.style.visibility = 'hidden';
+      position();
+      tooltip.style.visibility = '';
+      requestAnimationFrame(() => tooltip.classList.add('is-visible'));
+    }, 260);
+  };
+
+  document.addEventListener('pointerover', (event) => {
+    if (event.pointerType === 'touch') return;
+    hovered = resolve(event.target);
+    update();
+  });
+  document.addEventListener('pointerout', (event) => {
+    const leaving = resolve(event.target);
+    if (leaving && leaving === hovered && !(event.relatedTarget instanceof Node && leaving.contains(event.relatedTarget))) {
+      hovered = null;
+      update();
+    }
+  });
+  document.addEventListener('pointermove', (event) => {
+    if (event.pointerType === 'touch') return;
+    hovered = resolve(event.target);
+    update();
+  }, { passive: true });
+  window.addEventListener('rozh:controls-hidden', () => {
+    hovered = null;
+    focused = null;
+    hide();
+  });
+  window.addEventListener('rozh:controls-shown', () => {
+    focused = resolve(document.activeElement);
+    update();
+  });
+  document.addEventListener('focusin', (event) => {
+    focused = resolve(event.target);
+    update();
+  });
+  document.addEventListener('focusout', (event) => {
+    const leaving = resolve(event.target);
+    if (leaving && leaving === focused && !(event.relatedTarget instanceof Node && leaving.contains(event.relatedTarget))) {
+      focused = null;
+      update();
+    }
+  });
+  window.addEventListener('resize', position, { passive: true });
+  window.addEventListener('scroll', position, { capture: true, passive: true });
+  document.addEventListener('fullscreenchange', position);
+}
+
 function bindChrome(): void {
+  bindSmartTooltips();
   document.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;
-    const viewBtn = target.closest<HTMLElement>('[data-view]');
+    // Route markers also live on the containing <section class="view">. Only
+    // actual navigation controls should switch views; otherwise every click
+    // inside a view bubbles up and gets routed back to its parent (breaking
+    // playback cards, settings links, and TV shelf actions).
+    const viewBtn = target.closest<HTMLElement>('button[data-view], a[data-view], [role="tab"][data-view]');
     if (viewBtn?.dataset.view) {
       navigate(viewBtn.dataset.view as ViewId);
       return;
@@ -734,9 +860,7 @@ export async function bootApp(): Promise<void> {
 
   // TV mode: spatial navigation, back-button handling and a sane first focus
   initTv();
-  if (document.documentElement.dataset.tv === 'true') {
-    $('.nav-item.is-active')?.focus();
-  }
+  if (document.documentElement.dataset.tv === 'true') focusView(activeView);
 
   // First-run niceties. Not on Android (the device scan is the onboarding and
   // the permission dialog owns the first frame) and not on TV (a modal before
