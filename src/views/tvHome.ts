@@ -5,6 +5,7 @@ import { icon, hydrateIcons } from '../core/icons';
 import { applyDeviceStatus, isAndroidDevice, lastDeviceStatus, onDeviceSync, pickDeviceFolder, syncDeviceLibrary, type DeviceStatus } from '../core/device';
 import { t, n } from '../core/i18n';
 import { store, type MediaItem } from '../core/store';
+import { focusView } from '../core/tv';
 import { toast } from '../core/ui';
 import { escapeHtml, fmtTime, isAudioFile } from '../core/util';
 
@@ -62,7 +63,7 @@ function hero(item: MediaItem | undefined, count: number): string {
         <h1>${escapeHtml(count ? t('tv.libraryReady') : t('tv.welcome'))}</h1>
         <p>${escapeHtml(count ? t('tv.libraryReadySub') : t('tv.emptySub'))}</p>
         <div class="tv-hero-actions">
-          <button class="tv-action tv-action-primary" data-act="open">${icon('folder-open')}<span>${escapeHtml(t('player.openFile'))}</span></button>
+          <button class="tv-action tv-action-primary" data-act="tv-folder">${icon('folder-open')}<span>${escapeHtml(t('tv.folder'))}</span></button>
           ${isAndroidDevice() ? `<button class="tv-action" data-tv-scan>${icon('rotate')}<span data-tv-scan-label>${escapeHtml(t(deviceStatus?.state === 'scanning' ? 'tv.scanning' : 'tv.scan'))}</span></button>` : ''}
           <button class="tv-action" data-tv-go="library">${icon('film')}<span>${escapeHtml(t('nav.library'))}</span></button>
         </div>
@@ -83,7 +84,7 @@ function hero(item: MediaItem | undefined, count: number): string {
       <div class="tv-hero-actions">
         <button class="tv-action tv-action-primary" data-tv-media="${escapeHtml(item.id)}">${icon('play')}<span>${escapeHtml(isResumable(item) ? t('tv.resume') : t('player.play'))}</span></button>
         <button class="tv-action" data-tv-go="library">${icon('film')}<span>${escapeHtml(t('nav.library'))}</span></button>
-        <button class="tv-action tv-action-icon" data-act="open" aria-label="${escapeHtml(t('player.openFile'))}">${icon('folder-open')}</button>
+        <button class="tv-action tv-action-icon" data-act="tv-folder" aria-label="${escapeHtml(t('tv.folder'))}">${icon('folder-open')}</button>
       </div>
     </div>
     <div class="tv-hero-foot"><span>${icon(mediaKind(item) === 'audio' ? 'music' : 'film')}<b>${escapeHtml(mediaKind(item) === 'audio' ? t('tv.music') : t('tv.video'))}</b></span><strong>${item.duration ? fmtTime(item.duration) : t('tv.ready')}</strong></div>
@@ -118,7 +119,10 @@ export function renderTvHome(host: HTMLElement, ctx: AppContext): void {
       const live = document.querySelector<HTMLElement>('.view[data-view="home"].is-active');
       const labels = document.querySelectorAll<HTMLElement>('[data-tv-scan-label]');
       if (status?.state === 'scanning') labels.forEach((label) => (label.textContent = t('tv.scanning')));
-      if (live && status?.state === 'ready' && context) renderTvHome(live, context);
+      if (live && status?.state === 'ready' && context) {
+        renderTvHome(live, context);
+        focusView('home');
+      }
     });
   }
 
@@ -138,7 +142,10 @@ export function renderTvHome(host: HTMLElement, ctx: AppContext): void {
       if (result.status?.state === 'error') toast(t('device.error'), 'bad', 2400);
       else if (result.added || result.removed) toast(t('device.ready', { n: n(store.deviceCount()) }), 'ok', 2200);
       else if (result.status?.state !== 'permission' && result.status?.state !== 'denied') toast(t('device.empty'), 'info', 1800);
-      if (document.querySelector('.view[data-view="home"].is-active') && context) renderTvHome(host, context);
+      if (document.querySelector('.view[data-view="home"].is-active') && context) {
+        renderTvHome(host, context);
+        focusView('home');
+      }
       ctx.refreshNav();
     });
   });
@@ -146,7 +153,10 @@ export function renderTvHome(host: HTMLElement, ctx: AppContext): void {
     el.addEventListener('click', async () => {
       const result = applyDeviceStatus(await pickDeviceFolder());
       if (result.status?.state === 'ready') toast(t('device.ready', { n: n(store.deviceCount()) }), 'ok', 2200);
-      if (context) renderTvHome(host, context);
+      if (context) {
+        renderTvHome(host, context);
+        focusView('home');
+      }
     });
   });
 }

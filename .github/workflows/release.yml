@@ -369,6 +369,15 @@ jobs:
           console.log('tv package ok');
           NODE
 
+      - name: Verify dedicated Android TV frontend
+        shell: bash
+        env:
+          VITE_TV_BUILD: "1"
+        run: |
+          set -euo pipefail
+          npm run build
+          node -e 'const fs=require("node:fs"); const html=fs.readFileSync("dist/index.html","utf8"); if (!html.includes(`data-tv-build="1"`)) { console.error("::error title=Android TV UI::VITE_TV_BUILD was not embedded in dist/index.html"); process.exit(1); } console.log("Android TV runtime flag embedded in frontend bundle");'
+
       - name: Build Android TV APK + AAB
         shell: bash
         env:

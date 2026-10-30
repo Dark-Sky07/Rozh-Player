@@ -10,6 +10,12 @@ import './styles/tv.css';
 import './styles/desktop.css';
 import { bootApp } from './core/shell';
 
+// The TV target is a dedicated package, not a responsive guess. Set this before
+// the first render so the launcher never flashes the phone/tablet shell.
+if (document.documentElement.dataset.tvBuild === '1') {
+  document.documentElement.dataset.tv = 'true';
+}
+
 function boot(): void {
   bootApp().catch((err) => {
     console.error('[rozh] boot failed', err);

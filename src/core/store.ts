@@ -516,7 +516,9 @@ export function applySettings(s: Settings): void {
   set('accent', s.accent, (v) => (root.dataset.accent = v));
   set('glass', s.glass, (v) => (root.dataset.glass = v));
   set('motion', s.motion, (v) => (root.dataset.motion = v));
-  set('tv', s.tv === 'on' ? 'true' : s.tv === 'off' ? 'false' : platform.tv ? 'true' : 'false', (v) => {
+  // A dedicated Android TV package must never fall back to the phone layout,
+  // even if an old preference was migrated with TV mode explicitly disabled.
+  set('tv', platform.tvBuild || s.tv === 'on' || (s.tv === 'auto' && platform.tv) ? 'true' : 'false', (v) => {
     root.dataset.tv = v;
   });
   set('lang', s.lang, (v) => {
