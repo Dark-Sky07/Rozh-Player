@@ -20,9 +20,15 @@
 #   .github/scripts/apply-main-protection.sh
 #
 # Optional environment:
-#   REPO=<owner/name>        default: Dark-Sky07/Rozh-Player
+#   REPO=<owner/name>          default: Dark-Sky07/Rozh-Player
+#   BRANCH=<branch>            default: main
 #   ENFORCE_ADMINS=true|false  default: true (admins cannot force-push either)
 #   STRICT_CHECKS=true|false   default: false (PR branch need not be up to date)
+#   ALLOW_MISSING_CHECKS=true|false
+#       A required check that no workflow on the protected branch produces can
+#       never go green, which permanently blocks every pull request. By default
+#       (false) such checks are dropped and reported, so the rule can be enabled
+#       safely at any time. Set to true to require them anyway.
 #
 # The script is idempotent: run it as often as you like.
 
@@ -43,17 +49,51 @@ else
 fi
 
 echo "==> applying protection"
+
+WANTED_CHECKS=(
+  "Web · typecheck & build"
+  "Rust · cargo check"
+  "Android · bridge compile"
+)
+
+# A required status check only exists if some workflow *on the protected branch*
+# produces it. Requiring a check that never appears would leave every pull
+# request pending forever, so verify before writing.
+echo "==> checking which required checks exist on $BRANCH"
+ci_yml=$(gh api "repos/$REPO/contents/.github/workflows/ci.yml?ref=$BRANCH" --jq '.content' 2>/dev/null | base64 -d 2>/dev/null || true)
+if [ -z "$ci_yml" ]; then
+  echo "    ::warning:: could not read .github/workflows/ci.yml@$BRANCH"
+fi
+
+checks=()
+dropped=()
+for c in "${WANTED_CHECKS[@]}"; do
+  if [ -z "$ci_yml" ] || grep -qF "$c" <<<"$ci_yml"; then
+    checks+=("$c")
+  elif [ "${ALLOW_MISSING_CHECKS:-false}" = "true" ]; then
+    echo "    !! '$c' is not produced on $BRANCH — required anyway (ALLOW_MISSING_CHECKS=true)"
+    checks+=("$c")
+  else
+    echo "    ?? '$c' is not produced on $BRANCH — dropped, otherwise every PR would hang"
+    dropped+=("$c")
+  fi
+done
+printf '    requiring: %s\n' "$(IFS=' | '; echo "${checks[*]}")"
+if [ "${#dropped[@]}" -gt 0 ]; then
+  printf '    dropped:   %s\n' "$(IFS=' | '; echo "${dropped[*]}")"
+  echo "    Re-run after those jobs land on $BRANCH to require them too."
+fi
+
+checks_json=$(if [ "${#checks[@]}" -eq 0 ]; then echo '[]'; else printf '%s\n' "${checks[@]}" | jq -R . | jq -s .; fi)
+
 payload=$(jq -n \
   --argjson enforce "$ENFORCE_ADMINS" \
   --argjson strict "$STRICT_CHECKS" \
+  --argjson checks "$checks_json" \
   '{
     required_status_checks: {
       strict: $strict,
-      contexts: [
-        "Web · typecheck & build",
-        "Rust · cargo check",
-        "Android · bridge compile"
-      ]
+      contexts: $checks
     },
     enforce_admins: $enforce,
     required_pull_request_reviews: {
@@ -69,6 +109,12 @@ payload=$(jq -n \
     block_creations: false,
     required_conversation_resolution: false
   }')
+
+if [ "${DRY_RUN:-false}" = "true" ]; then
+  echo "==> DRY RUN — payload that would be written to PUT /branches/$BRANCH/protection:"
+  jq . <<<"$payload"
+  exit 0
+fi
 
 gh api -X PUT "repos/$REPO/branches/$BRANCH/protection" \
   -H "Accept: application/vnd.github+json" \
@@ -88,7 +134,7 @@ gh api "repos/$REPO/branches/$BRANCH/protection" \
 
 echo
 echo "==> done. Expected: force_pushes_allowed=false, deletions_allowed=false,"
-echo "    pull_request_required=true and the three CI contexts listed above."
+echo "    pull_request_required=true, and exactly the contexts printed above."
 echo
 echo "NOTE: secret names are listed separately and never read:"
 echo "      gh secret list -R $REPO   (needs secrets: read)"

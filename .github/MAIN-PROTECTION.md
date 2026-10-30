@@ -68,6 +68,30 @@ REPO=Dark-Sky07/Rozh-Player .github/scripts/apply-main-protection.sh
 - branch deletion: blocked (`allow_deletions: false`)
 - administrators included by default (`ENFORCE_ADMINS=false` to opt out)
 
+Preview without writing anything (works even with today's read-only access to
+`.github/workflows/`):
+
+```bash
+DRY_RUN=true .github/scripts/apply-main-protection.sh
+```
+
+### The `Android · bridge compile` trap
+
+A required status check is matched by its exact job name **on the protected
+branch**. Today `ci.yml` on `main` defines only two jobs; the Android job exists
+on the head of PR #2 (commit `557dfdb`), not on `main`:
+
+```
+main      : Web · typecheck & build | Rust · cargo check
+PR #2 head: Web · typecheck & build | Rust · cargo check | Android · bridge compile
+```
+
+Requiring a check that `main` never produces would leave every future pull
+request pending forever. The script therefore verifies each name against
+`ci.yml@main` and drops the ones that do not exist yet, printing what it
+dropped. Re-run it after PR #2 lands to require all three (or pass
+`ALLOW_MISSING_CHECKS=true` if you really want to gate on the missing job).
+
 ## Compensating control in the meantime
 
 `.github/workflows/guard-main.yml` runs on pushes to `main` and on branch
