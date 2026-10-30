@@ -72,6 +72,18 @@ export async function revealInFolder(path: string): Promise<void> {
   }
 }
 
+/** Keep Android's activity orientation and system bars in sync with video mode. */
+export async function setAndroidPlaybackMode(fullscreen: boolean, landscape: boolean): Promise<void> {
+  if (!platform.tauri || platform.os !== 'android') return;
+  try {
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('android_set_playback_mode', { fullscreen, landscape });
+  } catch (err) {
+    // CSS fullscreen remains usable if a native bridge is unavailable.
+    console.warn('[rozh] Android playback mode unavailable', err);
+  }
+}
+
 /** Global window controls, used by the custom title area on desktop. */
 export async function toggleNativeFullscreen(): Promise<void> {
   if (!platform.tauri) return;

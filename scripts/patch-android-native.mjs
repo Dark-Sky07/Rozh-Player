@@ -204,6 +204,9 @@ const checks = [
   ['file provider', xml.includes('androidx.core.content.FileProvider')],
   ['androidx.core on classpath', !gradle || /androidx\.core:core/.test(gradle)],
   ['provider paths', xml.includes('@xml/rozh_file_paths')],
+  ['playback mode watcher', bridge.includes('startPlaybackModeWatcher')],
+  ['immersive system bars', bridge.includes('WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE')],
+  ['landscape orientation', bridge.includes('SCREEN_ORIENTATION_SENSOR_LANDSCAPE')],
 ];
 const broken = checks.filter(([, ok]) => !ok).map(([name]) => name);
 if (broken.length) fail(`not applied: ${broken.join(', ')}`);

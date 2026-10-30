@@ -41,6 +41,9 @@ import android.util.Base64;
 import android.util.Size;
 
 import androidx.core.content.FileProvider;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -88,6 +91,8 @@ public final class MediaBridge {
     private static volatile String serverToken = "";
     private static final Semaphore SERVER_CONNECTIONS = new Semaphore(8);
     private static volatile long downloadId = -1L;
+    private static volatile int playbackModeToken = -1;
+    private static volatile boolean modeWatcherStarted;
     private static final Object LOCK = new Object();
 
     private MediaBridge() {}
@@ -114,9 +119,20 @@ public final class MediaBridge {
             return;
         }
         if (!firstAttach) {
+            // Reapply the current playback mode to the recreated Activity.
+            playbackModeToken = -1;
             writeHello();
+            applyPlaybackMode();
             return;
         }
+        // Playback mode, like the command mailbox, must not leak across process
+        // launches: a force-stopped fullscreen session must reopen as a normal app.
+        try {
+            new File(workDir, "playback-mode.json").delete();
+        } catch (Throwable ignored) {
+            /* the watcher also ignores malformed or missing mode files */
+        }
+        playbackModeToken = -1;
         // The mailbox survives process restarts. Ignore the last command left by
         // the previous process (which could otherwise reopen a player or APK
         // installer as soon as the app launches).
@@ -141,6 +157,67 @@ public final class MediaBridge {
         }, "rozh-media-bridge");
         worker.setDaemon(true);
         worker.start();
+        startPlaybackModeWatcher();
+    }
+
+    /** Polls a separate, tiny file so long MediaStore scans cannot delay rotation. */
+    private static synchronized void startPlaybackModeWatcher() {
+        if (modeWatcherStarted) return;
+        modeWatcherStarted = true;
+        Thread watcher = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                while (true) {
+                    try {
+                        Thread.sleep(120);
+                        applyPlaybackMode();
+                    } catch (InterruptedException stop) {
+                        return;
+                    } catch (Throwable ignored) {
+                        /* playback chrome must never interrupt device indexing */
+                    }
+                }
+            }
+        }, "rozh-playback-mode");
+        watcher.setDaemon(true);
+        watcher.start();
+    }
+
+    private static synchronized void applyPlaybackMode() {
+        try {
+            Activity current = activity;
+            File modeFile = new File(workDir, "playback-mode.json");
+            if (current == null || !modeFile.isFile()) return;
+            JSONObject mode = new JSONObject(readFile(modeFile));
+            int token = mode.optInt("token", -1);
+            if (token <= 0 || token == playbackModeToken) return;
+            boolean fullscreen = mode.optBoolean("fullscreen", false);
+            boolean landscape = mode.optBoolean("landscape", false);
+            playbackModeToken = token;
+            current.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        if (activity != current) return;
+                        current.setRequestedOrientation(landscape
+                            ? android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                            : android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+                        WindowInsetsControllerCompat bars = WindowCompat.getInsetsController(
+                            current.getWindow(), current.getWindow().getDecorView());
+                        if (fullscreen) {
+                            bars.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                            bars.hide(WindowInsetsCompat.Type.systemBars());
+                        } else {
+                            bars.show(WindowInsetsCompat.Type.systemBars());
+                        }
+                    } catch (Throwable ignored) {
+                        /* old/embedded Android system UI implementations */
+                    }
+                }
+            });
+        } catch (Throwable ignored) {
+            /* no mode request yet, or an atomic writer caught mid-update */
+        }
     }
 
     private static void skipStaleCommand() {
