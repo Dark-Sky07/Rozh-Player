@@ -123,12 +123,11 @@ jobs:
           npx tauri android init --ci
           node scripts/patch-android-tv.mjs
           node scripts/patch-android-native.mjs
-      - name: Compile Android Java and Kotlin bridge
-        working-directory: src-tauri/gen/android
+      - name: Build Android debug APK and compile bridge
         shell: bash
         run: |
           set +e
-          ./gradlew --no-daemon --console=plain :app:compileDebugJavaWithJavac :app:compileDebugKotlin 2>&1 | tee /tmp/android-bridge.log
+          npx tauri android build --debug --apk --target aarch64 --ci 2>&1 | tee /tmp/android-bridge.log
           code=${PIPESTATUS[0]}
           if [ "$code" -ne 0 ]; then
             tail -n 60 /tmp/android-bridge.log > /tmp/android-bridge-tail.log
