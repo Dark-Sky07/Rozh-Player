@@ -1,3 +1,45 @@
+# ROZH Player 1.0.8
+
+**A dedicated, remote-first Android TV home**
+
+## Download
+
+| Platform | Release asset |
+| --- | --- |
+| Windows 10/11 (x64) | `ROZH-Player_1.0.8_x64-setup.exe` |
+| macOS — Apple Silicon | `ROZH-Player_1.0.8_aarch64.dmg` |
+| macOS — Intel | `ROZH-Player_1.0.8_x64.dmg` |
+| Linux — Debian/Ubuntu | `ROZH-Player_1.0.8_amd64.deb` |
+| Linux — Fedora/RHEL/openSUSE | `ROZH-Player-1.0.8-1.x86_64.rpm` |
+| Linux — AppImage | `ROZH-Player_1.0.8_amd64.AppImage` |
+| Android phones and tablets | `ROZH-Player-1.0.8.apk` |
+| Android TV (dedicated build) | `ROZH-Player-TV-1.0.8.apk` |
+| Web / PWA | `rozh-player-web.zip` |
+
+## What changed
+
+### Android TV
+
+- Added a dedicated Home destination with a persistent left navigation rail, a featured media area, and browsable resume, recent, video, and music shelves.
+- Put device-library scan, folder selection, open-file, and open-link actions within easy reach from the TV home.
+- Reworked the TV shell into a 10-foot layout with larger type, stronger focus states, overscan-safe spacing, and D-pad navigation between the rail and content.
+- TV builds now launch directly into Home; the Back key returns to Home from other views. Playback keeps its immersive TV presentation and remote controls.
+- Added English and Persian Home labels. The existing phone and tablet shell is unchanged.
+
+### Compatibility and upgrades
+
+- The dedicated Android TV package remains separate from the Android phone/tablet package.
+- Android version code is incremented and release signing identity is retained so existing installations can update in place.
+- Other platform builds and the in-app update feeds remain part of the standard release workflow.
+
+### Validation
+
+- `npm run build` — TypeScript check and Vite production build passed.
+- `git diff --check` passed.
+- This environment has no browser runtime or physical Android TV, so visual browser QA, device navigation, and playback on a real TV have not been verified. Please validate D-pad behavior on representative devices.
+
+---
+
 # ROZH Player 1.0.7
 
 **Android touch usability and responsive playback controls**

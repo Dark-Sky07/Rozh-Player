@@ -171,6 +171,28 @@ export function moveFocus(dir: Dir): boolean {
     focusEl(next);
     return true;
   }
+
+  // Treat the side rail and the content as two deliberate regions. Spatial
+  // scoring alone can miss the transition when a tall hero sits below a short
+  // navigation item; every TV app must have a reliable Right-to-enter path.
+  const focused = current();
+  const activeView = document.querySelector<HTMLElement>('.view.is-active');
+  if (focused?.closest('.tv-nav') && dir === 'right' && activeView) {
+    const content = Array.from(activeView.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(visible);
+    const target = content.find((el) => el.matches('.tv-action-primary, .tv-card, button, a[href]')) ?? content[0];
+    if (target) {
+      focusEl(target);
+      return true;
+    }
+  }
+  if (focused?.closest('.view.is-active') && dir === 'left') {
+    const activeNav = document.querySelector<HTMLElement>('.tv-nav-item.is-active');
+    if (activeNav && visible(activeNav)) {
+      focusEl(activeNav);
+      return true;
+    }
+  }
+
   // Nothing in that direction: on the player view, ↑/↓ from the top bar lands
   // on the video surface itself, which is where a remote expects to be.
   const stage = document.querySelector<HTMLElement>('.stage');
@@ -326,15 +348,18 @@ export function initTv(): void {
         return;
       }
 
-      if (e.key === 'Backspace' || e.key === 'BrowserBack' || e.key === 'GoBack') {
-        e.preventDefault();
+      if (e.key === 'Backspace' || e.key === 'BrowserBack' || e.key === 'GoBack' || e.key === 'Escape') {
         const sheet = overlayRoot();
         if (sheet) {
+          e.preventDefault();
           (sheet.querySelector<HTMLElement>('[data-close]') ?? sheet).click();
           return;
         }
-        if (document.body.dataset.view !== 'player') {
-          document.querySelector<HTMLElement>('.nav-item[data-view="player"]')?.click();
+        // Back consistently returns to the media hub; from Home the Android
+        // system may handle it (rather than unexpectedly opening a blank player).
+        if (document.body.dataset.view !== 'home') {
+          e.preventDefault();
+          document.querySelector<HTMLElement>('.tv-nav-item[data-view="home"]')?.click();
         }
         return;
       }

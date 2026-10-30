@@ -1,186 +1,719 @@
 /* ======================================================================
-   ROZH Player — 10-foot interface (Android TV, Fire TV, Google TV, boxes)
+   Android TV: dedicated 10-foot application shell
    ----------------------------------------------------------------------
-   A television is not a laptop with a bigger screen. This layer replaces the
-   desktop shell with a living-room layout:
-
-     • one top bar (brand · destinations · actions) — no permanent side rail
-     • everything inside the overscan-safe area, sized for 3 metres away
-     • focus-first: every control shows a ring, nothing is hover-only
-     • the player owns the whole screen; chrome is rectangular, not "webby"
-
-   Loaded last, so it wins the cascade. Active only on :root[data-tv='true'].
+   Remote-first destination rail + media-led home shelves. This intentionally
+   does not reuse the desktop pill navigation or browser-like page header.
    ====================================================================== */
-
 :root[data-tv='true'] {
-  /* 10-foot type scale: 1080p TVs report ~960 logical pixels, so rems grow. */
   font-size: clamp(15px, 0.92vw + 8px, 24px);
   --tv-safe: clamp(26px, 3.4vw, 84px);
-  --tvbar-h: clamp(72px, 9.4vh, 116px);
   --gutter: clamp(18px, 2vw, 40px);
   --topbar-h: 0px;
-  --tv-ring: 0 0 0 4px var(--accent), 0 0 0 9px color-mix(in srgb, var(--accent) 30%, transparent),
+  --tv-ring:
+    0 0 0 4px var(--accent),
+    0 0 0 9px color-mix(in srgb, var(--accent) 30%, transparent),
     0 26px 60px rgba(0, 0, 0, 0.6);
 }
-
-/* ------------------------------------------------------------------ shell */
-:root[data-tv='true'] .shell {
+:root[data-tv='true'] .tv-shell {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  width: 100%;
   height: 100dvh;
   padding: 0;
   gap: 0;
   overflow: hidden;
+  background: #080b11;
 }
-:root[data-tv='true'] .main {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-:root[data-tv='true'] .topbar,
-:root[data-tv='true'] .tabbar,
-:root[data-tv='true'] .mobile-menu,
-:root[data-tv='true'] .scrim {
-  display: none !important;
-}
-
-/* ------------------------------------------------------------------ tv bar */
-:root[data-tv='true'] .tvbar {
+:root[data-tv='true'] .tv-shell .tv-rail {
   position: relative;
-  z-index: 30;
-  flex: none;
+  z-index: 20;
   display: flex;
-  align-items: center;
-  gap: clamp(10px, 1.1vw, 24px);
-  height: var(--tvbar-h);
-  padding: 0 var(--tv-safe);
-  border-bottom: 1px solid var(--line-1);
-  background:
-    radial-gradient(90% 180% at 6% 0%, rgba(248, 162, 74, 0.16), transparent 62%),
-    linear-gradient(180deg, rgba(11, 14, 21, 0.96), rgba(7, 9, 14, 0.88));
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
-  backdrop-filter: blur(20px) saturate(150%);
-}
-:root[data-tv='true'] .tvbar .brand {
   flex: none;
+  flex-direction: column;
+  width: clamp(156px, 17.2vw, 240px);
+  min-width: 156px;
+  height: 100%;
+  padding: clamp(20px, 2.4vh, 34px) 14px clamp(18px, 2vh, 28px);
+  border-inline-end: 1px solid rgba(255, 255, 255, 0.075);
+  background: linear-gradient(180deg, rgba(15, 19, 28, 0.98), rgba(9, 12, 19, 0.99));
+  box-shadow: 18px 0 54px rgba(0, 0, 0, 0.18);
+}
+:root[data-tv='true'] .tv-brand {
+  flex: none;
+  margin: 0 0 clamp(28px, 4vh, 48px);
+  padding: 0 8px;
+}
+:root[data-tv='true'] .tv-brand .brand {
   gap: 12px;
+  min-height: 0;
   padding: 0;
+}
+:root[data-tv='true'] .tv-brand .brand-mark {
+  width: 48px;
+  height: 48px;
+  flex-basis: 48px;
+  border-radius: 15px;
+  background: linear-gradient(145deg, rgba(255, 211, 142, 0.18), rgba(189, 102, 37, 0.14));
+  border-color: rgba(255, 218, 158, 0.2);
+}
+:root[data-tv='true'] .tv-brand .brand-logo {
+  width: 38px;
+  height: 38px;
+  border-radius: 11px;
+}
+:root[data-tv='true'] .tv-brand .brand-name {
+  font-size: 0.9rem;
+  letter-spacing: 0.12em;
+}
+:root[data-tv='true'] .tv-brand .brand-sub {
+  font-size: 0.52rem;
+  letter-spacing: 0.35em;
+}
+:root[data-tv='true'] .tv-nav {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
   margin: 0;
+  padding: 0 4px;
+  overflow: visible;
 }
-:root[data-tv='true'] .tvbar .brand-logo {
-  width: clamp(40px, 3.2vw, 56px);
-  height: clamp(40px, 3.2vw, 56px);
+:root[data-tv='true'] .tv-nav .tv-nav-item {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 15px;
+  width: 100%;
+  height: clamp(54px, 6.1vh, 70px);
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  color: rgba(226, 231, 239, 0.68);
+  background: transparent;
+  font-size: 0.83rem;
+  font-weight: 650;
+  text-align: start;
+  white-space: nowrap;
+  transition: background 160ms ease, color 160ms ease, transform 160ms ease;
 }
-:root[data-tv='true'] .tvbar .brand-name {
-  font-size: 1.12rem;
-  letter-spacing: 0.06em;
+:root[data-tv='true'] .tv-nav .tv-nav-item .nav-ico {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  margin: 0;
+  color: currentColor;
 }
-:root[data-tv='true'] .tvbar .brand-sub {
-  font-size: 0.6rem;
-  letter-spacing: 0.28em;
+:root[data-tv='true'] .tv-nav .tv-nav-item .nav-ico .ico {
+  width: 22px;
+  height: 22px;
 }
-:root[data-tv='true'] .tvbar .sidebar-fold {
+:root[data-tv='true'] .tv-nav .tv-nav-item .nav-label {
+  display: block;
+  flex: 1;
+  overflow: hidden;
+  opacity: 1;
+  text-overflow: ellipsis;
+  visibility: visible;
+}
+:root[data-tv='true'] .tv-nav .tv-nav-item .count {
+  margin-inline-start: auto;
+  padding: 3px 8px;
+  border-radius: 99px;
+  color: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.65rem;
+}
+:root[data-tv='true'] .tv-nav .tv-nav-item::before,
+:root[data-tv='true'] .tv-nav .tv-nav-item::after {
   display: none;
 }
-:root[data-tv='true'] .tvbar .nav {
+:root[data-tv='true'] .tv-nav .tv-nav-item.is-active {
+  color: #fff;
+  border-color: rgba(var(--accent-rgb), 0.25);
+  background: linear-gradient(90deg, rgba(var(--accent-rgb), 0.22), rgba(var(--accent-rgb), 0.09));
+  box-shadow: inset 3px 0 0 var(--accent-2), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+:root[dir='rtl'][data-tv='true'] .tv-nav .tv-nav-item.is-active {
+  background: linear-gradient(270deg, rgba(var(--accent-rgb), 0.22), rgba(var(--accent-rgb), 0.09));
+  box-shadow: inset -3px 0 0 var(--accent-2), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+:root[data-tv='true'] .tv-nav .tv-nav-item.tv-focus {
+  transform: scale(1.035);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.32);
+  background-color: rgba(255, 255, 255, 0.1);
+  box-shadow: var(--tv-ring);
+}
+:root[data-tv='true'] .tv-rail-foot {
   display: flex;
-  flex-direction: row;
   align-items: center;
-  gap: clamp(4px, 0.4vw, 10px);
-  margin: 0;
-  padding: 0;
-  overflow: visible;
+  gap: 9px;
+  padding: 16px 12px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 0.57rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+:root[data-tv='true'] .tv-rail-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.65);
+}
+:root[data-tv='true'] .tv-shell .tv-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: radial-gradient(70% 48% at 88% 0%, rgba(70, 89, 124, 0.12), transparent 72%), #090c12;
+}
+:root[data-tv='true'] .tv-toolbar {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  height: clamp(82px, 10vh, 112px);
+  padding: 0 clamp(28px, 3.2vw, 62px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+  background: rgba(9, 12, 18, 0.72);
+}
+:root[data-tv='true'] .tv-toolbar-title {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+:root[data-tv='true'] .tv-toolbar-title > span {
+  color: var(--accent-2);
+  font-size: 0.54rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+}
+:root[data-tv='true'] .tv-toolbar-title h1 {
+  overflow: hidden;
+  color: #f5f6f8;
+  font-size: 1.02rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:root[data-tv='true'] .tv-toolbar-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+}
+:root[data-tv='true'] .tv-toolbar-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 54px;
+  height: clamp(48px, 5.4vh, 62px);
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  color: rgba(236, 239, 245, 0.86);
+  background: rgba(255, 255, 255, 0.045);
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+:root[data-tv='true'] .tv-toolbar-btn .ico {
+  width: 19px;
+  height: 19px;
+  flex: none;
+}
+:root[data-tv='true'] .tv-toolbar-btn.tv-toolbar-primary {
+  color: #211609;
+  border-color: rgba(255, 226, 177, 0.36);
+  background: linear-gradient(135deg, #ffd28a, #ef9d46 65%, #d9792c);
+}
+:root[data-tv='true'] .tv-toolbar-btn.tv-focus {
+  transform: scale(1.04);
+  box-shadow: var(--tv-ring);
+}
+:root[data-tv='true'] .tv-main > .views {
   flex: 1;
   min-width: 0;
-}
-:root[data-tv='true'] .tvbar .nav-title,
-:root[data-tv='true'] .tvbar .nav-item .count,
-:root[data-tv='true'] .tvbar .nav-spark {
-  display: none;
-}
-:root[data-tv='true'] .tvbar .nav-item {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-  height: clamp(44px, 6vh, 64px);
-  padding: 0 clamp(11px, 1.1vw, 20px);
-  border-radius: 999px;
-  background: transparent;
-  border: 1px solid transparent;
-  font-size: 0.98rem;
-  font-weight: 600;
-  color: var(--text-2);
-  white-space: nowrap;
-  flex: none;
-  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
-}
-:root[data-tv='true'] .tvbar .nav-item .nav-ico {
-  width: 1.15rem;
-  height: 1.15rem;
-  margin: 0;
-}
-:root[data-tv='true'] .tvbar .nav-item .nav-label {
-  display: block;
-  opacity: 1;
-  transform: none;
-  font-size: inherit;
-}
-:root[data-tv='true'] .tvbar .nav-item::before {
-  display: none;
-}
-:root[data-tv='true'] .tvbar .nav-item.is-active {
-  color: var(--accent-2);
-  background: rgba(var(--accent-rgb), 0.14);
-  border-color: rgba(var(--accent-rgb), 0.3);
-  box-shadow: inset 0 0 26px rgba(var(--accent-rgb), 0.12);
-}
-:root[data-tv='true'] .tvbar .nav-item.is-active .nav-ico {
-  filter: drop-shadow(0 0 10px rgba(var(--accent-rgb), 0.75));
-}
-:root[data-tv='true'] .tvbar-actions {
-  flex: none;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-inline-start: auto;
-}
-:root[data-tv='true'] .tvbar-actions .btn {
-  --btn-h: clamp(42px, 5.6vh, 58px);
-  font-size: 0.9rem;
-  padding: 0 18px;
-  white-space: nowrap;
-}
-
-/* ------------------------------------------------------------------ views */
-:root[data-tv='true'] .views {
-  flex: 1;
   min-height: 0;
+  padding: 0;
+  overflow: hidden;
 }
-:root[data-tv='true'] .view {
-  padding: clamp(14px, 1.6vw, 30px) var(--tv-safe) calc(var(--tv-safe) * 0.7);
+:root[data-tv='true'] .tv-main > .views > .view {
+  padding: 0;
+  overflow: hidden;
+  animation: none;
 }
-:root[data-tv='true'] .view[data-view='player'] {
+:root[data-tv='true'] .tv-main > .views > .view:not([data-view='home']):not([data-view='player']) {
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: clamp(20px, 2.6vw, 48px) clamp(28px, 3.2vw, 62px) clamp(30px, 3.6vw, 58px);
+  scroll-behavior: smooth;
+}
+:root[data-tv='true'] .tv-main > .views > .view[data-view='player'] {
   padding: 0;
 }
+
+/* Home: distinct hierarchy, calm negative space, readable from the sofa. */
+:root[data-tv='true'] .tv-home {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  gap: clamp(24px, 3.1vh, 40px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: clamp(22px, 3vh, 36px) clamp(28px, 3.2vw, 62px) clamp(34px, 4vh, 52px);
+  scrollbar-width: none;
+}
+:root[data-tv='true'] .tv-home::-webkit-scrollbar,
+:root[data-tv='true'] .tv-rail-scroll::-webkit-scrollbar {
+  display: none;
+}
+:root[data-tv='true'] .tv-hero {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: flex-end;
+  min-height: 310px;
+  height: clamp(330px, 41vh, 460px);
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid rgba(255, 255, 255, 0.085);
+  border-radius: 27px;
+  background: linear-gradient(135deg, #182131, #10141c 72%);
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.34);
+}
+:root[data-tv='true'] .tv-hero-backdrop {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  overflow: hidden;
+  background: radial-gradient(70% 120% at 78% 35%, rgba(238, 160, 83, 0.22), transparent 74%), linear-gradient(115deg, #202b3b, #121720 72%);
+}
+:root[data-tv='true'] .tv-hero-backdrop > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 38%;
+  opacity: 0.67;
+  transform: scale(1.025);
+}
+:root[data-tv='true'] .tv-hero-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(7, 10, 16, 0.98) 0%, rgba(7, 10, 16, 0.83) 38%, rgba(7, 10, 16, 0.25) 78%, rgba(7, 10, 16, 0.08) 100%), linear-gradient(0deg, rgba(7, 10, 16, 0.82), transparent 48%);
+}
+:root[dir='rtl'][data-tv='true'] .tv-hero-shade {
+  background: linear-gradient(270deg, rgba(7, 10, 16, 0.98) 0%, rgba(7, 10, 16, 0.83) 38%, rgba(7, 10, 16, 0.25) 78%, rgba(7, 10, 16, 0.08) 100%), linear-gradient(0deg, rgba(7, 10, 16, 0.82), transparent 48%);
+}
+:root[data-tv='true'] .tv-hero-copy {
+  position: relative;
+  z-index: 1;
+  width: min(72%, 820px);
+  padding: clamp(32px, 4vw, 76px);
+  text-align: start;
+}
+:root[data-tv='true'] .tv-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.59rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+:root[data-tv='true'] .tv-eyebrow i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.8);
+}
+:root[data-tv='true'] .tv-hero-copy h1 {
+  display: -webkit-box;
+  max-width: 18ch;
+  overflow: hidden;
+  margin-top: 15px;
+  color: #fff;
+  font-size: clamp(2rem, 4.3vw, 4.2rem);
+  font-weight: 850;
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  text-shadow: 0 4px 28px rgba(0, 0, 0, 0.35);
+}
+:root[data-tv='true'] .tv-hero-copy p {
+  max-width: 52ch;
+  overflow: hidden;
+  margin-top: 13px;
+  color: rgba(236, 239, 246, 0.73);
+  font-size: 0.78rem;
+  line-height: 1.65;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:root[data-tv='true'] .tv-hero-progress {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  width: min(480px, 88%);
+  margin-top: 18px;
+}
+:root[data-tv='true'] .tv-hero-progress > span {
+  flex: 1;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.22);
+}
+:root[data-tv='true'] .tv-hero-progress i,
+:root[data-tv='true'] .tv-card-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent-grad);
+}
+:root[data-tv='true'] .tv-hero-progress small {
+  color: rgba(255, 255, 255, 0.74);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.57rem;
+  direction: ltr;
+}
+:root[data-tv='true'] .tv-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+}
+:root[data-tv='true'] .tv-action {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  min-width: 58px;
+  height: clamp(52px, 6vh, 70px);
+  padding: 0 22px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 15px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.095);
+  font-size: 0.72rem;
+  font-weight: 750;
+  white-space: nowrap;
+  transition: transform 160ms ease, background 160ms ease;
+}
+:root[data-tv='true'] .tv-action .ico {
+  width: 21px;
+  height: 21px;
+  flex: none;
+}
+:root[data-tv='true'] .tv-action-primary {
+  color: #211609;
+  border-color: rgba(255, 226, 177, 0.46);
+  background: linear-gradient(135deg, #ffda9c, #eea04e 68%, #d77d31);
+}
+:root[data-tv='true'] .tv-action-icon {
+  width: 58px;
+  padding: 0;
+}
+:root[data-tv='true'] .tv-action.tv-focus {
+  transform: scale(1.055);
+  box-shadow: var(--tv-ring);
+}
+:root[data-tv='true'] .tv-hero-empty .tv-hero-mark {
+  position: absolute;
+  inset-block-start: 10%;
+  inset-inline-end: 10%;
+  display: grid;
+  place-items: center;
+  width: clamp(170px, 20vw, 300px);
+  height: clamp(170px, 20vw, 300px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+  color: rgba(255, 225, 174, 0.62);
+  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.16), rgba(var(--accent-rgb), 0.035) 67%, transparent 69%);
+  box-shadow: 0 0 100px rgba(var(--accent-rgb), 0.1);
+}
+:root[data-tv='true'] .tv-hero-mark .ico {
+  width: 54px;
+  height: 54px;
+}
+:root[data-tv='true'] .tv-hero-foot {
+  position: absolute;
+  z-index: 1;
+  inset-inline-end: 26px;
+  inset-block-end: 22px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 9px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(7, 10, 15, 0.4);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  font-size: 0.58rem;
+}
+:root[data-tv='true'] .tv-hero-foot > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+:root[data-tv='true'] .tv-hero-foot .ico {
+  width: 16px;
+  height: 16px;
+  color: var(--accent-2);
+}
+:root[data-tv='true'] .tv-hero-foot strong {
+  padding-inline-start: 15px;
+  border-inline-start: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+}
+:root[data-tv='true'] .tv-hero-foot small {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.52rem;
+  font-weight: 500;
+}
+:root[data-tv='true'] .tv-shelf {
+  flex: none;
+  min-width: 0;
+}
+:root[data-tv='true'] .tv-shelf-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 5px;
+}
+:root[data-tv='true'] .tv-shelf-head h2 {
+  color: #f2f4f7;
+  font-size: 0.96rem;
+  font-weight: 760;
+  letter-spacing: -0.015em;
+}
+:root[data-tv='true'] .tv-view-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.58);
+  background: transparent;
+  font-size: 0.58rem;
+  font-weight: 700;
+}
+:root[data-tv='true'] .tv-view-all .ico {
+  width: 15px;
+  height: 15px;
+}
+:root[data-tv='true'] .tv-view-all.tv-focus {
+  color: #fff;
+  box-shadow: var(--tv-ring);
+}
+:root[data-tv='true'] .tv-rail-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  padding: 12px 10px 26px;
+  margin: 0 -10px;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+:root[data-tv='true'] .tv-rail-items {
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(15px, 1.55vw, 26px);
+  width: max-content;
+  min-width: 100%;
+}
+:root[data-tv='true'] .tv-card {
+  display: flex;
+  flex: none;
+  width: clamp(194px, 18vw, 284px);
+  min-height: 0;
+  flex-direction: column;
+  padding: 0;
+  overflow: visible;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  color: rgba(241, 243, 247, 0.95);
+  background: transparent;
+  text-align: start;
+  transform-origin: center center;
+  transition: transform 160ms ease, color 160ms ease;
+}
+:root[data-tv='true'] .tv-card-art {
+  position: relative;
+  display: grid;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 13px;
+  background: linear-gradient(145deg, #202b39, #121820 70%);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.25);
+}
+:root[data-tv='true'] .tv-card-art > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 220ms ease;
+}
+:root[data-tv='true'] .tv-art-fallback {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  color: rgba(255, 221, 175, 0.7);
+  background: radial-gradient(circle at 70% 25%, rgba(var(--accent-rgb), 0.28), transparent 58%), linear-gradient(145deg, #202b39, #121820 70%);
+}
+:root[data-tv='true'] .tv-art-fallback .ico {
+  width: 34px;
+  height: 34px;
+}
+:root[data-tv='true'] .tv-card-kind {
+  position: absolute;
+  inset-block-start: 10px;
+  inset-inline-start: 10px;
+  padding: 4px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(7, 10, 15, 0.52);
+  font-size: 0.48rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+:root[data-tv='true'] .tv-card-title {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  margin-top: 9px;
+  color: #f0f2f6;
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:root[data-tv='true'] .tv-card-sub {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  margin-top: 3px;
+  color: rgba(226, 231, 240, 0.48);
+  font-size: 0.51rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+:root[data-tv='true'] .tv-card-progress {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.6);
+}
+:root[data-tv='true'] .tv-card-time {
+  position: absolute;
+  inset-inline-end: 9px;
+  inset-block-end: 10px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  color: #fff;
+  background: rgba(7, 10, 15, 0.74);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.48rem;
+  direction: ltr;
+}
+:root[data-tv='true'] .tv-card.tv-focus,
+:root[data-tv='true'] .tv-card:focus-visible {
+  z-index: 5;
+  color: #fff;
+  transform: scale(1.065) translateY(-4px);
+}
+:root[data-tv='true'] .tv-card.tv-focus .tv-card-art,
+:root[data-tv='true'] .tv-card:focus-visible .tv-card-art {
+  border-color: rgba(255, 226, 177, 0.8);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.95), 0 20px 42px rgba(0, 0, 0, 0.55);
+}
+:root[data-tv='true'] .tv-card.tv-focus .tv-card-art > img,
+:root[data-tv='true'] .tv-card:focus-visible .tv-card-art > img {
+  transform: scale(1.025);
+}
+:root[data-tv='true'] .tv-home-footer {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 4px 2px;
+  border-top: 1px solid rgba(255, 255, 255, 0.065);
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 0.6rem;
+}
+:root[data-tv='true'] .tv-home-footer > span,
+:root[data-tv='true'] .tv-home-footer > button {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+:root[data-tv='true'] .tv-home-footer .ico {
+  width: 17px;
+  height: 17px;
+  color: var(--accent-2);
+}
+:root[data-tv='true'] .tv-home-footer > button {
+  padding: 10px 14px;
+  border-radius: 11px;
+  color: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 0.61rem;
+  font-weight: 700;
+}
+:root[data-tv='true'] .tv-home-footer > button.tv-focus {
+  color: #fff;
+  box-shadow: var(--tv-ring);
+}
+
+/* Keep the player and library fully legible and usable with a TV remote. */
 :root[data-tv='true'] .view-head {
-  padding: 0 0 clamp(12px, 1.4vw, 24px);
+  padding: 0 0 clamp(14px, 1.8vw, 28px);
   gap: 18px;
 }
 :root[data-tv='true'] .view-head h2 {
   font-size: clamp(1.5rem, 2.1vw, 2.3rem);
-  letter-spacing: -0.02em;
 }
 :root[data-tv='true'] .view-head p {
   font-size: 0.9rem;
-  color: var(--text-3);
 }
 :root[data-tv='true'] .view-head .field {
   width: min(38vw, 460px) !important;
 }
-
-/* ------------------------------------------------------------------ grid */
 :root[data-tv='true'] .media-grid {
   grid-template-columns: repeat(auto-fill, minmax(clamp(190px, 20vw, 330px), 1fr));
   gap: clamp(14px, 1.5vw, 30px);
@@ -197,7 +730,7 @@
 }
 :root[data-tv='true'] .media-card.tv-focus,
 :root[data-tv='true'] .media-card:focus-visible {
-  transform: scale(1.055) translateY(-4px);
+  transform: scale(1.035);
   border-color: transparent;
   box-shadow: var(--tv-ring);
   z-index: 4;
@@ -206,48 +739,28 @@
 :root[data-tv='true'] .media-card .card-actions {
   opacity: 1;
 }
-:root[data-tv='true'] .media-card .media-play {
-  background: linear-gradient(0deg, rgba(0, 0, 0, 0.5), transparent 55%);
-}
 :root[data-tv='true'] .media-name {
   font-size: 0.92rem;
   -webkit-line-clamp: 1;
 }
-:root[data-tv='true'] .media-info {
-  font-size: 0.72rem;
-}
+:root[data-tv='true'] .media-info,
 :root[data-tv='true'] .media-dur {
   font-size: 0.72rem;
-  padding: 2px 8px;
 }
-
-/* ------------------------------------------------------------------ focus */
-:root[data-tv='true'] .tv-focus,
-:root[data-tv='true'] .tv-focus:focus,
-:root[data-tv='true'] .tv-focus:focus-visible {
+:root[data-tv='true'] .tv-shell .tv-focus,
+:root[data-tv='true'] .tv-shell .tv-focus:focus-visible {
   outline: none !important;
   box-shadow: var(--tv-ring);
   z-index: 3;
 }
-:root[data-tv='true'] .tv-focus::after {
-  display: none;
-}
-/* the video surface itself must not glow like a button */
-:root[data-tv='true'] .stage.tv-focus,
-:root[data-tv='true'] .stage:focus,
-:root[data-tv='true'] .stage:focus-visible {
+:root[data-tv='true'] .tv-shell .stage.tv-focus,
+:root[data-tv='true'] .tv-shell .stage:focus-visible {
   box-shadow: none;
-  outline: none !important;
 }
-
-/* ------------------------------------------------------------------ player */
-/* A television has no pointer: no drag target, no codec badges, no chrome
-   before the first frame. */
 :root[data-tv='true'] .empty-inner .drop-zone,
-:root[data-tv='true'] .empty-inner .empty-formats {
-  display: none;
-}
-:root[data-tv='true'] .stage-wrap[data-empty='true'] .stage-top {
+:root[data-tv='true'] .empty-inner .empty-formats,
+:root[data-tv='true'] .stage-wrap[data-empty='true'] .stage-top,
+:root[data-tv='true'] .stage-meta {
   display: none;
 }
 :root[data-tv='true'] .stage-wrap {
@@ -256,9 +769,6 @@
 :root[data-tv='true'] .stage {
   border-radius: 0;
   box-shadow: none;
-}
-:root[data-tv='true'] .stage-meta {
-  display: none;
 }
 :root[data-tv='true'] .stage-top {
   padding: calc(var(--tv-safe) * 0.6) calc(var(--tv-safe) * 0.7) 90px;
@@ -308,18 +818,16 @@
   font-size: 1.9rem;
 }
 :root[data-tv='true'] .empty-inner p {
-  font-size: 1rem;
   max-width: 44ch;
+  font-size: 1rem;
 }
 :root[data-tv='true'] .stage-empty .opt-list {
   gap: 12px;
 }
 :root[data-tv='true'] .stage-empty .opt-row {
-  font-size: 1rem;
   padding: 12px 18px;
+  font-size: 1rem;
 }
-
-/* ------------------------------------------------------------------ sheets */
 :root[data-tv='true'] .drawer {
   width: min(880px, 88vw) !important;
   border-radius: 22px;
@@ -332,19 +840,19 @@
   border-radius: 18px;
 }
 :root[data-tv='true'] .toast {
-  font-size: 0.95rem;
   padding: 14px 22px;
   border-radius: 14px;
+  font-size: 0.95rem;
 }
 :root[data-tv='true'] .chip {
   height: 42px;
-  font-size: 0.86rem;
   padding: 0 18px;
+  font-size: 0.86rem;
 }
 :root[data-tv='true'] .btn {
   --btn-h: 48px;
-  font-size: 0.92rem;
   padding: 0 20px;
+  font-size: 0.92rem;
 }
 :root[data-tv='true'] .iconbtn {
   width: 48px;
@@ -362,28 +870,46 @@
   font-size: 0.82rem;
 }
 
-/* ------------------------------------------------------------------ clean */
-:root[data-tv='true'] ::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-}
-:root[data-tv='true'] * {
-  scrollbar-width: none;
-}
-:root[data-tv='true'] .hint-desktop-only {
+/* Full-screen playback is a player, not a page with a permanent website header. */
+:root[data-tv='true'] .tv-shell[data-tv-view='player'] .tv-rail,
+:root[data-tv='true'] .tv-shell[data-tv-view='player'] .tv-toolbar {
   display: none;
 }
-/* a remote cannot hover: keep every affordance permanently available */
-@media (hover: none) {
-  :root[data-tv='true'] .media-card .card-play {
-    opacity: 1;
-    transform: none;
-  }
+:root[data-tv='true'] .tv-shell[data-tv-view='player'] .tv-main {
+  width: 100%;
 }
 
-/* very wide TVs (4K panels report ~1920 logical px) */
-@media (min-width: 1600px) {
-  :root[data-tv='true'] .media-grid {
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+/* The TV surface uses the same spatial focus manager as every other view,
+   but a warmer, larger ring and no mouse-hover lift. */
+:root[data-tv='true'] .tv-shell .tv-focus,
+:root[data-tv='true'] .tv-shell :focus-visible {
+  outline: none !important;
+}
+@media (max-height: 760px) {
+  :root[data-tv='true'] .tv-home {
+    gap: 22px;
+    padding-block: 18px 28px;
+  }
+  :root[data-tv='true'] .tv-hero {
+    height: clamp(260px, 37vh, 350px);
+    min-height: 260px;
+  }
+}
+@media (max-width: 900px) {
+  :root[data-tv='true'] .tv-shell .tv-rail {
+    width: 146px;
+    min-width: 146px;
+    padding-inline: 9px;
+  }
+  :root[data-tv='true'] .tv-nav .tv-nav-item {
+    gap: 9px;
+    padding-inline: 9px;
+    font-size: 0.7rem;
+  }
+  :root[data-tv='true'] .tv-hero-copy {
+    width: 90%;
+  }
+  :root[data-tv='true'] .tv-toolbar-btn b {
+    display: none;
   }
 }

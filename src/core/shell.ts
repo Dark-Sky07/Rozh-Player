@@ -7,17 +7,19 @@ import { mountPlayer, type Playable } from './player';
 import { applySettings, store, type MediaItem } from './store';
 import { onNativeCommand, probeFile, urlForFile } from './native';
 import { openDrawer, toast } from './ui';
-import { isAndroidDevice, syncDeviceLibrary } from './device';
+import { applyDeviceStatus, isAndroidDevice, pickDeviceFolder, syncDeviceLibrary } from './device';
 import { autoCheckForUpdates } from './updateUI';
 import { focusView, initTv } from './tv';
 import { $, $$, escapeHtml, isTextEntry, pickFiles, platform } from './util';
 import { renderHistory } from '../views/history';
 import { renderLibrary, generateThumb } from '../views/library';
+import { renderTvHome } from '../views/tvHome';
 import { renderAbout, renderShortcuts } from '../views/misc';
 import { renderSettings } from '../views/settings';
 import { openUrlModal, renderStreams } from '../views/streams';
 
-const VIEWS: { id: ViewId; icon: string; group: string; mobile?: boolean }[] = [
+const VIEWS: { id: ViewId; icon: string; group: string; mobile?: boolean; tvOnly?: boolean }[] = [
+  { id: 'home', icon: 'home', group: 'tv', tvOnly: true },
   { id: 'player', icon: 'play', group: 'play', mobile: true },
   { id: 'library', icon: 'film', group: 'play', mobile: true },
   { id: 'streams', icon: 'broadcast', group: 'play', mobile: true },
@@ -27,7 +29,7 @@ const VIEWS: { id: ViewId; icon: string; group: string; mobile?: boolean }[] = [
   { id: 'about', icon: 'info', group: 'app' },
 ];
 
-let activeView: ViewId = 'player';
+let activeView: ViewId = platform.tv ? 'home' : 'player';
 let player: ReturnType<typeof mountPlayer>;
 const session = new Map<string, { url: string; name: string; size: number }>();
 
@@ -78,6 +80,7 @@ function brandMarkup(fold: boolean): string {
 function viewsMarkup(): string {
   return `
       <main class="views">
+        <section class="view" data-view="home"></section>
         <section class="view" data-view="player"><div class="player-host" style="height:100%"></div></section>
         <section class="view" data-view="library"></section>
         <section class="view" data-view="streams"></section>
@@ -92,28 +95,52 @@ const ambientMarkup = (): string => `
     <div class="bg-aura" aria-hidden="true"></div>
     <div class="embers" aria-hidden="true">${Array.from({ length: 14 }, () => '<i></i>').join('')}</div>`;
 
+/** Dedicated, focus-first living-room navigation. */
+function tvNavMarkup(): string {
+  const items: { id: ViewId; icon: string; label: string }[] = [
+    { id: 'home', icon: 'home', label: t('nav.home') },
+    { id: 'player', icon: 'play', label: t('nav.player') },
+    { id: 'library', icon: 'film', label: t('nav.library') },
+    { id: 'streams', icon: 'radio', label: t('nav.streams') },
+    { id: 'history', icon: 'history', label: t('nav.history') },
+    { id: 'settings', icon: 'gear', label: t('nav.settings') },
+  ];
+  return items
+    .map(
+      (item) => `<button class="nav-item tv-nav-item" data-view="${item.id}" aria-label="${escapeHtml(item.label)}">
+        <span class="nav-ico">${icon(item.icon)}</span><span class="nav-label">${escapeHtml(item.label)}</span>
+        <span class="count" data-count="${item.id}" hidden></span>
+      </button>`,
+    )
+    .join('');
+}
+
 /**
- * The 10-foot shell. A television is not a laptop: no permanent rail, no
- * hover-only chrome, no tiny text. Everything lives in one top bar (brand,
- * destinations, actions) and the content owns the rest of the screen.
+ * An Android TV app should feel native to a couch and a directional remote:
+ * fixed destination rail, focused hero, horizontal media shelves and no
+ * desktop-like row of web tabs.
  */
 function tvTemplate(): string {
   return `
-  <div class="shell shell-tv" data-tv-shell="true">
+  <div class="shell shell-tv tv-shell" data-tv-shell="true">
     ${ambientMarkup()}
-    <header class="tvbar">
-      ${brandMarkup(false)}
-      <nav class="nav" aria-label="ROZH Player">${navMarkup(true)}</nav>
-      <div class="tvbar-actions">
-        <button class="btn btn-ghost" data-act="url">${icon('link')}<span>${escapeHtml(
-          t('player.openUrl'),
-        )}</span></button>
-        <button class="btn btn-primary" data-act="open">${icon('folder-open')}<span>${escapeHtml(
-          t('player.openFile'),
-        )}</span></button>
-      </div>
-    </header>
-    <div class="main">${viewsMarkup()}</div>
+    <aside class="tv-rail" aria-label="${escapeHtml(t('nav.home'))}">
+      <div class="tv-brand">${brandMarkup(false)}</div>
+      <nav class="tv-nav" aria-label="ROZH Player">${tvNavMarkup()}</nav>
+      <div class="tv-rail-foot"><span class="tv-rail-dot"></span><span>ROZH PLAYER</span></div>
+    </aside>
+    <div class="main tv-main">
+      <header class="tv-toolbar">
+        <div class="tv-toolbar-title"><span data-tv-eyebrow>ROZH PLAYER</span><h1 data-crumb>${t('view.home')}</h1></div>
+        <div class="tv-toolbar-actions">
+          ${isAndroidDevice() ? `<button class="tv-toolbar-btn" data-act="tv-scan">${icon('rotate')}<b data-tv-scan-label>${escapeHtml(t('tv.scan'))}</b></button>
+          <button class="tv-toolbar-btn" data-act="tv-folder">${icon('folder')}<b>${escapeHtml(t('tv.folder'))}</b></button>` : ''}
+          <button class="tv-toolbar-btn" data-act="url">${icon('link')}<b>${escapeHtml(t('player.openUrl'))}</b></button>
+          <button class="tv-toolbar-btn tv-toolbar-primary" data-act="open">${icon('folder-open')}<b>${escapeHtml(t('player.openFile'))}</b></button>
+        </div>
+      </header>
+      ${viewsMarkup()}
+    </div>
   </div>
   <div class="toasts" role="status" aria-live="polite" hidden></div>`;
 }
@@ -204,6 +231,9 @@ function renderActiveView(): void {
   if (!host) return;
   const ctx = makeContext();
   switch (activeView) {
+    case 'home':
+      renderTvHome(host, ctx);
+      break;
     case 'library':
       renderLibrary(host, ctx);
       break;
@@ -247,6 +277,7 @@ export function navigate(view: ViewId): void {
   if (sub) sub.textContent = meta.sub;
 
   const shell = $('.shell');
+  if (shell?.classList.contains('tv-shell')) shell.dataset.tvView = view;
   if (shell && window.innerWidth <= 900) shell.setAttribute('data-sidebar', 'closed');
   $('.scrim')?.setAttribute('hidden', '');
   focusView(view);
@@ -357,7 +388,7 @@ function ingestFiles(files: File[], opts: { autoplay?: boolean } = {}): Playable
       void probeFile(nativePath).then((probe) => {
         if (!probe) return;
         if (probe.duration > 0) store.updateMedia(item.id, { duration: probe.duration });
-        if (activeView === 'library' || activeView === 'history') renderActiveView();
+        if (activeView === 'library' || activeView === 'history' || activeView === 'home') renderActiveView();
       });
     }
 
@@ -365,14 +396,14 @@ function ingestFiles(files: File[], opts: { autoplay?: boolean } = {}): Playable
       void generateThumb(file).then((thumb) => {
         if (!thumb) return;
         store.updateMedia(item.id, { thumb });
-        if (activeView === 'library' || activeView === 'history') renderActiveView();
+        if (activeView === 'library' || activeView === 'history' || activeView === 'home') renderActiveView();
       });
     }
   }
 
   refreshNav();
   if (media.length) toast(t('library.added', { n: n(media.length) }), 'ok', 2000);
-  if (activeView === 'library' || activeView === 'history') renderActiveView();
+  if (activeView === 'library' || activeView === 'history' || activeView === 'home') renderActiveView();
 
   if (opts.autoplay !== false && playables.length && !player.current) {
     navigate('player');
@@ -436,6 +467,20 @@ function bindChrome(): void {
         break;
       case 'settings':
         navigate('settings');
+        break;
+      case 'tv-scan':
+        void syncDeviceLibrary({ reason: 'manual' }).then((result) => {
+          if (result.status?.state === 'error') toast(t('device.error'), 'bad', 2400);
+          if (activeView === 'home' || activeView === 'library') renderActiveView();
+          refreshNav();
+        });
+        break;
+      case 'tv-folder':
+        void pickDeviceFolder().then((status) => {
+          applyDeviceStatus(status);
+          if (activeView === 'home' || activeView === 'library') renderActiveView();
+          refreshNav();
+        });
         break;
       case 'menu':
         toggleSidebar(true);
@@ -589,7 +634,8 @@ export async function bootApp(): Promise<void> {
   applySettings(store.settings);
 
   const hash = location.hash.replace('#', '') as ViewId;
-  if (VIEWS.some((v) => v.id === hash)) activeView = hash;
+  if (platform.tv) activeView = 'home';
+  else if (VIEWS.some((v) => v.id === hash)) activeView = hash;
 
   paint();
   bindChrome();
@@ -607,7 +653,7 @@ export async function bootApp(): Promise<void> {
     void syncDeviceLibrary({ reason: 'launch' }).then((res) => {
       if (!res.added && !res.removed) return;
       refreshNav();
-      if (activeView === 'library' || activeView === 'history') renderActiveView();
+      if (activeView === 'library' || activeView === 'history' || activeView === 'home') renderActiveView();
     });
   }
 

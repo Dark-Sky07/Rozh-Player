@@ -7,7 +7,7 @@
   **Windows · macOS · Linux · Android · Android TV · Web**
 
   [![CI](https://img.shields.io/badge/build-passing-4ecf9a?style=flat-square)](.github/workflows/ci.yml)
-  [![Release](https://img.shields.io/badge/release-v1.0.7-f8da7e?style=flat-square)](../../releases/latest)
+  [![Release](https://img.shields.io/badge/release-v1.0.8-f8da7e?style=flat-square)](../../releases/latest)
   [![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square)](https://tauri.app)
   [![License](https://img.shields.io/badge/license-MIT-f8a24a?style=flat-square)](LICENSE)
   [![Languages](https://img.shields.io/badge/languages-47-6ba8ff?style=flat-square)](#languages)
@@ -42,15 +42,15 @@ Every version ships ready-to-install builds for all platforms on the
 
 | Platform | File |
 | --- | --- |
-| **Windows 10/11 (x64)** | `ROZH-Player_1.0.7_x64-setup.exe` |
-| **macOS — Apple Silicon (M1–M4)** | `ROZH-Player_1.0.7_aarch64.dmg` |
-| **macOS — Intel** | `ROZH-Player_1.0.7_x64.dmg` |
-| **Linux (Debian/Ubuntu)** | `ROZH-Player_1.0.7_amd64.deb` |
-| **Linux (Fedora/RHEL/openSUSE)** | `ROZH-Player-1.0.7-1.x86_64.rpm` |
-| **Linux (any distribution)** | `ROZH-Player_1.0.7_amd64.AppImage` |
-| **Android 7.0+ (phones, tablets)** | `ROZH-Player-1.0.7.apk` |
-| **Android TV (dedicated build)** | `ROZH-Player-TV-1.0.7.apk` |
-| **Android TV (Google Play bundle)** | `ROZH-Player-TV-1.0.7.aab` |
+| **Windows 10/11 (x64)** | `ROZH-Player_1.0.8_x64-setup.exe` |
+| **macOS — Apple Silicon (M1–M4)** | `ROZH-Player_1.0.8_aarch64.dmg` |
+| **macOS — Intel** | `ROZH-Player_1.0.8_x64.dmg` |
+| **Linux (Debian/Ubuntu)** | `ROZH-Player_1.0.8_amd64.deb` |
+| **Linux (Fedora/RHEL/openSUSE)** | `ROZH-Player-1.0.8-1.x86_64.rpm` |
+| **Linux (any distribution)** | `ROZH-Player_1.0.8_amd64.AppImage` |
+| **Android 7.0+ (phones, tablets)** | `ROZH-Player-1.0.8.apk` |
+| **Android TV (dedicated build)** | `ROZH-Player-TV-1.0.8.apk` |
+| **Android TV (Google Play bundle)** | `ROZH-Player-TV-1.0.8.aab` |
 | **Web / PWA** | `rozh-player-web.zip` — unzip and serve as static files |
 
 > Builds are unsigned: Windows may show SmartScreen and macOS Gatekeeper needs a
@@ -83,9 +83,8 @@ manager; the AppImage updates itself.
 
 <div align="center">
   <img src="docs/screenshots/05-mobile.jpg" width="270" alt="ROZH Player on a phone" />
-  <img src="docs/screenshots/06-android-tv.jpg" width="560" alt="ROZH Player on Android TV, driven with a remote" />
   <br />
-  <sub>Phone and the dedicated Android TV build — big focus rings, D-pad transport.</sub>
+  <sub>ROZH Player on a phone.</sub>
 </div>
 
 ## Why ROZH
@@ -109,9 +108,10 @@ midnight black. Three simple rules:
 - **Phone**: a real mobile shell — compact app bar, thumb-sized controls, a
   bottom tab bar with safe-area padding, no hover-only affordances, 2–3 column
   grid, `dvh`-aware player that survives rotation
-- **Android TV**: a dedicated 10-foot layout — one top bar instead of a side
-  rail, overscan-safe margins, large focus rings, D-pad spatial navigation and
-  remote transport keys. No pointer anywhere in the design
+- **Android TV**: a dedicated, remote-first 10-foot home with a persistent
+  left navigation rail, media-led feature area, resume and recent shelves, and
+  separate video/music rows. Large focus targets, overscan-safe spacing, D-pad
+  spatial navigation and remote transport keys; no pointer-only controls
 - 47 interface languages including Persian, Kurdish and full RTL
 
 ### Playback
@@ -230,7 +230,7 @@ from the first frame instead of relying on device detection.
 | `OK` / `Enter` | Activate the focused control; on the video surface: play / pause |
 | `▲ ▼` on the video surface | Bring the control bar up and focus it |
 | `◀ ▶` on the video surface | Seek by the configured step |
-| `Back` / `Esc` | Close the sheet, hide the controls, then return to the player |
+| `Back` / `Esc` | Close the sheet, hide the controls, then return to TV Home |
 
 ## Formats
 
@@ -286,7 +286,7 @@ Pushing a tag that matches `v*` builds the full matrix and publishes a new
 GitHub release with every asset attached:
 
 ```bash
-git tag v1.0.7 && git push origin v1.0.7
+git tag v1.0.8 && git push origin v1.0.8
 ```
 
 | Job | Tooling | Output |
