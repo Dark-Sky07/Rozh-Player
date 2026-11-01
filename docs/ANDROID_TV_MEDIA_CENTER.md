@@ -15,9 +15,9 @@ The Estuary TV interaction model is a useful reference:
 
 ## ROZH implementation boundary
 
-The dedicated Android TV target keeps a separate shell and remote-navigation model while the phone and desktop builds retain their own layouts. The TV rail routes to Home, All Media, Video, Music, Streams, Favorites, Playlists, History, and Settings; scan/folder/URL source actions remain grouped separately. The Android TV interface now exposes persistent favorites, editable personal playlists with ordered sequential playback, and an M3U/M3U8 IPTV importer that can fetch a remote list or read a local file, retaining common channel-name, group, and logo metadata. Imported channels use the existing media library and player rather than a parallel, fragile playback path. IPTV import is capped at 500 entries and 5 MiB per list; the TV build uses Tauri's native HTTP plugin. Phone, desktop, and web layouts remain unchanged.
+The dedicated Android TV target keeps a separate shell and remote-navigation model while the phone and desktop builds retain their own layouts. The TV rail routes to Home, All Media, Video, Music, Streams, Guide, Pictures, Favorites, Playlists, History, and Settings; scan/folder/URL source actions remain grouped separately. The Android TV interface exposes persistent favorites, editable personal playlists with ordered sequential playback, and an M3U/M3U8 IPTV importer that retains common channel metadata. XMLTV guide data can be loaded per playlist and is matched by `tvg-id` or channel display name; the guide presents current/next programmes. The Pictures destination browses selected images and, in the dedicated TV package, MediaStore and user-selected-folder images. Imported channels use the existing media library and player rather than a parallel playback path. IPTV import is capped at 500 entries and 5 MiB per list; XMLTV downloads are capped at 20 MiB. Phone, desktop, and web layouts remain unchanged.
 
-ROZH still does **not** provide Kodi's metadata scraper/database, TV-season/episode model, XMLTV guide, PVR/DVR recording, Kodi add-on runtime/catalog, image viewer, games, profiles, or system power integrations. Those require independent data models, backends, permissions, and security review; the present scope is not full Kodi feature parity.
+ROZH still does **not** provide a general movie/TV metadata scraper/database, a season/episode model, tuner-backed PVR/DVR recording, a third-party add-on runtime/catalog, games, profiles, or system power integrations. PVR/DVR needs a supported tuner/capture backend; arbitrary add-on code needs an isolated runtime and permission model. Those are not safely approximated by inert controls or unsandboxed scripts. ROZH is not feature-equivalent to Kodi.
 
 This implementation uses an original ROZH interface informed by Estuary's couch-first hierarchy. No Kodi source code, skin XML, logos, screenshots, or other branded assets were copied. Kodi's upstream code is GPL-2.0-or-later; incorporating its code or skin files would require a separate license/attribution review and could not silently remain an MIT-only distribution.
 
@@ -25,14 +25,15 @@ This implementation uses an original ROZH interface informed by Estuary's couch-
 
 1. Dedicated Android TV shell, remote navigation, MediaStore indexing, and SAF folder selection.
 2. Persistent favorites and user playlists shared by TV, desktop, phone, and web library views.
-3. Sequential playlist playback through the existing player queue, plus M3U/M3U8 channel import and local/remote source handling.
-4. Continue-watching, recently added, video, and music shelves backed only by metadata ROZH actually has.
+3. Sequential playlist playback through the existing player queue, plus M3U/M3U8 channel import, XMLTV current/next programme guide, and local/remote source handling.
+4. Continue-watching, recently added, video, music, and picture views backed by metadata ROZH actually has.
+5. Image indexing on the dedicated Android TV build, plus gallery selection/viewing with remote navigation.
 
 ## Remaining major work (not represented as complete)
 
-1. Validate the D-pad, SAF providers, codec support, and installer behavior on physical Android TV devices; sandbox CI cannot replace device testing.
-2. Add richer local metadata and image viewing only with explicit schemas and dependable parsers.
-3. XMLTV/EPG, PVR/DVR, add-ons, scrapers, profiles, games, and power integrations need separately scoped backend/security work before they can be promised.
+1. Validate the D-pad, SAF providers, image permissions/decoding, codec support, and installer behavior on physical Android TV devices; sandbox CI cannot replace device testing.
+2. A general-purpose media metadata scraper/database needs a defined provider/source policy, data schema, and local cache strategy.
+3. PVR/DVR needs a supported tuner or capture backend and clear recording permissions/storage semantics; third-party add-ons need a secure sandbox and capabilities model. Profiles, games, and power integrations need separate platform-specific designs.
 
 ## Upstream references reviewed
 

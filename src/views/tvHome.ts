@@ -94,7 +94,7 @@ function hero(item: MediaItem | undefined, count: number): string {
 export function renderTvHome(host: HTMLElement, ctx: AppContext): void {
   context = ctx;
   deviceStatus = lastDeviceStatus();
-  const all = store.library();
+  const all = store.library().filter((item) => item.kind !== 'image');
   const videos = all.filter((item) => mediaKind(item) === 'video');
   const audio = all.filter((item) => mediaKind(item) === 'audio');
   const resumable = all.filter(isResumable).sort((a, b) => (b.playedAt || 0) - (a.playedAt || 0));

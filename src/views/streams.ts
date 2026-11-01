@@ -153,6 +153,7 @@ export interface M3UChannel {
   url: string;
   group?: string;
   logo?: string;
+  tvgId?: string;
 }
 
 /** Parse a basic M3U / M3U8 channel list, preserving common IPTV metadata. */
@@ -206,12 +207,32 @@ export function parseM3U(text: string, baseUrl?: string): M3UChannel[] {
     const group = attr('group-title');
     const rawLogo = attr('tvg-logo');
     const logo = rawLogo ? normalizeUrl(rawLogo) ?? undefined : undefined;
+    const tvgId = attr('tvg-id') || attr('channel-id');
     seen.add(url);
-    channels.push({ title: title.slice(0, 200), url, ...(group ? { group: group.slice(0, 120) } : {}), ...(logo ? { logo } : {}) });
+    channels.push({
+      title: title.slice(0, 200),
+      url,
+      ...(group ? { group: group.slice(0, 120) } : {}),
+      ...(logo ? { logo } : {}),
+      ...(tvgId ? { tvgId: tvgId.slice(0, 160) } : {}),
+    });
     info = '';
     if (channels.length >= 500) break;
   }
   return channels;
+}
+
+export function parseM3UEpgUrl(text: string, baseUrl?: string): string | undefined {
+  const header = text.replace(/^\uFEFF/, '').split(/\r?\n/).find((line) => line.trim().startsWith('#EXTM3U'))?.trim();
+  if (!header) return undefined;
+  const match = header.match(/(?:url-tvg|x-tvg-url|tvg-url)="([^"]+)"/i);
+  const raw = match?.[1]?.split(',')[0]?.trim();
+  if (!raw) return undefined;
+  try {
+    return normalizeUrl(baseUrl ? new URL(raw, baseUrl).toString() : raw) ?? undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function openM3UImport(ctx: AppContext): void {
@@ -223,6 +244,9 @@ function openM3UImport(ctx: AppContext): void {
       <input class="input" type="url" inputmode="url" dir="ltr" data-m3u-url placeholder="https://example.com/playlist.m3u" />
       <label class="form-label" style="margin-top:14px">${escapeHtml(t('streams.playlistName'))}</label>
       <input class="input" data-m3u-name maxlength="80" placeholder="${escapeHtml(t('streams.playlistName'))}" />
+      <label class="form-label" style="margin-top:14px">${escapeHtml(t('streams.epgUrl'))}</label>
+      <input class="input" type="url" inputmode="url" dir="ltr" data-m3u-epg placeholder="https://example.com/guide.xml" />
+      <p class="modal-hint">${escapeHtml(t('streams.epgHint'))}</p>
       <label class="form-label" style="margin-top:14px">${escapeHtml(t('streams.chooseFile'))}</label>
       <input class="input" type="file" accept=".m3u,.m3u8,audio/x-mpegurl,application/vnd.apple.mpegurl,text/plain" data-m3u-file />
       <p class="modal-hint">M3U / M3U8 · HTTP(S) links only · up to 500 channels</p>`,
@@ -232,6 +256,7 @@ function openM3UImport(ctx: AppContext): void {
     onMount: (root, close) => {
       const urlInput = $('[data-m3u-url]', root) as HTMLInputElement | null;
       const nameInput = $('[data-m3u-name]', root) as HTMLInputElement | null;
+      const epgInput = $('[data-m3u-epg]', root) as HTMLInputElement | null;
       const fileInput = $('[data-m3u-file]', root) as HTMLInputElement | null;
       const importButton = $('[data-m3u-import]', root) as HTMLButtonElement | null;
       let fileText: string | null = null;
@@ -253,6 +278,7 @@ function openM3UImport(ctx: AppContext): void {
           fileText = await file.text();
           fileName = file.name.replace(/\.(m3u8?)$/i, '');
           if (nameInput && !nameInput.value) nameInput.value = fileName;
+          if (epgInput && !epgInput.value) epgInput.value = parseM3UEpgUrl(fileText) ?? '';
         } catch {
           fileText = null;
           toast(t('streams.importError'), 'bad');
@@ -278,6 +304,7 @@ function openM3UImport(ctx: AppContext): void {
             text = await response.text();
             if (text.length > 5 * 1024 * 1024) throw new Error('large');
             baseUrl = response.url || url;
+            if (epgInput && !epgInput.value) epgInput.value = parseM3UEpgUrl(text, baseUrl) ?? '';
             try {
               inferredName = decodeURIComponent(new URL(url).pathname.split('/').filter(Boolean).pop() ?? '');
               inferredName = inferredName.replace(/\.(m3u8?)$/i, '');
@@ -291,7 +318,10 @@ function openM3UImport(ctx: AppContext): void {
             importButton.disabled = false;
             return;
           }
-          const playlist = store.createPlaylist(nameInput.value || inferredName || t('streams.importPlaylist'));
+          const rawEpgUrl = epgInput?.value.trim() ?? '';
+          const epgUrl = rawEpgUrl ? normalizeUrl(rawEpgUrl) : parseM3UEpgUrl(text, baseUrl);
+          if (rawEpgUrl && !epgUrl) throw new Error('invalid-epg-url');
+          const playlist = store.createPlaylist(nameInput.value || inferredName || t('streams.importPlaylist'), { epgUrl: epgUrl ?? undefined });
           if (!playlist) throw new Error('playlist-name');
           channels.forEach((channel) => {
             const item = store.addMedia({
@@ -302,6 +332,8 @@ function openM3UImport(ctx: AppContext): void {
               url: channel.url,
               thumb: channel.logo,
               bucket: channel.group,
+              tvgId: channel.tvgId,
+              guidePlaylistId: playlist.id,
               ext: 'm3u',
               inLibrary: true,
             });

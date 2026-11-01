@@ -125,6 +125,7 @@ const before = xml;
 const wanted = [
   { name: 'android.permission.READ_MEDIA_VIDEO', extra: '' },
   { name: 'android.permission.READ_MEDIA_AUDIO', extra: '' },
+  { name: 'android.permission.READ_MEDIA_IMAGES', extra: '' },
   { name: 'android.permission.READ_MEDIA_VISUAL_USER_SELECTED', extra: '' },
   { name: 'android.permission.READ_EXTERNAL_STORAGE', extra: ' android:maxSdkVersion="32"' },
   { name: 'android.permission.REQUEST_INSTALL_PACKAGES', extra: '' },
@@ -198,6 +199,7 @@ const checks = [
   ['folder callback', activity.includes('MediaBridge.onActivityResult')],
   ['manifest video permission', xml.includes('android.permission.READ_MEDIA_VIDEO')],
   ['manifest audio permission', xml.includes('android.permission.READ_MEDIA_AUDIO')],
+  ['manifest image permission', xml.includes('android.permission.READ_MEDIA_IMAGES')],
   ['manifest selected-media permission', xml.includes('android.permission.READ_MEDIA_VISUAL_USER_SELECTED')],
   ['manifest legacy permission', xml.includes('android.permission.READ_EXTERNAL_STORAGE')],
   ['manifest install permission', xml.includes('android.permission.REQUEST_INSTALL_PACKAGES')],

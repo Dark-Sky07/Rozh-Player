@@ -36,7 +36,7 @@ export interface DeviceItem {
   title?: string;
   uri: string;
   size?: number;
-  kind?: 'video' | 'audio';
+  kind?: 'video' | 'audio' | 'image';
   ext?: string;
   /** milliseconds, as MediaStore reports it */
   duration?: number;
@@ -201,7 +201,7 @@ export function applyDeviceStatus(status: DeviceStatus | null): SyncResult {
   for (const raw of status.items) {
     if (!raw?.uri || !raw.name) continue;
     keep.add(raw.uri);
-    const kind: 'video' | 'audio' = raw.kind === 'audio' ? 'audio' : 'video';
+    const kind: 'video' | 'audio' | 'image' = raw.kind === 'image' ? 'image' : raw.kind === 'audio' ? 'audio' : 'video';
     const item = store.addMedia({
       name: raw.name,
       title: raw.title || raw.name,

@@ -1,3 +1,14 @@
+# ROZH Player 1.1.8
+
+**Android TV XMLTV guide and local picture gallery**
+
+- Added XMLTV programme guide import using playlist guide URLs and M3U `tvg-id` metadata; current and next programmes are cached locally.
+- Added a remote-friendly Android TV Pictures gallery; the dedicated TV build indexes images from MediaStore and selected folders.
+- PVR/DVR, third-party add-on execution, and a general media metadata scraper are not included; see the security and platform limits in the IPTV guide.
+- See [full release notes](releases/v1.1.8.md).
+
+---
+
 # ROZH Player 1.1.7
 
 **Favorites, personal playlists, and IPTV playlist import**

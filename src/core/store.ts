@@ -133,7 +133,7 @@ export interface Bookmark {
   at: number;
 }
 
-export type MediaKind = 'video' | 'audio' | 'stream';
+export type MediaKind = 'video' | 'audio' | 'stream' | 'image';
 
 export interface MediaItem {
   id: string;
@@ -152,6 +152,10 @@ export interface MediaItem {
   inLibrary: boolean;
   plays: number;
   favorite?: boolean;
+  /** XMLTV channel id used by Android TV's IPTV guide. */
+  tvgId?: string;
+  /** Playlist owning this imported channel's EPG mapping. */
+  guidePlaylistId?: string;
   /** `content://` URI of a file indexed from the device (Android only). */
   deviceUri?: string;
   /** Folder / album the device file came from. */
@@ -164,6 +168,16 @@ export interface MediaPlaylist {
   itemIds: string[];
   createdAt: number;
   updatedAt: number;
+  epgUrl?: string;
+}
+
+export interface GuideProgram {
+  channelId: string;
+  title: string;
+  description?: string;
+  category?: string;
+  start: number;
+  stop: number;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -270,6 +284,20 @@ async function idbSet(key: string, value: unknown): Promise<void> {
   }
 }
 
+async function idbDel(key: string): Promise<void> {
+  try {
+    const d = await db();
+    await new Promise<void>((resolve, reject) => {
+      const tx = d.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).delete(key);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {
+    /* storage unavailable — stale guide data is harmless */
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* store                                                               */
 /* ------------------------------------------------------------------ */
@@ -281,6 +309,7 @@ class Store {
   media: MediaItem[] = [];
   resumeMap: Record<string, { pos: number; at: number }> = storage.get('resume', {});
   private playlistData: MediaPlaylist[] = storage.get<MediaPlaylist[]>('mediaPlaylists', []);
+  private guideCache = new Map<string, GuideProgram[]>();
   ready = false;
 
   private listeners = new Set<Listener>();
@@ -361,6 +390,8 @@ class Store {
       if (item.url && item.url !== existing.url) existing.url = item.url;
       if (item.deviceUri) existing.deviceUri = item.deviceUri;
       if (item.bucket) existing.bucket = item.bucket;
+      if (item.tvgId) existing.tvgId = item.tvgId;
+      if (item.guidePlaylistId) existing.guidePlaylistId = item.guidePlaylistId;
       existing.inLibrary = existing.inLibrary || !!item.inLibrary;
       this.persist();
       this.emit();
@@ -385,6 +416,8 @@ class Store {
       plays: 0,
       deviceUri: item.deviceUri,
       bucket: item.bucket,
+      tvgId: item.tvgId,
+      guidePlaylistId: item.guidePlaylistId,
     };
     this.media.unshift(created);
     this.persist();
@@ -467,14 +500,14 @@ class Store {
   }
 
   favorites(): MediaItem[] {
-    return this.library().filter((item) => item.favorite);
+    return this.library().filter((item) => item.favorite && item.kind !== 'image');
   }
 
   getPlaylists(): MediaPlaylist[] {
     return this.playlistData.map((playlist) => ({ ...playlist, itemIds: [...playlist.itemIds] }));
   }
 
-  createPlaylist(rawName: string): MediaPlaylist | null {
+  createPlaylist(rawName: string, options: { epgUrl?: string } = {}): MediaPlaylist | null {
     const name = rawName.trim().slice(0, 80);
     if (!name) return null;
     const playlist: MediaPlaylist = {
@@ -483,6 +516,7 @@ class Store {
       itemIds: [],
       createdAt: Date.now(),
       updatedAt: Date.now(),
+      epgUrl: options.epgUrl,
     };
     this.playlistData.unshift(playlist);
     this.persistPlaylists();
@@ -491,7 +525,25 @@ class Store {
 
   deletePlaylist(id: string): void {
     this.playlistData = this.playlistData.filter((playlist) => playlist.id !== id);
+    this.guideCache.delete(id);
+    void idbDel(`guide:${id}`);
     this.persistPlaylists();
+  }
+
+  async getGuide(playlistId: string): Promise<GuideProgram[]> {
+    const cached = this.guideCache.get(playlistId);
+    if (cached) return [...cached];
+    const stored = await idbGet<GuideProgram[]>(`guide:${playlistId}`);
+    const safe = Array.isArray(stored) ? stored.filter((program) => Number.isFinite(program.start) && Number.isFinite(program.stop)) : [];
+    this.guideCache.set(playlistId, safe);
+    return [...safe];
+  }
+
+  async setGuide(playlistId: string, programs: GuideProgram[]): Promise<void> {
+    const safe = programs.slice(0, 20000);
+    this.guideCache.set(playlistId, safe);
+    await idbSet(`guide:${playlistId}`, safe);
+    this.emit();
   }
 
   addToPlaylist(playlistId: string, mediaId: string): boolean {
