@@ -15,13 +15,14 @@ import {
   syncDeviceLibrary,
   type DeviceStatus,
 } from '../core/device';
-import { confirmDialog, toast } from '../core/ui';
+import { confirmDialog, openModal, toast } from '../core/ui';
 import { escapeHtml, fmtBytes, fmtTime, fmtRelative, isAudioFile, pickFiles, platform, $, $$ } from '../core/util';
 
-export type LibraryFilter = 'all' | 'video' | 'audio' | 'stream';
+export type LibraryFilter = 'all' | 'video' | 'audio' | 'stream' | 'favorites' | 'playlists';
 
 let filter: LibraryFilter = 'all';
 let query = '';
+let openedPlaylistId: string | null = null;
 
 /** Set a TV navigation category before opening the shared library view. */
 export function setLibraryFilter(next: LibraryFilter): void {
@@ -125,6 +126,14 @@ function card(item: MediaItem): string {
           <span class="dotsep"></span>
           <span>${escapeHtml(item.playedAt ? fmtRelative(item.playedAt) : fmtRelative(item.addedAt))}</span>
         </div>
+        ${platform.tv ? `<div class="media-card-actions">
+          <button class="media-action ${item.favorite ? 'is-favorite' : ''}" data-favorite="${escapeHtml(item.id)}" aria-pressed="${
+            item.favorite ? 'true' : 'false'
+          }" aria-label="${escapeHtml(t(item.favorite ? 'library.favoriteRemoved' : 'library.favoriteAdded'))}">${icon('star')}</button>
+          <button class="media-action" data-playlist-add="${escapeHtml(item.id)}" aria-label="${escapeHtml(
+            t('library.playlistAdd'),
+          )}">${icon('plus')}</button>
+        </div>` : ''}
       </div>
     </div>`;
 }
@@ -190,21 +199,187 @@ async function runDeviceSync(host: HTMLElement, ctx: AppContext, kind: 'scan' | 
   ctx.refreshNav();
 }
 
+function openPlaylistDialog(mediaId: string, host: HTMLElement, ctx: AppContext): void {
+  const playlists = store.getPlaylists();
+  const options = playlists
+    .map((playlist) => `<option value="${escapeHtml(playlist.id)}">${escapeHtml(playlist.name)}</option>`)
+    .join('');
+  openModal({
+    title: t('library.playlistAdd'),
+    icon: 'list-video',
+    body: `<label class="form-label">${escapeHtml(t('library.playlists'))}</label>
+      <select class="input" data-playlist-select ${playlists.length ? '' : 'disabled'}>${options}</select>
+      <label class="form-label" style="margin-top:16px">${escapeHtml(t('library.playlistName'))}</label>
+      <input class="input" data-playlist-name maxlength="80" placeholder="${escapeHtml(t('library.playlistName'))}" />`,
+    footer: `<button class="btn" data-playlist-cancel>${escapeHtml(t('common.cancel'))}</button>
+      <button class="btn" data-playlist-create>${escapeHtml(t('library.playlistCreate'))}</button>
+      <button class="btn btn-primary" data-playlist-confirm ${playlists.length ? '' : 'disabled'}>${escapeHtml(
+        t('library.playlistAdd'),
+      )}</button>`,
+    onMount: (root, close) => {
+      const nameInput = $('[data-playlist-name]', root) as HTMLInputElement | null;
+      $('[data-playlist-cancel]', root)?.addEventListener('click', close);
+      $('[data-playlist-create]', root)?.addEventListener('click', () => {
+        const playlist = store.createPlaylist(nameInput?.value ?? '');
+        if (!playlist) {
+          nameInput?.focus();
+          return;
+        }
+        store.addToPlaylist(playlist.id, mediaId);
+        close();
+        toast(t('library.playlistAdded'), 'ok');
+        renderLibrary(host, ctx);
+        ctx.refreshNav();
+      });
+      $('[data-playlist-confirm]', root)?.addEventListener('click', () => {
+        const select = $('[data-playlist-select]', root) as HTMLSelectElement | null;
+        if (!select?.value) return;
+        const added = store.addToPlaylist(select.value, mediaId);
+        if (!added) toast(t('library.playlistDuplicate'), 'info');
+        else toast(t('library.playlistAdded'), 'ok');
+        close();
+        renderLibrary(host, ctx);
+        ctx.refreshNav();
+      });
+      requestAnimationFrame(() => (playlists.length ? $('[data-playlist-select]', root) : nameInput)?.focus());
+    },
+  });
+}
+
+function renderPlaylists(host: HTMLElement, ctx: AppContext): void {
+  const playlists = store.getPlaylists();
+  const active = openedPlaylistId ? playlists.find((playlist) => playlist.id === openedPlaylistId) : null;
+  if (openedPlaylistId && !active) openedPlaylistId = null;
+  const media = active ? store.playlistItems(active.id) : [];
+  const content = active
+    ? `<div class="view-head playlist-head">
+        <div><h2>${escapeHtml(active.name)}</h2><p>${escapeHtml(t('library.playlistCount', { n: n(media.length) }))}</p></div>
+        <div class="spacer"></div>
+        ${media.length ? `<button class="btn btn-primary" data-playlist-play>${icon('play')}<span>${escapeHtml(t('library.playlistPlay'))}</span></button>` : ''}
+        <button class="btn" data-playlist-back>${icon('arrow-left')}<span>${escapeHtml(t('library.playlistBack'))}</span></button>
+      </div>
+      ${media.length ? `<div class="playlist-media-grid">${media
+        .map((item, index) => `<div class="playlist-media-item">
+          <button class="playlist-media-play" data-media-play="${escapeHtml(item.id)}" aria-label="${escapeHtml(item.title)}">
+            ${item.thumb ? `<img src="${escapeHtml(item.thumb)}" alt="" loading="lazy" />` : `<span>${icon(kindOf(item) === 'audio' ? 'music' : 'film')}</span>`}
+            <b>${n(index + 1)}. ${escapeHtml(item.title)}</b>
+          </button>
+          <button class="media-action" data-playlist-remove="${escapeHtml(item.id)}" aria-label="${escapeHtml(t('library.playlistRemove'))}">${icon('x')}</button>
+        </div>`)
+        .join('')}</div>` : `<div class="empty-panel"><div class="ico-wrap">${icon('list-video')}</div><h3>${escapeHtml(
+          t('library.playlistEmpty'),
+        )}</h3><button class="btn" data-playlist-browse>${icon('grid')}<span>${escapeHtml(t('library.playlistBrowse'))}</span></button></div>`}`
+    : `<div class="view-head playlist-head">
+        <div><h2>${escapeHtml(t('library.playlists'))}</h2><p>${escapeHtml(t('library.playlistCount', { n: n(playlists.length) }))}</p></div>
+        <div class="spacer"></div>
+        <button class="btn" data-browse-media>${icon('grid')}<span>${escapeHtml(t('library.all'))}</span></button>
+        <button class="btn btn-primary" data-playlist-new>${icon('plus')}<span>${escapeHtml(t('library.createPlaylist'))}</span></button>
+      </div>
+      ${playlists.length ? `<div class="playlist-grid">${playlists
+        .map((playlist) => `<div class="playlist-card-wrap">
+          <button class="playlist-card" data-playlist-open="${escapeHtml(playlist.id)}">
+            <span class="playlist-card-icon">${icon('list-video')}</span>
+            <span class="playlist-card-copy"><b>${escapeHtml(playlist.name)}</b><small>${escapeHtml(
+              t('library.playlistCount', { n: n(playlist.itemIds.filter((id) => store.media.some((item) => item.id === id)).length) }),
+            )}</small></span>
+            ${icon('chevron-right')}
+          </button>
+          <button class="media-action" data-playlist-delete="${escapeHtml(playlist.id)}" aria-label="${escapeHtml(t('library.playlistDelete'))}">${icon('trash')}</button>
+        </div>`)
+        .join('')}</div>` : `<div class="empty-panel"><div class="ico-wrap">${icon('list-video')}</div><h3>${escapeHtml(
+          t('library.noPlaylists'),
+        )}</h3><button class="btn btn-primary" data-playlist-new>${icon('plus')}<span>${escapeHtml(t('library.createPlaylist'))}</span></button></div>`}`;
+
+  host.innerHTML = content;
+  hydrateIcons(host);
+  $('[data-playlist-back]', host)?.addEventListener('click', () => {
+    openedPlaylistId = null;
+    renderLibrary(host, ctx);
+  });
+  $('[data-playlist-play]', host)?.addEventListener('click', () => {
+    void ctx.playMediaQueue(media);
+  });
+  $('[data-playlist-browse], [data-browse-media]', host)?.addEventListener('click', () => ctx.navigate('library', 'all'));
+  $('[data-playlist-new]', host)?.addEventListener('click', () => {
+    openModal({
+      title: t('library.createPlaylist'),
+      icon: 'list-video',
+      body: `<label class="form-label">${escapeHtml(t('library.playlistName'))}</label><input class="input" data-new-playlist maxlength="80" autofocus />`,
+      footer: `<button class="btn" data-cancel>${escapeHtml(t('common.cancel'))}</button><button class="btn btn-primary" data-create>${escapeHtml(
+        t('library.playlistCreate'),
+      )}</button>`,
+      onMount: (root, close) => {
+        const input = $('[data-new-playlist]', root) as HTMLInputElement | null;
+        $('[data-cancel]', root)?.addEventListener('click', close);
+        const create = (): void => {
+          const playlist = store.createPlaylist(input?.value ?? '');
+          if (!playlist) {
+            input?.focus();
+            return;
+          }
+          openedPlaylistId = playlist.id;
+          close();
+          renderLibrary(host, ctx);
+          ctx.refreshNav();
+        };
+        $('[data-create]', root)?.addEventListener('click', create);
+        input?.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter') create();
+        });
+        requestAnimationFrame(() => input?.focus());
+      },
+    });
+  });
+  $$('[data-playlist-open]', host).forEach((button) => button.addEventListener('click', () => {
+    openedPlaylistId = (button as HTMLElement).dataset.playlistOpen ?? null;
+    renderLibrary(host, ctx);
+  }));
+  $$('[data-playlist-delete]', host).forEach((button) => button.addEventListener('click', async () => {
+    const id = (button as HTMLElement).dataset.playlistDelete!;
+    const playlist = store.getPlaylists().find((candidate) => candidate.id === id);
+    if (!playlist || !(await confirmDialog(`${t('library.playlistDelete')}: «${playlist.name}»`, { danger: true }))) return;
+    store.deletePlaylist(id);
+    renderLibrary(host, ctx);
+    ctx.refreshNav();
+  }));
+  $$('[data-playlist-remove]', host).forEach((button) => button.addEventListener('click', () => {
+    if (!active) return;
+    store.removeFromPlaylist(active.id, (button as HTMLElement).dataset.playlistRemove!);
+    renderLibrary(host, ctx);
+    ctx.refreshNav();
+  }));
+  $$('[data-media-play]', host).forEach((button) => button.addEventListener('click', () => {
+    const item = store.media.find((candidate) => candidate.id === (button as HTMLElement).dataset.mediaPlay);
+    if (item) void ctx.playMedia(item);
+  }));
+}
+
 export function renderLibrary(host: HTMLElement, ctx: AppContext): void {
   lastCtx = ctx;
+  if (filter === 'playlists') {
+    renderPlaylists(host, ctx);
+    return;
+  }
   const items = store.library();
   const filtered = items.filter((item) => {
     const k = kindOf(item);
-    if (filter !== 'all' && k !== filter) return false;
+    if (filter === 'favorites' && !item.favorite) return false;
+    if (filter !== 'all' && filter !== 'favorites' && k !== filter) return false;
     if (!query) return true;
     return item.title.toLowerCase().includes(query) || item.name.toLowerCase().includes(query);
   });
 
-  const chips: { id: typeof filter; label: string; count: number }[] = [
+  const chips: { id: LibraryFilter; label: string; count: number }[] = [
     { id: 'all', label: t('library.all'), count: items.length },
     { id: 'video', label: t('library.video'), count: items.filter((i) => kindOf(i) === 'video').length },
     { id: 'audio', label: t('library.audio'), count: items.filter((i) => kindOf(i) === 'audio').length },
     { id: 'stream', label: t('library.streams'), count: items.filter((i) => kindOf(i) === 'stream').length },
+    ...(platform.tv
+      ? [
+          { id: 'favorites' as const, label: t('library.favorites'), count: store.favorites().length },
+          { id: 'playlists' as const, label: t('library.playlists'), count: store.getPlaylists().length },
+        ]
+      : []),
   ];
 
   host.innerHTML = `
@@ -251,9 +426,9 @@ export function renderLibrary(host: HTMLElement, ctx: AppContext): void {
           </div>`
         : filtered.length === 0
           ? `<div class="empty-panel">
-              <div class="ico-wrap">${icon('search')}</div>
-              <h3>${t('library.noMatch')}</h3>
-              <p>${t('library.noMatchSub')}</p>
+              <div class="ico-wrap">${icon(filter === 'favorites' ? 'star' : 'search')}</div>
+              <h3>${t(filter === 'favorites' ? 'library.noFavorites' : 'library.noMatch')}</h3>
+              <p>${t(filter === 'favorites' ? 'library.noFavoritesSub' : 'library.noMatchSub')}</p>
             </div>`
           : `<div class="media-grid">${filtered.map((i) => card(i)).join('')}</div>`
     }`;
@@ -315,6 +490,19 @@ export function renderLibrary(host: HTMLElement, ctx: AppContext): void {
     }),
   );
 
+  $$('[data-favorite]', host).forEach((button) => button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const id = (button as HTMLElement).dataset.favorite!;
+    const favorite = store.toggleFavorite(id);
+    toast(t(favorite ? 'library.favoriteAdded' : 'library.favoriteRemoved'), 'info', 1600);
+    renderLibrary(host, ctx);
+    ctx.refreshNav();
+  }));
+  $$('[data-playlist-add]', host).forEach((button) => button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    openPlaylistDialog((button as HTMLElement).dataset.playlistAdd!, host, ctx);
+  }));
+
   $$('.media-card', host).forEach((cardEl) => {
     const id = (cardEl as HTMLElement).dataset.id!;
     const item = store.media.find((m) => m.id === id);
@@ -323,10 +511,11 @@ export function renderLibrary(host: HTMLElement, ctx: AppContext): void {
       void ctx.playMedia(item);
     };
     cardEl.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).closest('[data-remove]')) return;
+      if ((e.target as HTMLElement).closest('button')) return;
       open();
     });
     cardEl.addEventListener('keydown', (e) => {
+      if ((e.target as HTMLElement).closest('button')) return;
       if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
         e.preventDefault();
         open();

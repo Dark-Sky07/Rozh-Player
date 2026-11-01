@@ -105,6 +105,7 @@ export function renderTvHome(host: HTMLElement, ctx: AppContext): void {
   host.innerHTML = `<div class="tv-home">
     ${hero(featured, count)}
     ${resumable.length ? shelf(t('tv.continueWatching'), resumable.slice(0, 12), true, 'history') : ''}
+    ${shelf(t('library.favorites'), store.favorites().slice(0, 12), false, 'favorites')}
     ${shelf(t('tv.recentlyAdded'), recent.slice(0, 12))}
     ${shelf(t('tv.videoLibrary'), videos.slice(0, 12))}
     ${shelf(t('tv.musicLibrary'), audio.slice(0, 12))}
@@ -133,7 +134,17 @@ export function renderTvHome(host: HTMLElement, ctx: AppContext): void {
     });
   });
   host.querySelectorAll<HTMLElement>('[data-tv-go]').forEach((el) => {
-    el.addEventListener('click', () => ctx.navigate(el.dataset.tvGo as Parameters<AppContext['navigate']>[0]));
+    el.addEventListener('click', () => {
+      if (el.dataset.tvGo === 'favorites') {
+        ctx.navigate('library', 'favorites');
+        return;
+      }
+      if (el.dataset.tvGo === 'library') {
+        ctx.navigate('library', 'all');
+        return;
+      }
+      ctx.navigate(el.dataset.tvGo as Parameters<AppContext['navigate']>[0]);
+    });
   });
   host.querySelectorAll<HTMLButtonElement>('[data-tv-scan]').forEach((el) => {
     el.addEventListener('click', async () => {

@@ -1,3 +1,14 @@
+# ROZH Player 1.1.7
+
+**Favorites, personal playlists, and IPTV playlist import**
+
+- Added persistent Favorites and personal playlists across the shared library, with ordered playlist playback and a dedicated Android TV home shelf/navigation.
+- Added M3U/M3U8 import from a local file or HTTP(S) URL, including common channel names, groups, and logos.
+- Android version code 1001007; compatible v1.1.6 installs update in place.
+- See [full release notes](releases/v1.1.7.md).
+
+---
+
 # ROZH Player 1.1.6
 
 **A dedicated Android TV media-center interface**
