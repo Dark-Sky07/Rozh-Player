@@ -1,6 +1,6 @@
 /** ROZH Player — application shell, routing and orchestration. */
 
-import type { AppContext, ViewId } from './context';
+import type { AppContext, TvLibraryFilter, ViewId } from './context';
 import { icon, hydrateIcons } from './icons';
 import { t, n } from './i18n';
 import { mountPlayer, type Playable } from './player';
@@ -31,7 +31,7 @@ const VIEWS: { id: ViewId; icon: string; group: string; mobile?: boolean; deskto
 ];
 
 let activeView: ViewId = platform.tv ? 'home' : 'player';
-let activeTvFilter: 'all' | 'video' | 'audio' | null = null;
+let activeTvFilter: 'all' | 'video' | 'audio' | 'favorites' | 'playlists' | null = null;
 let player: ReturnType<typeof mountPlayer>;
 const session = new Map<string, { url: string; name: string; size: number }>();
 let shellReady = false;
@@ -103,7 +103,8 @@ const ambientMarkup = (): string => `
 
 /** Dedicated, focus-first living-room navigation. */
 function tvNavMarkup(): string {
-  const groups: { heading: string; items: { id: ViewId; icon: string; label: string; filter?: 'all' | 'video' | 'audio' }[] }[] = [
+  type TvFilter = 'all' | 'video' | 'audio' | 'favorites' | 'playlists';
+  const groups: { heading: string; items: { id: ViewId; icon: string; label: string; filter?: TvFilter }[] }[] = [
     {
       heading: t('tv.category.media'),
       items: [
@@ -114,7 +115,14 @@ function tvNavMarkup(): string {
         { id: 'streams', icon: 'radio', label: t('nav.streams') },
       ],
     },
-    { heading: t('tv.category.personal'), items: [{ id: 'history', icon: 'history', label: t('nav.history') }] },
+    {
+      heading: t('tv.category.personal'),
+      items: [
+        { id: 'library', icon: 'star', label: t('library.favorites'), filter: 'favorites' },
+        { id: 'library', icon: 'list-video', label: t('library.playlists'), filter: 'playlists' },
+        { id: 'history', icon: 'history', label: t('nav.history') },
+      ],
+    },
     { heading: t('tv.category.system'), items: [{ id: 'settings', icon: 'gear', label: t('nav.settings') }] },
   ];
   return groups
@@ -125,6 +133,7 @@ function tvNavMarkup(): string {
             (item) => `<button class="nav-item tv-nav-item" data-view="${item.id}" ${item.filter ? `data-tv-filter="${item.filter}"` : ''} aria-label="${escapeHtml(item.label)}">
               <span class="nav-ico">${icon(item.icon)}</span><span class="nav-label">${escapeHtml(item.label)}</span>
               ${item.id === 'history' || item.id === 'streams' ? `<span class="count" data-count="${item.id}" hidden></span>` : ''}
+              ${item.filter === 'favorites' || item.filter === 'playlists' ? `<span class="count" data-count="${item.filter}" hidden></span>` : ''}
             </button>`,
           )
           .join('')}
@@ -229,6 +238,7 @@ function makeContext(): AppContext {
     refreshNav,
     openLocalFiles,
     playMedia,
+    playMediaQueue,
     addFilesToLibrary,
     playPlayable,
     session,
@@ -271,9 +281,12 @@ function renderActiveView(): void {
   }
 }
 
-export function navigate(view: ViewId): void {
+export function navigate(view: ViewId, tvFilter?: TvLibraryFilter): void {
   if (view !== 'library') activeTvFilter = null;
-  else if (platform.tv && !activeTvFilter) {
+  else if (tvFilter) {
+    if (platform.tv) activeTvFilter = tvFilter;
+    setLibraryFilter(tvFilter);
+  } else if (platform.tv && !activeTvFilter) {
     activeTvFilter = 'all';
     setLibraryFilter('all');
   }
@@ -316,6 +329,8 @@ export function refreshNav(): void {
     library: store.library().length,
     history: store.recent().length,
     streams: 0,
+    favorites: store.favorites().length,
+    playlists: store.getPlaylists().length,
   };
   $$('[data-count]').forEach((el) => {
     const id = (el as HTMLElement).dataset.count!;
@@ -374,6 +389,26 @@ async function playMedia(item: MediaItem): Promise<void> {
     const thumb = await generateThumb(match);
     if (thumb) store.updateMedia(item.id, { thumb });
   }
+}
+
+async function playMediaQueue(items: MediaItem[], startIndex = 0): Promise<void> {
+  const entries = items.flatMap((item) => {
+    const playable = toPlayable(item);
+    return playable ? [{ item, playable }] : [];
+  });
+  if (!entries.length) {
+    const first = items[0];
+    if (first) await playMedia(first);
+    return;
+  }
+  const skipped = items.length - entries.length;
+  if (skipped) toast(`${n(skipped)} ${t('library.playlistSkipped')}`, 'warn', 2600);
+  const index = Math.max(0, Math.min(startIndex, entries.length - 1));
+  const first = entries[index]!;
+  navigate('player');
+  player.setQueue(entries.map((entry) => entry.playable), index, true);
+  await player.load(first.playable);
+  store.updateMedia(first.item.id, { playedAt: Date.now(), plays: (first.item.plays ?? 0) + 1 });
 }
 
 async function playPlayable(item: Playable): Promise<void> {
@@ -693,7 +728,7 @@ function bindChrome(): void {
     if (viewBtn?.dataset.view) {
       if (viewBtn.classList.contains('tv-nav-item')) {
         const filter = viewBtn.dataset.tvFilter;
-        activeTvFilter = filter === 'all' || filter === 'video' || filter === 'audio' ? filter : null;
+        activeTvFilter = filter === 'all' || filter === 'video' || filter === 'audio' || filter === 'favorites' || filter === 'playlists' ? filter : null;
         if (activeTvFilter) setLibraryFilter(activeTvFilter);
       }
       navigate(viewBtn.dataset.view as ViewId);

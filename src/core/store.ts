@@ -151,10 +151,19 @@ export interface MediaItem {
   ext: string;
   inLibrary: boolean;
   plays: number;
+  favorite?: boolean;
   /** `content://` URI of a file indexed from the device (Android only). */
   deviceUri?: string;
   /** Folder / album the device file came from. */
   bucket?: string;
+}
+
+export interface MediaPlaylist {
+  id: string;
+  name: string;
+  itemIds: string[];
+  createdAt: number;
+  updatedAt: number;
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -271,6 +280,7 @@ class Store {
   settings: Settings = { ...DEFAULT_SETTINGS, ...storage.get<Partial<Settings>>('settings', {}) };
   media: MediaItem[] = [];
   resumeMap: Record<string, { pos: number; at: number }> = storage.get('resume', {});
+  private playlistData: MediaPlaylist[] = storage.get<MediaPlaylist[]>('mediaPlaylists', []);
   ready = false;
 
   private listeners = new Set<Listener>();
@@ -336,13 +346,15 @@ class Store {
     // byte size; that made Android libraries silently lose tracks and videos.
     const existing = item.deviceUri
       ? this.media.find((m) => m.deviceUri === item.deviceUri)
-      : this.media.find(
-          (m) =>
-            !m.deviceUri &&
-            m.name === item.name &&
-            m.size === (item.size ?? 0) &&
-            m.source === (item.source ?? 'local'),
-        );
+      : item.source === 'url' && item.url
+        ? this.media.find((m) => m.source === 'url' && m.url === item.url)
+        : this.media.find(
+            (m) =>
+              !m.deviceUri &&
+              m.name === item.name &&
+              m.size === (item.size ?? 0) &&
+              m.source === (item.source ?? 'local'),
+          );
     if (existing) {
       if (item.thumb && !existing.thumb) existing.thumb = item.thumb;
       if (item.duration) existing.duration = item.duration;
@@ -389,6 +401,7 @@ class Store {
     this.media = this.media.filter((m) => !m.deviceUri || keep.has(m.deviceUri));
     const removed = before - this.media.length;
     if (removed) {
+      this.prunePlaylistReferences();
       this.persist();
       this.emit();
     }
@@ -410,12 +423,14 @@ class Store {
 
   removeMedia(id: string): void {
     this.media = this.media.filter((m) => m.id !== id);
+    this.prunePlaylistReferences();
     this.persist();
     this.emit();
   }
 
   clearLibrary(): void {
     this.media = [];
+    this.prunePlaylistReferences();
     this.persist();
     this.emit();
   }
@@ -441,6 +456,86 @@ class Store {
       .filter((m) => m.playedAt > 0)
       .sort((a, b) => b.playedAt - a.playedAt)
       .slice(0, limit);
+  }
+
+  toggleFavorite(id: string): boolean {
+    const item = this.media.find((candidate) => candidate.id === id);
+    if (!item) return false;
+    const next = !item.favorite;
+    this.updateMedia(id, { favorite: next });
+    return next;
+  }
+
+  favorites(): MediaItem[] {
+    return this.library().filter((item) => item.favorite);
+  }
+
+  getPlaylists(): MediaPlaylist[] {
+    return this.playlistData.map((playlist) => ({ ...playlist, itemIds: [...playlist.itemIds] }));
+  }
+
+  createPlaylist(rawName: string): MediaPlaylist | null {
+    const name = rawName.trim().slice(0, 80);
+    if (!name) return null;
+    const playlist: MediaPlaylist = {
+      id: uid('pl'),
+      name,
+      itemIds: [],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    this.playlistData.unshift(playlist);
+    this.persistPlaylists();
+    return playlist;
+  }
+
+  deletePlaylist(id: string): void {
+    this.playlistData = this.playlistData.filter((playlist) => playlist.id !== id);
+    this.persistPlaylists();
+  }
+
+  addToPlaylist(playlistId: string, mediaId: string): boolean {
+    const playlist = this.playlistData.find((candidate) => candidate.id === playlistId);
+    if (!playlist || !this.media.some((item) => item.id === mediaId)) return false;
+    if (playlist.itemIds.includes(mediaId)) return false;
+    playlist.itemIds.push(mediaId);
+    playlist.updatedAt = Date.now();
+    this.persistPlaylists();
+    return true;
+  }
+
+  removeFromPlaylist(playlistId: string, mediaId: string): void {
+    const playlist = this.playlistData.find((candidate) => candidate.id === playlistId);
+    if (!playlist) return;
+    playlist.itemIds = playlist.itemIds.filter((id) => id !== mediaId);
+    playlist.updatedAt = Date.now();
+    this.persistPlaylists();
+  }
+
+  playlistItems(playlistId: string): MediaItem[] {
+    const playlist = this.playlistData.find((candidate) => candidate.id === playlistId);
+    if (!playlist) return [];
+    const byId = new Map(this.media.map((item) => [item.id, item]));
+    return playlist.itemIds.map((id) => byId.get(id)).filter((item): item is MediaItem => !!item);
+  }
+
+  private persistPlaylists(): void {
+    storage.set('mediaPlaylists', this.playlistData);
+    this.emit();
+  }
+
+  private prunePlaylistReferences(): void {
+    const valid = new Set(this.media.map((item) => item.id));
+    let changed = false;
+    for (const playlist of this.playlistData) {
+      const next = playlist.itemIds.filter((id) => valid.has(id));
+      if (next.length !== playlist.itemIds.length) {
+        playlist.itemIds = next;
+        playlist.updatedAt = Date.now();
+        changed = true;
+      }
+    }
+    if (changed) storage.set('mediaPlaylists', this.playlistData);
   }
 
   /* ---------------- bookmarks ---------------- */

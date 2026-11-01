@@ -15,17 +15,24 @@ The Estuary TV interaction model is a useful reference:
 
 ## ROZH implementation boundary
 
-The dedicated Android TV target keeps a separate shell and remote-navigation model while the phone and desktop builds remain unchanged. Its new vertical rail routes to Home, All Media, Video, Music, Streams, History, and Settings, with scan/folder/URL source actions grouped separately. The current implementation uses ROZH's media library, Android MediaStore/SAF bridge, stream handling, player controls, subtitle and playback settings, history, and existing native/web media layers. It does **not** currently provide Kodi's scraper/database, TV-season/episode metadata model, PVR/DVR/EPG, Kodi add-on runtime/catalog, image viewer, games, or system power integrations. Those must be built as real features before they can appear as working destinations.
+The dedicated Android TV target keeps a separate shell and remote-navigation model while the phone and desktop builds retain their own layouts. The TV rail routes to Home, All Media, Video, Music, Streams, Favorites, Playlists, History, and Settings; scan/folder/URL source actions remain grouped separately. The Android TV interface now exposes persistent favorites, editable personal playlists with ordered sequential playback, and an M3U/M3U8 IPTV importer that can fetch a remote list or read a local file, retaining common channel-name, group, and logo metadata. Imported channels use the existing media library and player rather than a parallel, fragile playback path. IPTV import is capped at 500 entries and 5 MiB per list; the TV build uses Tauri's native HTTP plugin. Phone, desktop, and web layouts remain unchanged.
+
+ROZH still does **not** provide Kodi's metadata scraper/database, TV-season/episode model, XMLTV guide, PVR/DVR recording, Kodi add-on runtime/catalog, image viewer, games, profiles, or system power integrations. Those require independent data models, backends, permissions, and security review; the present scope is not full Kodi feature parity.
 
 This implementation uses an original ROZH interface informed by Estuary's couch-first hierarchy. No Kodi source code, skin XML, logos, screenshots, or other branded assets were copied. Kodi's upstream code is GPL-2.0-or-later; incorporating its code or skin files would require a separate license/attribution review and could not silently remain an MIT-only distribution.
 
-## Iteration order
+## Delivered media-center foundations
 
-1. Make the TV shell and every source/library action reliably usable with a D-pad and Android TV's native document providers.
-2. Build a real source browser and robust local/network library flows (including recoverable permission and scan states).
-3. Expand TV-specific library organization and continue-watching/music shelves using data ROZH can actually read; do not fabricate scraped metadata.
-4. Add genuinely supported playback, subtitle, audio-track, queue, and remote-control operations to the TV OSD.
-5. Only then consider major Kodi subsystems such as scrapers, PVR/EPG, plug-ins, or image viewing, each with a defined backend and compatibility/security plan.
+1. Dedicated Android TV shell, remote navigation, MediaStore indexing, and SAF folder selection.
+2. Persistent favorites and user playlists shared by TV, desktop, phone, and web library views.
+3. Sequential playlist playback through the existing player queue, plus M3U/M3U8 channel import and local/remote source handling.
+4. Continue-watching, recently added, video, and music shelves backed only by metadata ROZH actually has.
+
+## Remaining major work (not represented as complete)
+
+1. Validate the D-pad, SAF providers, codec support, and installer behavior on physical Android TV devices; sandbox CI cannot replace device testing.
+2. Add richer local metadata and image viewing only with explicit schemas and dependable parsers.
+3. XMLTV/EPG, PVR/DVR, add-ons, scrapers, profiles, games, and power integrations need separately scoped backend/security work before they can be promised.
 
 ## Upstream references reviewed
 

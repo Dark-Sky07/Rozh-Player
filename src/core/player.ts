@@ -260,6 +260,7 @@ export class Player {
   current: Playable | null = null;
   queue: Playable[] = [];
   index = -1;
+  private advanceQueue = false;
 
   private hls: HlsLike | null = null;
   /** mpegts.js engine: IPTV .ts / .flv links the webview refuses to open. */
@@ -771,8 +772,9 @@ export class Player {
   /* queue                                                            */
   /* ================================================================ */
 
-  setQueue(items: Playable[], startIndex = 0): void {
+  setQueue(items: Playable[], startIndex = 0, advanceQueue = false): void {
     this.queue.forEach((q) => this.revokeIfOwned(q));
+    this.advanceQueue = advanceQueue;
     this.queue = items;
     this.index = startIndex;
     this.updateQueueButton();
@@ -796,6 +798,12 @@ export class Player {
   next(auto = false): void {
     if (this.queue.length < 2) {
       if (!auto) toast(t('player.emptyQueue'), 'info', 1300);
+      return;
+    }
+    if (auto && this.advanceQueue && store.settings.loop !== 'all' && this.index >= this.queue.length - 1) {
+      this.advanceQueue = false;
+      $('.big-play', this.root)?.classList.add('show');
+      $$('.play-btn', this.root).forEach((button) => (button.innerHTML = icon('play')));
       return;
     }
     let nextIndex: number;
@@ -2001,7 +2009,7 @@ export class Player {
         void this.play();
         return;
       }
-      if (loop === 'all' || (store.settings.autoplay && this.queue.length > 1)) {
+      if (loop === 'all' || this.advanceQueue || (store.settings.autoplay && this.queue.length > 1)) {
         this.next(true);
         return;
       }
