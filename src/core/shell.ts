@@ -12,7 +12,7 @@ import { autoCheckForUpdates } from './updateUI';
 import { focusView, initTv } from './tv';
 import { $, $$, escapeHtml, guessMime, isAudioFile, isTextEntry, isWindowsDesktop, pickFiles, platform } from './util';
 import { renderHistory } from '../views/history';
-import { renderLibrary, generateThumb } from '../views/library';
+import { renderLibrary, generateThumb, setLibraryFilter } from '../views/library';
 import { renderTvHome } from '../views/tvHome';
 import { renderDesktopHome } from '../views/desktopHome';
 import { renderAbout, renderShortcuts } from '../views/misc';
@@ -31,6 +31,7 @@ const VIEWS: { id: ViewId; icon: string; group: string; mobile?: boolean; deskto
 ];
 
 let activeView: ViewId = platform.tv ? 'home' : 'player';
+let activeTvFilter: 'all' | 'video' | 'audio' | null = null;
 let player: ReturnType<typeof mountPlayer>;
 const session = new Map<string, { url: string; name: string; size: number }>();
 let shellReady = false;
@@ -102,20 +103,32 @@ const ambientMarkup = (): string => `
 
 /** Dedicated, focus-first living-room navigation. */
 function tvNavMarkup(): string {
-  const items: { id: ViewId; icon: string; label: string }[] = [
-    { id: 'home', icon: 'home', label: t('nav.home') },
-    { id: 'player', icon: 'play', label: t('nav.player') },
-    { id: 'library', icon: 'film', label: t('nav.library') },
-    { id: 'streams', icon: 'radio', label: t('nav.streams') },
-    { id: 'history', icon: 'history', label: t('nav.history') },
-    { id: 'settings', icon: 'gear', label: t('nav.settings') },
+  const groups: { heading: string; items: { id: ViewId; icon: string; label: string; filter?: 'all' | 'video' | 'audio' }[] }[] = [
+    {
+      heading: t('tv.category.media'),
+      items: [
+        { id: 'home', icon: 'home', label: t('nav.home') },
+        { id: 'library', icon: 'grid', label: t('tv.category.library'), filter: 'all' },
+        { id: 'library', icon: 'film', label: t('tv.videoLibrary'), filter: 'video' },
+        { id: 'library', icon: 'music', label: t('tv.musicLibrary'), filter: 'audio' },
+        { id: 'streams', icon: 'radio', label: t('nav.streams') },
+      ],
+    },
+    { heading: t('tv.category.personal'), items: [{ id: 'history', icon: 'history', label: t('nav.history') }] },
+    { heading: t('tv.category.system'), items: [{ id: 'settings', icon: 'gear', label: t('nav.settings') }] },
   ];
-  return items
+  return groups
     .map(
-      (item) => `<button class="nav-item tv-nav-item" data-view="${item.id}" aria-label="${escapeHtml(item.label)}">
-        <span class="nav-ico">${icon(item.icon)}</span><span class="nav-label">${escapeHtml(item.label)}</span>
-        <span class="count" data-count="${item.id}" hidden></span>
-      </button>`,
+      (group) => `<div class="tv-nav-group"><div class="tv-nav-heading">${escapeHtml(group.heading)}</div>
+        ${group.items
+          .map(
+            (item) => `<button class="nav-item tv-nav-item" data-view="${item.id}" ${item.filter ? `data-tv-filter="${item.filter}"` : ''} aria-label="${escapeHtml(item.label)}">
+              <span class="nav-ico">${icon(item.icon)}</span><span class="nav-label">${escapeHtml(item.label)}</span>
+              ${item.id === 'history' || item.id === 'streams' ? `<span class="count" data-count="${item.id}" hidden></span>` : ''}
+            </button>`,
+          )
+          .join('')}
+      </div>`,
     )
     .join('');
 }
@@ -129,15 +142,17 @@ function tvTemplate(): string {
   return `
   <div class="shell shell-tv tv-shell" data-tv-shell="true">
     ${ambientMarkup()}
-    <header class="tv-rail" aria-label="ROZH Player">
+    <aside class="tv-rail" aria-label="ROZH Player media center">
       <div class="tv-brand">${brandMarkup(false)}</div>
-      <nav class="tv-nav" aria-label="${escapeHtml(t('nav.home'))}">${tvNavMarkup()}</nav>
-      <div class="tv-header-actions">
+      <nav class="tv-nav" aria-label="${escapeHtml(t('tv.category.media'))}">${tvNavMarkup()}</nav>
+      <div class="tv-header-actions" aria-label="${escapeHtml(t('tv.category.sources'))}">
+        <div class="tv-nav-heading">${escapeHtml(t('tv.category.sources'))}</div>
         ${isAndroidDevice() ? `<button class="tv-toolbar-btn" data-act="tv-scan" aria-label="${escapeHtml(t('tv.scan'))}">${icon('rotate')}<b data-tv-scan-label>${escapeHtml(t('tv.scan'))}</b></button>` : ''}
-        <button class="tv-toolbar-btn" data-act="url" aria-label="${escapeHtml(t('player.openUrl'))}">${icon('link')}<b>${escapeHtml(t('player.openUrl'))}</b></button>
         <button class="tv-toolbar-btn tv-toolbar-primary" data-act="tv-folder" aria-label="${escapeHtml(t('tv.folder'))}">${icon('folder-open')}<b>${escapeHtml(t('tv.folder'))}</b></button>
+        <button class="tv-toolbar-btn" data-act="url" aria-label="${escapeHtml(t('player.openUrl'))}">${icon('link')}<b>${escapeHtml(t('player.openUrl'))}</b></button>
       </div>
-    </header>
+      <div class="tv-rail-footer"><span class="tv-rail-dot"></span><span>ROZH PLAYER</span><small>${escapeHtml(t('tv.mediaCenter'))}</small></div>
+    </aside>
     <div class="main tv-main">${viewsMarkup()}</div>
   </div>
   <div class="toasts" role="status" aria-live="polite" hidden></div>`;
@@ -257,6 +272,11 @@ function renderActiveView(): void {
 }
 
 export function navigate(view: ViewId): void {
+  if (view !== 'library') activeTvFilter = null;
+  else if (platform.tv && !activeTvFilter) {
+    activeTvFilter = 'all';
+    setLibraryFilter('all');
+  }
   activeView = view;
   document.body.dataset.view = view;
   try {
@@ -266,9 +286,15 @@ export function navigate(view: ViewId): void {
   }
 
   $$('.view').forEach((v) => v.classList.toggle('is-active', (v as HTMLElement).dataset.view === view));
-  $$('.nav-item, .tab-item').forEach((b) =>
-    b.classList.toggle('is-active', (b as HTMLElement).dataset.view === view),
-  );
+  $$('.nav-item, .tab-item').forEach((b) => {
+    const el = b as HTMLElement;
+    const selected = el.classList.contains('tv-nav-item')
+      ? view === 'library' && activeTvFilter
+        ? el.dataset.tvFilter === activeTvFilter
+        : !activeTvFilter && el.dataset.view === view
+      : el.dataset.view === view;
+    el.classList.toggle('is-active', selected);
+  });
   const meta = viewMeta(view);
   const crumb = $('[data-crumb]');
   const sub = $('[data-crumb-sub]');
@@ -665,6 +691,11 @@ function bindChrome(): void {
     // playback cards, settings links, and TV shelf actions).
     const viewBtn = target.closest<HTMLElement>('button[data-view], a[data-view], [role="tab"][data-view]');
     if (viewBtn?.dataset.view) {
+      if (viewBtn.classList.contains('tv-nav-item')) {
+        const filter = viewBtn.dataset.tvFilter;
+        activeTvFilter = filter === 'all' || filter === 'video' || filter === 'audio' ? filter : null;
+        if (activeTvFilter) setLibraryFilter(activeTvFilter);
+      }
       navigate(viewBtn.dataset.view as ViewId);
       return;
     }

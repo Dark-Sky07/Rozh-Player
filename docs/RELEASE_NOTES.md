@@ -1,3 +1,14 @@
+# ROZH Player 1.1.6
+
+**A dedicated Android TV media-center interface**
+
+- Replaced the TV horizontal header with a vertical D-pad navigation rail and working All Media, Video, Music, Streams, History, and Settings destinations.
+- Added a Kodi architecture/Estuary review and a staged TV feature roadmap.
+- Android version code 1001006; v1.1.5 installations update in place.
+- See [full release notes](releases/v1.1.6.md).
+
+---
+
 # ROZH Player 1.1.5
 
 **A usable, remote-first Android TV launch and media-browsing flow**
