@@ -18,8 +18,16 @@ import {
 import { confirmDialog, toast } from '../core/ui';
 import { escapeHtml, fmtBytes, fmtTime, fmtRelative, isAudioFile, pickFiles, platform, $, $$ } from '../core/util';
 
-let filter: 'all' | 'video' | 'audio' | 'stream' = 'all';
+export type LibraryFilter = 'all' | 'video' | 'audio' | 'stream';
+
+let filter: LibraryFilter = 'all';
 let query = '';
+
+/** Set a TV navigation category before opening the shared library view. */
+export function setLibraryFilter(next: LibraryFilter): void {
+  filter = next;
+  query = '';
+}
 /** Last device-scan report, kept so a redraw does not lose the progress bar. */
 let deviceStatus: DeviceStatus | null = null;
 let deviceBound = false;
