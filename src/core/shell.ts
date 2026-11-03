@@ -10,8 +10,10 @@ import { openDrawer, toast } from './ui';
 import { applyDeviceStatus, isAndroidDevice, pickDeviceFolder, syncDeviceLibrary } from './device';
 import { autoCheckForUpdates } from './updateUI';
 import { focusView, initTv } from './tv';
-import { $, $$, escapeHtml, guessMime, isAudioFile, isTextEntry, isWindowsDesktop, pickFiles, platform } from './util';
+import { $, $$, escapeHtml, guessMime, isAudioFile, isImageFile, isTextEntry, isWindowsDesktop, pickFiles, platform } from './util';
 import { renderHistory } from '../views/history';
+import { renderGuide } from '../views/guide';
+import { renderPictures } from '../views/pictures';
 import { renderLibrary, generateThumb, setLibraryFilter } from '../views/library';
 import { renderTvHome } from '../views/tvHome';
 import { renderDesktopHome } from '../views/desktopHome';
@@ -90,6 +92,8 @@ function viewsMarkup(): string {
         <section class="view" data-view="player"><div class="player-host" style="height:100%"></div></section>
         <section class="view" data-view="library"></section>
         <section class="view" data-view="streams"></section>
+        <section class="view" data-view="guide"></section>
+        <section class="view" data-view="pictures"></section>
         <section class="view" data-view="history"></section>
         <section class="view" data-view="settings"></section>
         <section class="view" data-view="shortcuts"></section>
@@ -113,6 +117,8 @@ function tvNavMarkup(): string {
         { id: 'library', icon: 'film', label: t('tv.videoLibrary'), filter: 'video' },
         { id: 'library', icon: 'music', label: t('tv.musicLibrary'), filter: 'audio' },
         { id: 'streams', icon: 'radio', label: t('nav.streams') },
+        { id: 'guide', icon: 'tv', label: t('guide.title') },
+        { id: 'pictures', icon: 'camera', label: t('pictures.title') },
       ],
     },
     {
@@ -264,6 +270,12 @@ function renderActiveView(): void {
     case 'streams':
       renderStreams(host, ctx);
       break;
+    case 'guide':
+      renderGuide(host, ctx);
+      break;
+    case 'pictures':
+      renderPictures(host, ctx);
+      break;
     case 'history':
       renderHistory(host, ctx);
       break;
@@ -326,7 +338,7 @@ export function navigate(view: ViewId, tvFilter?: TvLibraryFilter): void {
 
 export function refreshNav(): void {
   const counts: Record<string, number> = {
-    library: store.library().length,
+    library: store.library().filter((item) => item.kind !== 'image').length,
     history: store.recent().length,
     streams: 0,
     favorites: store.favorites().length,
@@ -345,6 +357,7 @@ export function refreshNav(): void {
 /* ------------------------------------------------------------------ */
 
 function toPlayable(item: MediaItem): Playable | null {
+  if (item.kind === 'image') return null;
   const live = session.get(item.id);
   const url = live?.url ?? item.url;
   if (!url) return null;
@@ -427,10 +440,11 @@ function ingestFiles(files: File[], opts: { autoplay?: boolean } = {}): Playable
 
   for (const file of media) {
     const existing = store.media.find((m) => m.name === file.name && m.size === file.size);
+    const image = platform.tv && isImageFile(file.name);
     const item = store.addMedia({
       name: file.name,
       title: file.name.replace(/\.[^.]+$/, ''),
-      kind: isAudioFile(file.name) ? 'audio' : 'video',
+      kind: image ? 'image' : isAudioFile(file.name) ? 'audio' : 'video',
       source: 'local',
       size: file.size,
       ext: (file.name.split('.').pop() ?? '').toLowerCase(),
@@ -444,26 +458,26 @@ function ingestFiles(files: File[], opts: { autoplay?: boolean } = {}): Playable
     if (playable) playables.push({ ...playable, file });
 
     const nativePath = (file as { __path?: string }).__path;
-    if (nativePath) {
+    if (nativePath && !image) {
       void probeFile(nativePath).then((probe) => {
         if (!probe) return;
         if (probe.duration > 0) store.updateMedia(item.id, { duration: probe.duration });
-        if (activeView === 'library' || activeView === 'history' || activeView === 'home') renderActiveView();
+        if (activeView === 'library' || activeView === 'history' || activeView === 'home' || activeView === 'pictures') renderActiveView();
       });
     }
 
-    if (!item.thumb) {
+    if (!item.thumb && !image) {
       void generateThumb(file).then((thumb) => {
         if (!thumb) return;
         store.updateMedia(item.id, { thumb });
-        if (activeView === 'library' || activeView === 'history' || activeView === 'home') renderActiveView();
+        if (activeView === 'library' || activeView === 'history' || activeView === 'home' || activeView === 'pictures') renderActiveView();
       });
     }
   }
 
   refreshNav();
   if (media.length) toast(t('library.added', { n: n(media.length) }), 'ok', 2000);
-  if (activeView === 'library' || activeView === 'history' || activeView === 'home') renderActiveView();
+  if (activeView === 'library' || activeView === 'history' || activeView === 'home' || activeView === 'pictures') renderActiveView();
 
   if (opts.autoplay !== false && playables.length && !player.current) {
     navigate('player');
@@ -942,7 +956,7 @@ export async function bootApp(): Promise<void> {
     void syncDeviceLibrary({ reason: 'launch' }).then((res) => {
       if (!res.added && !res.removed) return;
       refreshNav();
-      if (activeView === 'library' || activeView === 'history' || activeView === 'home') renderActiveView();
+      if (activeView === 'library' || activeView === 'history' || activeView === 'home' || activeView === 'pictures') renderActiveView();
     });
   }
 

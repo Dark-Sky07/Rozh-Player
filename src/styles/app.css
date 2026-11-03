@@ -1453,6 +1453,138 @@ html[dir='rtl'] .chapters i {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.guide-content {
+  display: grid;
+  gap: 22px;
+  padding-bottom: 28px;
+}
+.guide-playlist {
+  display: grid;
+  gap: 10px;
+}
+.guide-playlist-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 2px;
+}
+.guide-playlist-head h2 {
+  margin: 0;
+  color: var(--text-0);
+  font-size: 1.15rem;
+}
+.guide-playlist-head span {
+  color: var(--text-3);
+  font-size: 0.76rem;
+}
+.guide-channel {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(170px, 0.32fr) 1fr;
+  gap: 12px;
+  padding: 11px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+}
+.guide-channel-play {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: start;
+  color: var(--text-0);
+}
+.guide-channel-play img,
+.guide-channel-mark {
+  width: 72px;
+  height: 48px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  object-fit: contain;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+.guide-channel-play > span:nth-child(2) {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 4px;
+}
+.guide-channel-play b,
+.guide-channel-play small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.guide-channel-play small {
+  color: var(--text-3);
+  font-size: 0.74rem;
+}
+.guide-channel-play > .ico {
+  flex: 0 0 auto;
+  width: 18px;
+}
+.guide-programs {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.guide-program {
+  min-width: 0;
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  padding: 10px 12px 14px;
+  border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.035);
+  overflow: hidden;
+}
+.guide-program small {
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+.guide-program b {
+  color: var(--text-0);
+  font-size: 0.84rem;
+}
+.guide-program > span {
+  color: var(--text-3);
+  font-size: 0.68rem;
+}
+.guide-program p {
+  max-height: 3em;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-2);
+  font-size: 0.7rem;
+  line-height: 1.5;
+}
+.guide-program > i {
+  position: absolute;
+  inset: auto 0 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.guide-program > i em {
+  display: block;
+  height: 100%;
+  background: var(--accent-grad);
+}
+@media (max-width: 720px) {
+  .guide-channel {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 520px) {
+  .guide-programs {
+    grid-template-columns: 1fr;
+  }
+}
 .media-remove {
   position: absolute;
   inset-block-start: 8px;
@@ -2152,4 +2284,73 @@ html[dir='rtl'] .chapters i {
   .stage-meta .meta-actions .iconbtn:nth-child(3) {
     display: none;
   }
+}
+
+/* Lightweight local image gallery and modal viewer. */
+.picture-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+  padding-bottom: 30px;
+}
+.picture-card {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  text-align: start;
+  color: var(--text-0);
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+}
+.picture-card img,
+.picture-card > span {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  display: grid;
+  place-items: center;
+  object-fit: contain;
+  border-radius: var(--r-md);
+  background: #080a0e;
+}
+.picture-card > span small {
+  max-width: 90%;
+  color: var(--text-3);
+  font-size: 0.7rem;
+}
+.picture-card b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.8rem;
+}
+.picture-viewer-stage {
+  min-height: 45vh;
+  max-height: 74vh;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #050608;
+  border-radius: var(--r-md);
+}
+.picture-viewer-stage img {
+  max-width: 100%;
+  max-height: 74vh;
+  object-fit: contain;
+}
+.picture-viewer-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+}
+.picture-viewer-foot > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+  font-size: 0.78rem;
 }

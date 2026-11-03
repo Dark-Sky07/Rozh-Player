@@ -290,25 +290,28 @@ public final class MediaBridge {
     /* ------------------------------------------------------------------ */
 
     private static String[] wanted(boolean audio) {
+        List<String> permissions = new ArrayList<>();
         if (Build.VERSION.SDK_INT >= 33) {
             // Literal names on purpose: they must not depend on compileSdk.
-            if (Build.VERSION.SDK_INT >= 34) {
-                return audio
-                    ? new String[] {
-                        "android.permission.READ_MEDIA_VIDEO",
-                        "android.permission.READ_MEDIA_AUDIO",
-                        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
-                    }
-                    : new String[] {
-                        "android.permission.READ_MEDIA_VIDEO",
-                        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
-                    };
-            }
-            return audio
-                ? new String[] { "android.permission.READ_MEDIA_VIDEO", "android.permission.READ_MEDIA_AUDIO" }
-                : new String[] { "android.permission.READ_MEDIA_VIDEO" };
+            permissions.add("android.permission.READ_MEDIA_VIDEO");
+            if (audio) permissions.add("android.permission.READ_MEDIA_AUDIO");
+            // Only the dedicated TV package requests broad image access; phone
+            // installations keep the existing video/audio permission flow.
+            if (isTvBuild()) permissions.add("android.permission.READ_MEDIA_IMAGES");
+            if (Build.VERSION.SDK_INT >= 34) permissions.add("android.permission.READ_MEDIA_VISUAL_USER_SELECTED");
+        } else {
+            permissions.add("android.permission.READ_EXTERNAL_STORAGE");
         }
-        return new String[] { "android.permission.READ_EXTERNAL_STORAGE" };
+        return permissions.toArray(new String[0]);
+    }
+
+    private static boolean isTvBuild() {
+        try {
+            Activity a = activity;
+            return a != null && a.getPackageName().endsWith(".tv");
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     private static boolean hasFullVideoPermission(Activity a) {
@@ -340,6 +343,17 @@ public final class MediaBridge {
                 : "android.permission.READ_EXTERNAL_STORAGE";
             return a.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED;
         } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private static boolean hasImagePermission(Activity a) {
+        try {
+            if (Build.VERSION.SDK_INT < 33) return hasFullVideoPermission(a);
+            if (a.checkSelfPermission("android.permission.READ_MEDIA_IMAGES") == PackageManager.PERMISSION_GRANTED) return true;
+            return Build.VERSION.SDK_INT >= 34
+                && a.checkSelfPermission("android.permission.READ_MEDIA_VISUAL_USER_SELECTED") == PackageManager.PERMISSION_GRANTED;
+        } catch (Throwable ignored) {
             return false;
         }
     }
@@ -439,13 +453,14 @@ public final class MediaBridge {
         List<JSONObject> items = new ArrayList<>();
         Set<String> seen = new HashSet<>();
 
-        if (hasVideoPermission(a)) collect(items, seen, movieCollection(), true);
-        if (audio && hasAudioPermission(a)) collect(items, seen, songCollection(), true);
+        if (hasVideoPermission(a)) collect(items, seen, movieCollection(), true, "video");
+        if (audio && hasAudioPermission(a)) collect(items, seen, songCollection(), true, "audio");
+        if (isTvBuild() && hasImagePermission(a)) collect(items, seen, imageCollection(), true, "image");
 
         // folders the user picked earlier stay part of the library
         for (String tree : pickedTrees()) {
             try {
-                collectTree(a, Uri.parse(tree), items, seen, audio);
+                collectTree(a, Uri.parse(tree), items, seen, audio, isTvBuild());
             } catch (Throwable ignored) {
                 /* a revoked grant must not kill the rest of the scan */
             }
@@ -486,7 +501,14 @@ public final class MediaBridge {
         return MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
     }
 
-    private static void collect(List<JSONObject> out, Set<String> seen, Uri collection, boolean thumbs) {
+    private static Uri imageCollection() {
+        if (Build.VERSION.SDK_INT >= 29) {
+            return MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL);
+        }
+        return MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+    }
+
+    private static void collect(List<JSONObject> out, Set<String> seen, Uri collection, boolean thumbs, String kindOverride) {
         Activity a = activity;
         if (a == null) return;
         Cursor c = null;
@@ -514,8 +536,9 @@ public final class MediaBridge {
                     String name = iName >= 0 ? c.getString(iName) : null;
                     if (name == null || name.length() == 0) name = "media-" + id;
                     String mime = iMime >= 0 ? c.getString(iMime) : "";
-                    boolean isAudio = mime != null && mime.startsWith("audio/") || looksLikeAudio(name);
-                    JSONObject o = baseItem(name, uri.toString(), isAudio ? "audio" : "video");
+                    boolean isAudio = "audio".equals(kindOverride) || (mime != null && mime.startsWith("audio/")) || looksLikeAudio(name);
+                    String kind = kindOverride != null ? kindOverride : isAudio ? "audio" : "video";
+                    JSONObject o = baseItem(name, uri.toString(), kind);
                     o.put("size", iSize >= 0 ? c.getLong(iSize) : 0L);
                     long dur = iDur >= 0 ? c.getLong(iDur) : 0L;
                     o.put("duration", dur > 0 ? dur : 0L);
@@ -620,7 +643,7 @@ public final class MediaBridge {
     }
 
     /** Walk a SAF tree and add every media document to the list. */
-    private static void collectTree(Activity a, Uri tree, List<JSONObject> out, Set<String> seen, boolean includeAudio) {
+    private static void collectTree(Activity a, Uri tree, List<JSONObject> out, Set<String> seen, boolean includeAudio, boolean includeImages) {
         String rootId;
         try {
             rootId = DocumentsContract.getTreeDocumentId(tree);
@@ -661,13 +684,14 @@ public final class MediaBridge {
                             }
                             boolean video = mime != null && mime.startsWith("video/");
                             boolean audio = mime != null && mime.startsWith("audio/");
-                            if (!video && !audio) audio = looksLikeAudio(name);
+                            boolean image = includeImages && ((mime != null && mime.startsWith("image/")) || looksLikeImage(name));
+                            if (!video && !audio && !image) audio = looksLikeAudio(name);
                             if (audio && !includeAudio) continue;
-                            if (!video && !audio && !looksLikeMedia(name)) continue;
+                            if (!video && !audio && !image && !looksLikeMedia(name)) continue;
                             Uri child = DocumentsContract.buildDocumentUriUsingTree(tree, childId);
                             String key = child.toString();
                             if (!seen.add(key)) continue;
-                            JSONObject o = baseItem(name, key, audio ? "audio" : "video");
+                            JSONObject o = baseItem(name, key, image ? "image" : audio ? "audio" : "video");
                             o.put("size", size);
                             o.put("duration", 0L);
                             o.put("mime", mime == null ? "" : mime);
@@ -700,6 +724,14 @@ public final class MediaBridge {
         if (name == null) return false;
         String n = name.toLowerCase();
         String[] exts = { ".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus", ".wma", ".mka", ".alac", ".aif", ".aiff", ".ape" };
+        for (String e : exts) if (n.endsWith(e)) return true;
+        return false;
+    }
+
+    private static boolean looksLikeImage(String name) {
+        if (name == null) return false;
+        String n = name.toLowerCase();
+        String[] exts = { ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".avif", ".heic" };
         for (String e : exts) if (n.endsWith(e)) return true;
         return false;
     }
@@ -1083,6 +1115,13 @@ public final class MediaBridge {
         if (lower.contains(".flac")) return "audio/flac";
         if (lower.contains(".wav")) return "audio/wav";
         if (lower.contains(".ogg") || lower.contains(".opus")) return "audio/ogg";
+        if (lower.contains(".jpg") || lower.contains(".jpeg")) return "image/jpeg";
+        if (lower.contains(".png")) return "image/png";
+        if (lower.contains(".webp")) return "image/webp";
+        if (lower.contains(".gif")) return "image/gif";
+        if (lower.contains(".bmp")) return "image/bmp";
+        if (lower.contains(".avif")) return "image/avif";
+        if (lower.contains(".heic")) return "image/heic";
         return "application/octet-stream";
     }
 

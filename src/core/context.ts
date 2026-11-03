@@ -3,7 +3,7 @@
 import type { Player, Playable } from './player';
 import type { MediaItem } from './store';
 
-export type ViewId = 'home' | 'player' | 'library' | 'streams' | 'history' | 'settings' | 'shortcuts' | 'about';
+export type ViewId = 'home' | 'player' | 'library' | 'streams' | 'guide' | 'pictures' | 'history' | 'settings' | 'shortcuts' | 'about';
 export type TvLibraryFilter = 'all' | 'video' | 'audio' | 'favorites' | 'playlists';
 
 export interface AppContext {

@@ -1199,3 +1199,85 @@
     padding: 0;
   }
 }
+
+/* XMLTV IPTV guide — large, readable channel and programme targets. */
+:root[data-tv='true'] .guide-content {
+  gap: clamp(24px, 2.4vw, 42px);
+  padding-bottom: 42px;
+}
+:root[data-tv='true'] .guide-playlist {
+  gap: 12px;
+}
+:root[data-tv='true'] .guide-playlist-head h2 {
+  font-size: 1.25rem;
+}
+:root[data-tv='true'] .guide-channel {
+  grid-template-columns: minmax(220px, 0.28fr) 1fr;
+  gap: 14px;
+  padding: 13px;
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(17, 21, 29, 0.9);
+}
+:root[data-tv='true'] .guide-channel-play {
+  min-height: 84px;
+  font-size: 0.9rem;
+}
+:root[data-tv='true'] .guide-channel-play img,
+:root[data-tv='true'] .guide-channel-mark {
+  width: 92px;
+  height: 64px;
+  border-radius: 10px;
+}
+:root[data-tv='true'] .guide-program {
+  min-height: 84px;
+  padding: 12px 14px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+:root[data-tv='true'] .guide-program small {
+  font-size: 0.7rem;
+}
+:root[data-tv='true'] .guide-program b {
+  font-size: 0.88rem;
+}
+:root[data-tv='true'] .guide-channel-play.tv-focus {
+  outline: none;
+  border-radius: 12px;
+  box-shadow: var(--tv-focus-shadow);
+  background: rgba(var(--accent-rgb), 0.14);
+}
+@media (max-width: 1000px) {
+  :root[data-tv='true'] .guide-channel {
+    grid-template-columns: 1fr;
+  }
+}
+:root[data-tv='true'] .picture-grid {
+  grid-template-columns: repeat(auto-fill, minmax(clamp(210px, 19vw, 340px), 1fr));
+  gap: clamp(14px, 1.6vw, 28px);
+}
+:root[data-tv='true'] .picture-card {
+  gap: 10px;
+  padding: 10px;
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(17, 21, 29, 0.92);
+}
+:root[data-tv='true'] .picture-card img,
+:root[data-tv='true'] .picture-card > span {
+  aspect-ratio: 16 / 10;
+  border-radius: 12px;
+}
+:root[data-tv='true'] .picture-card b {
+  font-size: 0.88rem;
+}
+:root[data-tv='true'] .picture-card.tv-focus {
+  transform: scale(1.035);
+  border-color: rgba(var(--accent-rgb), 0.7);
+  box-shadow: var(--tv-focus-shadow);
+  z-index: 4;
+}
+:root[data-tv='true'] .picture-viewer-stage {
+  min-height: 52vh;
+  max-height: 72vh;
+}
+:root[data-tv='true'] .picture-viewer-foot {
+  min-height: 62px;
+}

@@ -360,7 +360,7 @@ export function renderLibrary(host: HTMLElement, ctx: AppContext): void {
     renderPlaylists(host, ctx);
     return;
   }
-  const items = store.library();
+  const items = store.library().filter((item) => item.kind !== 'image');
   const filtered = items.filter((item) => {
     const k = kindOf(item);
     if (filter === 'favorites' && !item.favorite) return false;
