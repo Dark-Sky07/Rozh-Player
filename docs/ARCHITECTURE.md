@@ -4,7 +4,9 @@
 ┌──────────────────────────────────────────────────────────────────┐
 │                        UI (TypeScript, no framework)             │
 │  shell.ts ── routing, sidebar, top bar, library ingestion        │
-│  views/*  ── player · library · streams · history · settings     │
+│  views/*  ── player · library · streams · guide · settings       │
+│  addons.ts ── data-only M3U/XMLTV source-pack registry             │
+│  recording.ts ── persisted local EPG schedule timers               │
 │  styles/*  ── tokens → components → views → overlays             │
 └───────────────▲──────────────────────────────┬───────────────────┘
                 │ events                        │ commands

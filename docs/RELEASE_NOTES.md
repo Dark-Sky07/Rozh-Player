@@ -1,3 +1,14 @@
+# ROZH Player 1.3.0
+
+**EPG-scheduled desktop recordings and safe source-pack add-ons**
+
+- Added local, persistent EPG scheduling for IPTV recordings, with file selection, conflict checks, cancellation, and stream-copy-only Matroska output.
+- Added JSON source-pack add-ons for M3U/XMLTV sources. Packs are data-only and run no scripts or binaries; importing a stream remains a user action.
+- Scheduled recording and installed source packs remain local to the device; see [full release notes](releases/v1.3.0.md) and the [add-on format](ADDONS.md).
+- Full tuner capture and executable plug-ins remain platform/hardware/security-dependent and are not represented as supported.
+
+---
+
 # ROZH Player 1.2.0
 
 **Quality-first playback, local metadata scraping, and lossless IPTV recording**
@@ -6,7 +17,7 @@
 - Added manual desktop IPTV recording to Matroska using FFmpeg stream copy; no re-encoding is performed.
 - Made codec conversion opt-in: source-compatible files are played or losslessly remuxed first; a compatibility transcode now requires explicit user approval.
 - Added common video/container and audio formats to the desktop and Android file-routing paths.
-- Arbitrary add-on code and tuner-backed/scheduled DVR remain out of scope until a secure sandbox or tuner backend exists.
+- EPG-scheduled recording, tuner capture, and add-on packages were not included in v1.2.0; they are addressed separately in v1.3.0.
 - See [full release notes](releases/v1.2.0.md).
 
 ---

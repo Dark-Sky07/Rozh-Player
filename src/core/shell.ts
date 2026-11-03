@@ -9,6 +9,7 @@ import { convertFileSrc as convertNativePath, NativeFile, onNativeCommand, probe
 import { openDrawer, toast } from './ui';
 import { applyDeviceStatus, isAndroidDevice, pickDeviceFolder, syncDeviceLibrary } from './device';
 import { autoCheckForUpdates } from './updateUI';
+import { initRecordingScheduler } from './recording';
 import { focusView, initTv } from './tv';
 import { $, $$, escapeHtml, guessMime, isAudioFile, isImageFile, isTextEntry, isWindowsDesktop, pickFiles, platform } from './util';
 import { renderHistory } from '../views/history';
@@ -26,6 +27,7 @@ const VIEWS: { id: ViewId; icon: string; group: string; mobile?: boolean; deskto
   { id: 'player', icon: 'play', group: 'play', mobile: true },
   { id: 'library', icon: 'film', group: 'play', mobile: true },
   { id: 'streams', icon: 'broadcast', group: 'play', mobile: true },
+  { id: 'guide', icon: 'tv', group: 'play', mobile: true },
   { id: 'history', icon: 'history', group: 'you', mobile: true },
   { id: 'settings', icon: 'gear', group: 'app', mobile: true },
   { id: 'shortcuts', icon: 'keyboard', group: 'app' },
@@ -934,6 +936,7 @@ export async function rebuild(): Promise<void> {
 export async function bootApp(): Promise<void> {
   await initializeWindowsOpenBridge();
   await store.init();
+  initRecordingScheduler();
   applySettings(store.settings);
 
   const hash = location.hash.replace('#', '') as ViewId;

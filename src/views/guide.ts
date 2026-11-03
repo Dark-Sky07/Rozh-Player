@@ -6,10 +6,18 @@ import { icon, hydrateIcons } from '../core/icons';
 import { n, t } from '../core/i18n';
 import { store, type GuideProgram, type MediaItem, type MediaPlaylist } from '../core/store';
 import { toast } from '../core/ui';
-import { isRecording, startIptvRecording, stopIptvRecording } from '../core/recording';
+import {
+  cancelScheduledRecording,
+  getScheduledRecordings,
+  isRecording,
+  scheduleIptvRecording,
+  startIptvRecording,
+  stopIptvRecording,
+} from '../core/recording';
 
 const MAX_XML_BYTES = 20 * 1024 * 1024;
 const MAX_PROGRAMS = 20_000;
+const recordingWatchers = new WeakMap<HTMLElement, () => void>();
 
 function xmltvDate(raw: string): number | null {
   const match = raw.trim().match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?:\s*([+-])(\d{2})(\d{2}))?/);
@@ -74,6 +82,9 @@ function clock(timestamp: number): string {
 function programCard(item: MediaItem, sorted: GuideProgram[], now: number): string {
   const current = sorted.find((program) => program.start <= now && program.stop > now);
   const next = sorted.find((program) => program.start >= (current?.stop ?? now));
+  const existingSchedule = next && item.url
+    ? getScheduledRecordings().find((entry) => entry.url === item.url && entry.startAt === next.start && entry.stopAt === next.stop)
+    : undefined;
   const percent = current ? Math.min(100, Math.max(0, ((now - current.start) / (current.stop - current.start)) * 100)) : 0;
   const recordingThis = isRecording(item.url);
   const recordingBusy = isRecording() && !recordingThis;
@@ -90,9 +101,18 @@ function programCard(item: MediaItem, sorted: GuideProgram[], now: number): stri
     </div>
     <div class="guide-programs">
       ${current ? `<div class="guide-program guide-current"><small>${escapeHtml(t('guide.now'))} · ${clock(current.start)}–${clock(current.stop)}</small><b>${escapeHtml(current.title)}</b>${current.category ? `<span>${escapeHtml(current.category)}</span>` : ''}${current.description ? `<p>${escapeHtml(current.description)}</p>` : ''}<i><em style="width:${percent}%"></em></i></div>` : `<div class="guide-program guide-no-program"><small>${escapeHtml(t('guide.now'))}</small><b>${escapeHtml(t('guide.noCurrent'))}</b></div>`}
-      ${next ? `<div class="guide-program guide-next"><small>${escapeHtml(t('guide.next'))} · ${clock(next.start)}</small><b>${escapeHtml(next.title)}</b></div>` : ''}
+      ${next ? `<div class="guide-program guide-next"><small>${escapeHtml(t('guide.next'))} · ${clock(next.start)}</small><b>${escapeHtml(next.title)}</b>${platform.tauri && !platform.mobile && item.url ? `<button class="btn guide-schedule" data-guide-schedule="${escapeHtml(item.id)}" data-schedule-start="${next.start}" data-schedule-stop="${next.stop}" data-schedule-title="${escapeHtml(next.title)}" ${existingSchedule ? `data-scheduled-id="${escapeHtml(existingSchedule.id)}"` : ''}>${icon(existingSchedule ? 'x' : 'calendar')}<span>${escapeHtml(t(existingSchedule ? 'pvr.cancelSchedule' : 'pvr.schedule'))}</span></button>` : ''}</div>` : ''}
     </div>
   </article>`;
+}
+
+function scheduledMarkup(): string {
+  const entries = getScheduledRecordings();
+  if (!entries.length) return '';
+  return `<section class="guide-scheduled"><header><h3>${escapeHtml(t('pvr.scheduledTitle'))}</h3><span>${entries.length}</span></header>
+    ${entries.map((entry) => `<article><div><b>${escapeHtml(entry.title)}</b><small>${escapeHtml(new Date(entry.startAt).toLocaleString())} – ${escapeHtml(new Date(entry.stopAt).toLocaleTimeString())}</small></div>
+      <button class="btn" data-cancel-schedule="${escapeHtml(entry.id)}">${icon('x')}<span>${escapeHtml(t('pvr.cancelSchedule'))}</span></button></article>`).join('')}
+  </section>`;
 }
 
 function guideMarkup(playlists: MediaPlaylist[], data: Map<string, GuideProgram[]>): string {
@@ -147,7 +167,7 @@ export function renderGuide(host: HTMLElement, ctx: AppContext): void {
     await Promise.all(playlists.map(async (playlist) => data.set(playlist.id, await store.getGuide(playlist.id))));
     const content = $('[data-guide-content]', host);
     if (content && document.body.dataset.view === 'guide') {
-      content.innerHTML = guideMarkup(playlists, data);
+      content.innerHTML = `${scheduledMarkup()}${guideMarkup(playlists, data)}`;
       hydrateIcons(content);
       content.querySelectorAll<HTMLElement>('[data-guide-play]').forEach((button) => button.addEventListener('click', () => {
         const item = store.media.find((candidate) => candidate.id === button.dataset.guidePlay);
@@ -159,10 +179,33 @@ export function renderGuide(host: HTMLElement, ctx: AppContext): void {
         else if (item?.url && !isRecording()) await startIptvRecording(item.url, item.metadata?.title ?? item.title);
         await paint();
       }));
+      content.querySelectorAll<HTMLElement>('[data-guide-schedule]').forEach((button) => button.addEventListener('click', async () => {
+        const scheduleId = button.dataset.scheduledId;
+        if (scheduleId) await cancelScheduledRecording(scheduleId);
+        else {
+          const item = store.media.find((candidate) => candidate.id === button.dataset.guideSchedule);
+          const startAt = Number(button.dataset.scheduleStart);
+          const stopAt = Number(button.dataset.scheduleStop);
+          const title = button.dataset.scheduleTitle ?? item?.title ?? t('player.stream');
+          if (item?.url && Number.isFinite(startAt) && Number.isFinite(stopAt)) {
+            await scheduleIptvRecording(item.url, title, startAt, stopAt);
+          }
+        }
+        await paint();
+      }));
+      content.querySelectorAll<HTMLElement>('[data-cancel-schedule]').forEach((button) => button.addEventListener('click', async () => {
+        await cancelScheduledRecording(button.dataset.cancelSchedule ?? '');
+        await paint();
+      }));
       $('[data-guide-playlists]', content)?.addEventListener('click', () => ctx.navigate('library', 'playlists'));
     }
   };
 
+  const previousWatcher = recordingWatchers.get(host);
+  if (previousWatcher) window.removeEventListener('rozh:recording-state', previousWatcher);
+  const watcher = (): void => void paint();
+  recordingWatchers.set(host, watcher);
+  window.addEventListener('rozh:recording-state', watcher);
   void paint();
   $('[data-guide-refresh]', host)?.addEventListener('click', async (event) => {
     const button = event.currentTarget as HTMLButtonElement;

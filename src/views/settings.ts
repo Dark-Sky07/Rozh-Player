@@ -8,6 +8,7 @@ import { isAndroidDevice, pickDeviceFolder, syncDeviceLibrary } from '../core/de
 import { store, type Accent } from '../core/store';
 import { confirmDialog, toast } from '../core/ui';
 import { bindUpdateSection, updateSection } from '../core/updateUI';
+import { installSourcePack, listSourcePacks, parseSourcePack, removeSourcePack } from '../core/addons';
 import { $, $$, escapeHtml, fmtBytes } from '../core/util';
 
 const ACCENTS: { id: Accent; color: string }[] = [
@@ -39,6 +40,20 @@ function seg(
   return `<div class="seg" ${attr}>${options
     .map((o) => `<button data-v="${o.id}" class="${o.id === active ? 'is-active' : ''}">${escapeHtml(o.label)}</button>`)
     .join('')}</div>`;
+}
+
+function sourcePacksMarkup(): string {
+  const packs = listSourcePacks();
+  return `<section class="setting-group" id="sec-addons">
+    <header>${icon('list-video')}<h3>${t('settings.addons')}</h3></header>
+    <p class="modal-hint">${escapeHtml(t('settings.addonsSub'))}</p>
+    <div class="setting-row"><div class="sr-label"><b>${escapeHtml(t('settings.addonImport'))}</b><small>${escapeHtml(t('settings.addonFormat'))}</small></div>
+      <div class="sr-ctrl"><input class="input addon-file" type="file" accept=".json,application/json" data-addon-file /></div></div>
+    <div class="addon-pack-list" data-addon-list>${packs.length ? packs.map((pack) => `<article class="addon-pack">
+      <div><b>${escapeHtml(pack.name)}</b><small>${escapeHtml(pack.id)} · v${escapeHtml(pack.version)} · ${n(pack.sources.length)} ${escapeHtml(t('settings.addonSources'))}</small>${pack.description ? `<p>${escapeHtml(pack.description)}</p>` : ''}</div>
+      <button class="btn btn-danger btn-sm" data-addon-remove="${escapeHtml(pack.id)}">${icon('trash')}<span>${escapeHtml(t('settings.addonRemove'))}</span></button>
+    </article>`).join('') : `<p class="muted">${escapeHtml(t('settings.addonEmpty'))}</p>`}</div>
+  </section>`;
 }
 
 function codecSupport(): { label: string; ok: boolean }[] {
@@ -80,6 +95,7 @@ export function renderSettings(host: HTMLElement, ctx: AppContext): void {
       <button data-jump="sec-gestures">${icon('target')}<span>${t('settings.gestures')}</span></button>
       <button data-jump="sec-subtitles">${icon('subtitles')}<span>${t('settings.subtitles')}</span></button>
       <button data-jump="sec-audio">${icon('audio-wave')}<span>${t('settings.audio')}</span></button>
+      <button data-jump="sec-addons">${icon('list-video')}<span>${t('settings.addons')}</span></button>
       <button data-jump="sec-update">${icon('download')}<span>${t('update.title')}</span></button>
       <button data-jump="sec-about">${icon('info')}<span>${t('settings.about')}</span></button>
     </nav>
@@ -355,6 +371,8 @@ export function renderSettings(host: HTMLElement, ctx: AppContext): void {
         </div>
       </section>
 
+      ${sourcePacksMarkup()}
+
       ${updateSection()}
 
       <section class="setting-group" id="sec-about">
@@ -389,6 +407,32 @@ export function renderSettings(host: HTMLElement, ctx: AppContext): void {
   bindUpdateSection(host);
 
   const rerender = (): void => renderSettings(host, ctx);
+
+  $('[data-addon-file]', host)?.addEventListener('change', async (event) => {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    input.value = '';
+    if (file.size > 64 * 1024) {
+      toast(t('settings.addonTooLarge'), 'warn');
+      return;
+    }
+    try {
+      installSourcePack(parseSourcePack(await file.text()));
+      toast(t('settings.addonInstalled'), 'ok');
+      rerender();
+    } catch (error) {
+      toast(t(error instanceof Error && error.message === 'limit' ? 'settings.addonLimit' : 'settings.addonInvalid'), 'bad', 4500);
+    }
+  });
+  $$('[data-addon-remove]', host).forEach((button) => button.addEventListener('click', async () => {
+    const id = (button as HTMLElement).dataset.addonRemove;
+    const ok = await confirmDialog(t('settings.addonRemoveConfirm'), { danger: true, okLabel: t('settings.addonRemove') });
+    if (!ok || !id) return;
+    removeSourcePack(id);
+    toast(t('settings.addonRemoved'), 'ok');
+    rerender();
+  }));
 
   $$('[data-accent-id]', host).forEach((btn) =>
     btn.addEventListener('click', () => {
