@@ -2085,8 +2085,8 @@ export class Player {
   private nativeFallbackAttempted = false;
 
   /**
-   * Desktop only: hand a container the webview refuses to the bundled FFmpeg
-   * (lossless remux first, transcode as a last resort) and retry playback.
+   * Desktop only: try a lossless stream-copy remux first; ask before any
+   * potentially quality-changing FFmpeg conversion, then retry playback.
    */
   private async nativeFallback(): Promise<boolean> {
     const path = (this.current?.file as NativeFile | undefined)?.__path;
