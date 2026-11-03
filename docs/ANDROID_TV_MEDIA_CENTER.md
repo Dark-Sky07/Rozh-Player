@@ -17,7 +17,7 @@ The Estuary TV interaction model is a useful reference:
 
 The dedicated Android TV target keeps a separate shell and remote-navigation model while the phone and desktop builds retain their own layouts. The TV rail routes to Home, All Media, Video, Music, Streams, Guide, Pictures, Favorites, Playlists, History, and Settings; scan/folder/URL source actions remain grouped separately. The Android TV interface exposes persistent favorites, editable personal playlists with ordered sequential playback, and an M3U/M3U8 IPTV importer that retains common channel metadata. XMLTV guide data can be loaded per playlist and is matched by `tvg-id` or channel display name; the guide presents current/next programmes. The Pictures destination browses selected images and, in the dedicated TV package, MediaStore and user-selected-folder images. Imported channels use the existing media library and player rather than a parallel playback path. IPTV import is capped at 500 entries and 5 MiB per list; XMLTV downloads are capped at 20 MiB. Phone, desktop, and web layouts remain unchanged.
 
-ROZH still does **not** provide a general movie/TV metadata scraper/database, a season/episode model, tuner-backed PVR/DVR recording, a third-party add-on runtime/catalog, games, profiles, or system power integrations. PVR/DVR needs a supported tuner/capture backend; arbitrary add-on code needs an isolated runtime and permission model. Those are not safely approximated by inert controls or unsandboxed scripts. ROZH is not feature-equivalent to Kodi.
+ROZH includes a keyless catalogue metadata search for series and films, plus manual desktop IPTV recording by lossless stream copy. It still does **not** provide a comprehensive metadata database, season/episode model, tuner integration, scheduled/offline DVR, a third-party executable add-on runtime/catalog, games, profiles, or system power integrations. Arbitrary add-on code needs an isolated runtime and permission model; those are not safely approximated by unsandboxed scripts. ROZH is not feature-equivalent to Kodi.
 
 This implementation uses an original ROZH interface informed by Estuary's couch-first hierarchy. No Kodi source code, skin XML, logos, screenshots, or other branded assets were copied. Kodi's upstream code is GPL-2.0-or-later; incorporating its code or skin files would require a separate license/attribution review and could not silently remain an MIT-only distribution.
 
@@ -32,8 +32,8 @@ This implementation uses an original ROZH interface informed by Estuary's couch-
 ## Remaining major work (not represented as complete)
 
 1. Validate the D-pad, SAF providers, image permissions/decoding, codec support, and installer behavior on physical Android TV devices; sandbox CI cannot replace device testing.
-2. A general-purpose media metadata scraper/database needs a defined provider/source policy, data schema, and local cache strategy.
-3. PVR/DVR needs a supported tuner or capture backend and clear recording permissions/storage semantics; third-party add-ons need a secure sandbox and capabilities model. Profiles, games, and power integrations need separate platform-specific designs.
+2. The current catalogue search is intentionally limited to TVmaze series and Apple movie results; a comprehensive scraper/database still needs a broader provider policy, season/episode schema, and cache strategy.
+3. Manual desktop IPTV stream recording is not a tuner or scheduled-DVR backend. True tuner capture and EPG scheduling need supported hardware integrations and explicit storage semantics; third-party add-ons need a secure sandbox and capabilities model. Profiles, games, and power integrations need separate platform-specific designs.
 
 ## Upstream references reviewed
 

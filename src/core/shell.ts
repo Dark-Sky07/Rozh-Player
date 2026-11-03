@@ -364,7 +364,7 @@ function toPlayable(item: MediaItem): Playable | null {
   return {
     key: `${item.name}::${item.size}`,
     name: item.name,
-    title: item.title,
+    title: item.metadata?.title ?? item.title,
     url,
     isStream: item.source === 'url',
     kind: item.kind,

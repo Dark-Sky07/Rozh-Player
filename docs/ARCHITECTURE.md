@@ -85,7 +85,7 @@ subtitle settings; libass handles its own styling from the ASS script.
 
 | Command | Purpose |
 | --- | --- |
-| `remux_file` | Lossless remux into fragmented MP4, then a libx264 transcode fallback |
+| `remux_file` | Lossless H.264/AAC stream-copy remux first; H.264/AAC conversion only after explicit user approval |
 | `probe_file` | Duration and stream summary parsed from FFmpeg's stderr |
 | `reveal_in_folder` | Open the OS file manager at a path |
 

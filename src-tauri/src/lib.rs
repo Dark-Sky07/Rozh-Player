@@ -8,13 +8,42 @@
 //!   * a tray icon with quick transport actions
 //!   * a macOS close-to-tray behaviour so playback survives window closing
 
+use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::Mutex;
 use std::hash::{Hash, Hasher};
 
 #[derive(Default)]
 struct InitialOpenFiles(Mutex<Vec<String>>);
+
+struct ActiveIptvRecording {
+    child: Child,
+    stdin: ChildStdin,
+    path: PathBuf,
+}
+
+#[derive(Default)]
+struct IptvRecorder(Mutex<Option<ActiveIptvRecording>>);
+
+impl Drop for IptvRecorder {
+    fn drop(&mut self) {
+        if let Ok(slot) = self.0.get_mut() {
+            if let Some(mut recording) = slot.take() {
+                let _ = recording.stdin.write_all(b"q\n");
+                let _ = recording.stdin.flush();
+                for _ in 0..20 {
+                    if recording.child.try_wait().ok().flatten().is_some() {
+                        return;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+                let _ = recording.child.kill();
+                let _ = recording.child.wait();
+            }
+        }
+    }
+}
 
 #[tauri::command]
 fn take_initial_open_files(state: tauri::State<'_, InitialOpenFiles>) -> Vec<String> {
@@ -64,6 +93,39 @@ fn normalize_media_path(raw: &str, cwd: &Path) -> Option<String> {
     let path = if raw_path.is_absolute() { raw_path } else { cwd.join(raw_path) };
     let canonical = validate_local_media_path(&path.to_string_lossy()).ok()?;
     Some(canonical.to_string_lossy().into_owned())
+}
+
+fn validate_iptv_recording_url(raw: &str) -> Result<(), String> {
+    if raw.is_empty() || raw.len() > 8192 || raw.bytes().any(|b| b.is_ascii_control() || b.is_ascii_whitespace()) {
+        return Err("invalid stream URL".into());
+    }
+    let (scheme, rest) = raw.split_once("://").ok_or_else(|| "recording requires an HTTP(S) stream".to_string())?;
+    if !matches!(scheme.to_ascii_lowercase().as_str(), "http" | "https") {
+        return Err("recording supports HTTP(S) streams only".into());
+    }
+    let authority = rest.split('/').next().unwrap_or_default();
+    if authority.is_empty() || authority.contains('@') || raw.contains('\\') {
+        return Err("invalid stream URL".into());
+    }
+    Ok(())
+}
+
+fn validate_recording_path(raw: &str) -> Result<PathBuf, String> {
+    if raw.is_empty() || raw.len() > 4096 || raw.contains('\0') {
+        return Err("invalid recording path".into());
+    }
+    let requested = Path::new(raw);
+    if !requested.is_absolute() || requested.extension().and_then(|ext| ext.to_str()).map_or(true, |ext| !ext.eq_ignore_ascii_case("mkv")) {
+        return Err("recordings must use an absolute .mkv path".into());
+    }
+    let name = requested.file_name().ok_or_else(|| "invalid recording filename".to_string())?;
+    let parent = requested.parent().ok_or_else(|| "invalid recording folder".to_string())?
+        .canonicalize().map_err(|_| "recording folder is not accessible".to_string())?;
+    let target = parent.join(name);
+    if std::fs::symlink_metadata(&target).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
+        return Err("recording target may not be a symbolic link".into());
+    }
+    Ok(target)
 }
 
 fn validate_android_update_url(raw: &str) -> Result<(), String> {
@@ -203,9 +265,8 @@ fn ffmpeg_probe(bin: &Path, input: &str) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&output.stderr).into_owned())
 }
 
-/// The webview can usually consume H.264 8-bit 4:2:0 in MP4. Other video
-/// codecs/profiles are transcoded to that portable baseline on the fallback
-/// path instead of merely changing their container and failing again.
+/// The webview can usually consume H.264 8-bit 4:2:0 in MP4. The source is
+/// otherwise left untouched unless the user explicitly approves conversion.
 fn can_remux_for_webview(probe: &str) -> bool {
     let Some(line) = probe.lines().find(|line| line.to_ascii_lowercase().contains("video:")) else {
         return true; // audio-only media
@@ -220,6 +281,18 @@ fn can_remux_for_webview(probe: &str) -> bool {
     lower
         .split(|ch: char| !ch.is_ascii_alphanumeric())
         .any(|pixel| matches!(pixel, "yuv420p" | "yuvj420p" | "nv12"))
+}
+
+/// Preserve AAC bitstreams during a compatibility conversion when possible.
+fn can_copy_audio_for_webview(probe: &str) -> bool {
+    let Some(line) = probe.lines().find(|line| line.to_ascii_lowercase().contains("audio:")) else {
+        return true; // silent video
+    };
+    line.to_ascii_lowercase()
+        .split("audio:")
+        .nth(1)
+        .and_then(|rest| rest.split_whitespace().next())
+        .is_some_and(|codec| codec == "aac")
 }
 
 /// Run ffmpeg with a fixed argument list; returns Ok when a playable file exists.
@@ -250,13 +323,13 @@ fn run_ffmpeg(bin: &Path, input: &str, output: &Path, args: &[&str]) -> Result<(
     }
 }
 
-/// Make any local file playable by the webview.
+/// Prepare a local file for the webview without silently changing its quality.
 ///
-/// 1. Try a **lossless remux** into MP4 (H.264/VP9/AV1 + AAC/Opus).
-/// 2. Fall back to a **hardware-friendly transcode** (H.264 + AAC) when the
-///    source codecs are not supported by the platform decoder.
+/// 1. Try a **lossless remux** into MP4 for compatible H.264/AAC sources.
+/// 2. If remux is insufficient, transcode to H.264/AAC only after the user
+///    explicitly approves the quality-changing compatibility conversion.
 #[tauri::command]
-async fn remux_file(app: tauri::AppHandle, path: String) -> Result<String, String> {
+async fn remux_file(app: tauri::AppHandle, path: String, allow_transcode: bool) -> Result<String, String> {
     let path = validate_local_media_path(&path)?.to_string_lossy().into_owned();
     let bin = ffmpeg_path(&app)?;
     let dir = cache_dir(&app)?;
@@ -274,7 +347,7 @@ async fn remux_file(app: tauri::AppHandle, path: String) -> Result<String, Strin
     let probe = tauri::async_runtime::spawn_blocking(move || ffmpeg_probe(&probe_bin, &probe_input))
         .await
         .map_err(|e| e.to_string())??;
-    if can_remux_for_webview(&probe) {
+    if can_remux_for_webview(&probe) && can_copy_audio_for_webview(&probe) {
         let first = {
             let bin = bin.clone();
             let input = path.clone();
@@ -292,9 +365,7 @@ async fn remux_file(app: tauri::AppHandle, path: String) -> Result<String, Strin
                         "-c:v",
                         "copy",
                         "-c:a",
-                        "aac",
-                        "-b:a",
-                        "192k",
+                        "copy",
                         "-movflags",
                         "+faststart",
                         "-f",
@@ -311,41 +382,39 @@ async fn remux_file(app: tauri::AppHandle, path: String) -> Result<String, Strin
         }
     }
 
-    // ---- pass 2: full transcode — slower, plays anything FFmpeg decodes --
+    if !allow_transcode {
+        return Err("lossless remux is not enough; conversion requires user approval".into());
+    }
+
+    // ---- pass 2: explicit compatibility transcode -----------------------
     let _ = app.emit("rozh:transcoding", &path);
+    let copy_audio = can_copy_audio_for_webview(&probe);
     let second = {
         let bin = bin.clone();
         let input = path.clone();
         let out = transcoded.clone();
         tauri::async_runtime::spawn_blocking(move || {
-            run_ffmpeg(
-                &bin,
-                &input,
-                &out,
-                &[
-                    "-map",
-                    "0:v:0?",
-                    "-map",
-                    "0:a:0?",
-                    "-c:v",
-                    "libx264",
-                    "-preset",
-                    "veryfast",
-                    "-crf",
-                    "22",
-                    "-pix_fmt",
-                    "yuv420p",
-                    "-c:a",
-                    "aac",
-                    "-b:a",
-                    "192k",
-                    "-movflags",
-                    "+faststart",
-                    "-f",
-                    "mp4",
-                ],
-            )
-            .map(|_| out.to_string_lossy().to_string())
+            let mut args = vec![
+                "-map",
+                "0:v:0?",
+                "-map",
+                "0:a:0?",
+                "-c:v",
+                "libx264",
+                "-preset",
+                "veryfast",
+                "-crf",
+                "16",
+                "-pix_fmt",
+                "yuv420p",
+            ];
+            if copy_audio {
+                args.extend(["-c:a", "copy"]);
+            } else {
+                args.extend(["-c:a", "aac", "-b:a", "320k"]);
+            }
+            args.extend(["-movflags", "+faststart", "-f", "mp4"]);
+            run_ffmpeg(&bin, &input, &out, &args).map(|_| out.to_string_lossy().to_string())
         })
         .await
     };
@@ -355,6 +424,79 @@ async fn remux_file(app: tauri::AppHandle, path: String) -> Result<String, Strin
         Ok(Err(e)) => Err(e),
         Err(e) => Err(e.to_string()),
     }
+}
+
+/// Record an HTTP(S) IPTV source into Matroska without decoding or re-encoding it.
+#[tauri::command]
+fn start_iptv_recording(
+    app: tauri::AppHandle,
+    recorder: tauri::State<'_, IptvRecorder>,
+    url: String,
+    path: String,
+) -> Result<serde_json::Value, String> {
+    validate_iptv_recording_url(&url)?;
+    let path = validate_recording_path(&path)?;
+    let bin = ffmpeg_path(&app)?;
+    let mut slot = recorder.0.lock().map_err(|_| "recording state is unavailable".to_string())?;
+    if let Some(active) = slot.as_mut() {
+        if active.child.try_wait().map_err(|e| e.to_string())?.is_none() {
+            return Err("another recording is already active".into());
+        }
+        slot.take();
+    }
+    let path_string = path.to_string_lossy().into_owned();
+    let mut child = Command::new(bin)
+        .args([
+            "-hide_banner",
+            "-loglevel", "warning",
+            "-nostats",
+            "-protocol_whitelist", "http,https,tcp,tls,crypto,udp,rtp,data",
+            "-i", &url,
+            "-map", "0:v?",
+            "-map", "0:a?",
+            "-c", "copy",
+            "-f", "matroska",
+            "-n",
+            &path_string,
+        ])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|e| format!("failed to start lossless recording: {e}"))?;
+    let stdin = child.stdin.take().ok_or_else(|| "could not control recording process".to_string())?;
+    let pid = child.id();
+    *slot = Some(ActiveIptvRecording { child, stdin, path: path.clone() });
+    Ok(serde_json::json!({ "state": "recording", "path": path, "pid": pid }))
+}
+
+#[tauri::command]
+async fn stop_iptv_recording(recorder: tauri::State<'_, IptvRecorder>) -> Result<serde_json::Value, String> {
+    let recording = recorder.0.lock().map_err(|_| "recording state is unavailable".to_string())?
+        .take().ok_or_else(|| "no recording is active".to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut recording = recording;
+        let _ = recording.stdin.write_all(b"q\n");
+        let _ = recording.stdin.flush();
+        let mut finished = false;
+        for _ in 0..100 {
+            if recording.child.try_wait().map_err(|e| e.to_string())?.is_some() {
+                finished = true;
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        if !finished {
+            let _ = recording.child.kill();
+        }
+        let status = recording.child.wait().map_err(|e| e.to_string())?;
+        if !status.success() {
+            return Err("recording ended with an FFmpeg error".to_string());
+        }
+        Ok(serde_json::json!({ "state": "saved", "path": recording.path }))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 /// Probe a file using FFmpeg's own metadata output.
@@ -692,11 +834,14 @@ pub fn run() {
 
     builder = builder
         .manage(InitialOpenFiles(Mutex::new(startup_open_files)))
+        .manage(IptvRecorder::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             remux_file,
+            start_iptv_recording,
+            stop_iptv_recording,
             probe_file,
             reveal_in_folder,
             android_media_scan,
@@ -792,7 +937,7 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{can_remux_for_webview, file_stem, next_token, validate_android_media_uri, validate_android_update_url};
+    use super::{can_copy_audio_for_webview, can_remux_for_webview, file_stem, next_token, validate_android_media_uri, validate_android_update_url, validate_iptv_recording_url, validate_recording_path};
 
     #[test]
     fn remux_whitelist_forces_unsupported_video_codecs_through_transcoding() {
@@ -803,6 +948,9 @@ mod tests {
         assert!(!can_remux_for_webview("Stream #0:0: Video: h264 (High 10), yuv420p10le"));
         assert!(!can_remux_for_webview("Stream #0:0: Video: h264 (High 4:2:2), yuv422p"));
         assert!(!can_remux_for_webview("Stream #0:0: Video: h264 (High 4:4:4), yuv420p12le"));
+        assert!(can_copy_audio_for_webview("Stream #0:1: Audio: aac (LC), 48000 Hz"));
+        assert!(can_copy_audio_for_webview("Stream #0:0: Video: hevc, yuv420p"));
+        assert!(!can_copy_audio_for_webview("Stream #0:1: Audio: dts, 48000 Hz"));
     }
 
     #[test]
@@ -828,6 +976,21 @@ mod tests {
         assert!(validate_android_media_uri("https://example.com/movie.mp4", "video/mp4").is_err());
         assert!(validate_android_media_uri("content://media/video/1\r\nX: y", "video/mp4").is_err());
         assert!(validate_android_media_uri("content://media/video/1", "text/html").is_err());
+    }
+
+    #[test]
+    fn iptv_recording_only_accepts_user_supplied_http_streams() {
+        assert!(validate_iptv_recording_url("https://provider.example/live/channel.m3u8?token=abc").is_ok());
+        assert!(validate_iptv_recording_url("rtsp://provider.example/live/1").is_err());
+        assert!(validate_iptv_recording_url("file:///etc/passwd").is_err());
+        assert!(validate_iptv_recording_url("http://user:password@provider.example/live").is_err());
+        assert!(validate_iptv_recording_url("http://provider.example/live\r\nX: y").is_err());
+    }
+
+    #[test]
+    fn recording_paths_must_be_absolute_matroska_targets() {
+        assert!(validate_recording_path("relative.mkv").is_err());
+        assert!(validate_recording_path("/tmp/recording.mp4").is_err());
     }
 
     #[test]
