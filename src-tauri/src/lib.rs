@@ -45,6 +45,14 @@ impl Drop for IptvRecorder {
     }
 }
 
+/// The TV package can recover its 10-foot UI even if a stale frontend bundle
+/// missed the Vite build flag. The dedicated Android variant uses a `.tv`
+/// application identifier, which Tauri exposes from the native app config.
+#[tauri::command]
+fn is_android_tv_variant(app: tauri::AppHandle) -> bool {
+    app.config().identifier.ends_with(".tv")
+}
+
 #[tauri::command]
 fn take_initial_open_files(state: tauri::State<'_, InitialOpenFiles>) -> Vec<String> {
     state
@@ -852,6 +860,7 @@ pub fn run() {
             android_set_playback_mode,
             android_update_status,
             android_update_install,
+            is_android_tv_variant,
             take_initial_open_files
         ]);
 

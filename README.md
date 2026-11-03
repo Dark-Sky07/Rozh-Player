@@ -7,7 +7,7 @@
   **Windows · macOS · Linux · Android · Android TV · Web**
 
   [![CI](https://img.shields.io/badge/build-passing-4ecf9a?style=flat-square)](.github/workflows/ci.yml)
-  [![Release](https://img.shields.io/badge/release-v1.3.0-f8da7e?style=flat-square)](../../releases/latest)
+  [![Release](https://img.shields.io/badge/release-v1.3.1-f8da7e?style=flat-square)](../../releases/latest)
   [![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square)](https://tauri.app)
   [![License](https://img.shields.io/badge/license-MIT-f8a24a?style=flat-square)](LICENSE)
   [![Languages](https://img.shields.io/badge/languages-47-6ba8ff?style=flat-square)](#languages)
@@ -42,22 +42,22 @@ Every version ships ready-to-install builds for all platforms on the
 
 | Platform | File |
 | --- | --- |
-| **Windows 10/11 (x64)** | [ROZH-Player_1.3.0_x64-setup.exe](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/ROZH-Player_1.3.0_x64-setup.exe) |
-| **macOS — Apple Silicon (M1–M4)** | [ROZH-Player_1.3.0_aarch64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/ROZH-Player_1.3.0_aarch64.dmg) |
-| **macOS — Intel** | [ROZH-Player_1.3.0_x64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/ROZH-Player_1.3.0_x64.dmg) |
-| **Linux (Debian/Ubuntu)** | [ROZH-Player_1.3.0_amd64.deb](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/ROZH-Player_1.3.0_amd64.deb) |
-| **Linux (Fedora/RHEL/openSUSE)** | [ROZH-Player-1.3.0-1.x86_64.rpm](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/ROZH-Player-1.3.0-1.x86_64.rpm) |
-| **Linux (any distribution)** | [ROZH-Player_1.3.0_amd64.AppImage](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/ROZH-Player_1.3.0_amd64.AppImage) |
-| **Android 7.0+ (phones, tablets)** | [ROZH-Player-1.3.0.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/ROZH-Player-1.3.0.apk) |
-| **Android (Google Play bundle)** | [ROZH-Player-1.3.0.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/ROZH-Player-1.3.0.aab) |
-| **Android TV (dedicated build)** | [ROZH-Player-TV-1.3.0.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/ROZH-Player-TV-1.3.0.apk) |
-| **Android TV (Google Play bundle)** | [ROZH-Player-TV-1.3.0.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/ROZH-Player-TV-1.3.0.aab) |
-| **Web / PWA** | [rozh-player-web.zip](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/rozh-player-web.zip) — unzip and serve as static files |
+| **Windows 10/11 (x64)** | [ROZH-Player_1.3.1_x64-setup.exe](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.1/ROZH-Player_1.3.1_x64-setup.exe) |
+| **macOS — Apple Silicon (M1–M4)** | [ROZH-Player_1.3.1_aarch64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.1/ROZH-Player_1.3.1_aarch64.dmg) |
+| **macOS — Intel** | [ROZH-Player_1.3.1_x64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.1/ROZH-Player_1.3.1_x64.dmg) |
+| **Linux (Debian/Ubuntu)** | [ROZH-Player_1.3.1_amd64.deb](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.1/ROZH-Player_1.3.1_amd64.deb) |
+| **Linux (Fedora/RHEL/openSUSE)** | [ROZH-Player-1.3.1-1.x86_64.rpm](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.1/ROZH-Player-1.3.1-1.x86_64.rpm) |
+| **Linux (any distribution)** | [ROZH-Player_1.3.1_amd64.AppImage](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.1/ROZH-Player_1.3.1_amd64.AppImage) |
+| **Android 7.0+ (phones, tablets)** | [ROZH-Player-1.3.1.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.1/ROZH-Player-1.3.1.apk) |
+| **Android (Google Play bundle)** | [ROZH-Player-1.3.1.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.1/ROZH-Player-1.3.1.aab) |
+| **Android TV (dedicated build)** | [ROZH-Player-TV-1.3.1.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.1/ROZH-Player-TV-1.3.1.apk) |
+| **Android TV (Google Play bundle)** | [ROZH-Player-TV-1.3.1.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.1/ROZH-Player-TV-1.3.1.aab) |
+| **Web / PWA** | [rozh-player-web.zip](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.1/rozh-player-web.zip) — unzip and serve as static files |
 
 > Windows/macOS packages are not yet signed with Microsoft or Apple developer
 > identities, so platform security warnings may appear. Android APKs are signed.
 > This release is the GitHub sideload channel; AAB files are not automatically
-> published to Google Play. See the [release notes](docs/releases/v1.3.0.md).
+> published to Google Play. See the [release notes](docs/releases/v1.3.1.md).
 
 ## Updates
 

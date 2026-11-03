@@ -358,11 +358,13 @@ jobs:
           const fs = require('node:fs');
           const gradle = fs.readFileSync('src-tauri/gen/android/app/build.gradle.kts', 'utf8');
           const manifest = fs.readFileSync('src-tauri/gen/android/app/src/main/AndroidManifest.xml', 'utf8');
+          const tauri = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
           const fail = (msg) => {
             console.error(`::error title=TV package::${msg}`);
             process.exit(1);
           };
           if (!/applicationId\s*=?\s*"[^"]*\.tv"/.test(gradle)) fail('applicationId has no .tv suffix');
+          if (!tauri.identifier.endsWith('.tv')) fail('Tauri runtime identifier has no .tv suffix');
           if (!manifest.includes('android:label="ROZH Player TV"')) fail('TV label missing');
           if (!/android\.software\.leanback"\s+android:required="true"/.test(manifest)) fail('leanback is not required');
           if (!manifest.includes('@drawable/tv_banner')) fail('banner missing');
@@ -401,6 +403,16 @@ jobs:
           BT="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)"
           unsigned=$(find src-tauri/gen/android/app/build/outputs/apk -name '*.apk' | head -1)
           echo "unsigned TV apk: $unsigned"
+          python - "$unsigned" <<'PY'
+          import sys, zipfile
+          apk = zipfile.ZipFile(sys.argv[1])
+          pages = [name for name in apk.namelist() if name.endswith('index.html')]
+          if not pages:
+              raise SystemExit('Android TV APK has no bundled index.html')
+          if not any(b'data-tv-build="1"' in apk.read(name) for name in pages):
+              raise SystemExit('Android TV APK is missing data-tv-build="1"; refusing to publish a phone-style UI')
+          print('Verified TV runtime flag in packaged APK:', ', '.join(pages))
+          PY
           "$BT/zipalign" -f -p 4 "$unsigned" out/unsigned-tv-aligned.apk
           "$BT/apksigner" sign --ks "$KS" --ks-key-alias "$ROZH_KEY_ALIAS" \
             --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" --key-pass "pass:$ANDROID_KEY_PASSWORD" \
