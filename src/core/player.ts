@@ -290,7 +290,6 @@ export class Player {
   private dragging = false;
   private brightness = 1;
   private ab = { a: 0, b: 0 };
-  private errorCount = 0;
   private autoFullscreenPending = false;
 
   constructor(host: HTMLElement) {
@@ -359,8 +358,8 @@ export class Player {
   async load(item: Playable, opts: { autoplay?: boolean; startAt?: number } = {}): Promise<void> {
     this.teardownEngine();
     this.current = item;
-    this.errorCount = 0;
     this.nativeTried = false;
+    this.nativeFallbackAttempted = false;
     this.ab = { a: 0, b: 0 };
 
     const isAudio = item.kind === 'audio' || isAudioFile(item.name);
@@ -2020,9 +2019,13 @@ export class Player {
     v.addEventListener('error', () => {
       const err = v.error;
       if (!this.current) return;
-      if (this.errorCount++ > 1) return;
       const code = err?.code ?? 0;
       if (code === 4 || code === 3) {
+        if (this.nativeFallbackAttempted) {
+          this.showError(t('player.mediaError'));
+          return;
+        }
+        this.nativeFallbackAttempted = true;
         void this.nativeFallback().then((ok) => {
           if (!ok) this.showError(t('player.mediaError'));
         });
@@ -2079,6 +2082,7 @@ export class Player {
   }
 
   private nativeTried = false;
+  private nativeFallbackAttempted = false;
 
   /**
    * Desktop only: hand a container the webview refuses to the bundled FFmpeg

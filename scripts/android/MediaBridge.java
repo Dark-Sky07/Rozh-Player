@@ -723,7 +723,7 @@ public final class MediaBridge {
     private static boolean looksLikeAudio(String name) {
         if (name == null) return false;
         String n = name.toLowerCase();
-        String[] exts = { ".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus", ".wma", ".mka", ".alac", ".aif", ".aiff", ".ape" };
+        String[] exts = { ".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg", ".opus", ".ac3", ".eac3", ".dts", ".wma", ".mka", ".alac", ".aif", ".aiff", ".ape", ".amr", ".au", ".ra" };
         for (String e : exts) if (n.endsWith(e)) return true;
         return false;
     }
@@ -741,8 +741,10 @@ public final class MediaBridge {
         String n = name.toLowerCase();
         String[] exts = {
             ".mp4", ".mkv", ".webm", ".avi", ".mov", ".m4v", ".ts", ".m2ts", ".mpg", ".mpeg",
-            ".flv", ".wmv", ".3gp", ".ogv", ".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg",
-            ".opus", ".wma", ".mka", ".alac",
+            ".flv", ".wmv", ".mts", ".m2t", ".m1v", ".m2v", ".vob", ".mxf", ".3gp", ".3g2",
+            ".f4v", ".asf", ".divx", ".ogv", ".ogm", ".nut", ".rm", ".rmvb", ".y4m", ".264",
+            ".h264", ".265", ".h265", ".hevc", ".mp3", ".m4a", ".aac", ".flac", ".wav", ".ogg",
+            ".opus", ".ac3", ".eac3", ".dts", ".wma", ".mka", ".alac", ".amr", ".au", ".ra",
         };
         for (String e : exts) {
             if (n.endsWith(e)) return true;

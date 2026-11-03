@@ -85,6 +85,28 @@ jobs:
         working-directory: src-tauri
         run: cargo test --lib
 
+  ffmpeg-codecs:
+    name: FFmpeg · HEVC decoder and H.264 fallback
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: npm
+      - name: Fetch the pinned desktop FFmpeg binary
+        run: node scripts/fetch-ffmpeg.mjs linux-x64
+      - name: Verify required decode and fallback codecs
+        shell: bash
+        run: |
+          set -euo pipefail
+          FF=src-tauri/bin/ffmpeg
+          "$FF" -hide_banner -decoders 2>&1 | awk '$2 == "hevc" { found=1 } END { exit !found }'
+          "$FF" -hide_banner -decoders 2>&1 | awk '$2 == "h264" { found=1 } END { exit !found }'
+          "$FF" -hide_banner -encoders 2>&1 | awk '$2 == "libx264" { found=1 } END { exit !found }'
+          "$FF" -hide_banner -encoders 2>&1 | awk '$2 == "aac" { found=1 } END { exit !found }'
+          echo 'Pinned FFmpeg has HEVC/H.265 decode and H.264/AAC fallback codecs.'
+
   android-bridge:
     name: Android · bridge compile
     runs-on: ubuntu-24.04

@@ -505,8 +505,10 @@ async function registerOpenedFiles(files: File[]): Promise<void> {
 }
 
 const WINDOWS_MEDIA_EXTENSIONS = new Set([
-  'mp4', 'm4v', 'mov', 'mkv', 'avi', 'webm', 'wmv', 'flv', 'ts', 'm2ts', 'mpg', 'mpeg', '3gp', 'ogv',
-  'mp3', 'm4a', 'm4b', 'aac', 'flac', 'wav', 'ogg', 'oga', 'opus', 'wma', 'aif', 'aiff', 'ape', 'alac', 'm3u8',
+  'mp4', 'm4v', 'mov', 'mkv', 'avi', 'webm', 'wmv', 'flv', 'ts', 'm2ts', 'mts', 'm2t', 'mpg', 'mpeg',
+  'm1v', 'm2v', 'vob', 'mxf', '3gp', '3g2', 'f4v', 'asf', 'divx', 'ogv', 'ogm', 'nut', 'rm', 'rmvb',
+  'y4m', '264', 'h264', '265', 'h265', 'hevc', 'mp3', 'm4a', 'm4b', 'aac', 'flac', 'wav', 'ogg', 'oga',
+  'opus', 'wma', 'aif', 'aiff', 'ape', 'alac', 'ac3', 'eac3', 'dts', 'mka', 'amr', 'au', 'ra', 'm3u8',
 ]);
 
 function receiveWindowsOpenPaths(paths: string[]): void {

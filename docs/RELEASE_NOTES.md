@@ -1,11 +1,12 @@
-# ROZH Player 1.1.8
+# ROZH Player 1.1.9
 
-**Android TV XMLTV guide and local picture gallery**
+**Android TV XMLTV guide, picture gallery, and broader desktop codec fallback**
 
 - Added XMLTV programme guide import using playlist guide URLs and M3U `tvg-id` metadata; current and next programmes are cached locally.
 - Added a remote-friendly Android TV Pictures gallery; the dedicated TV build indexes images from MediaStore and selected folders.
-- PVR/DVR, third-party add-on execution, and a general media metadata scraper are not included; see the security and platform limits in the IPTV guide.
-- See [full release notes](releases/v1.1.8.md).
+- Native desktop builds now transcode unsupported local video codecs (including HEVC/H.265/x265) to H.264/AAC after playback failure, with broader container/audio extension recognition.
+- PVR/DVR, third-party add-on execution, and a general media metadata scraper are not included; see the platform and security limits in the IPTV guide.
+- See [full release notes](releases/v1.1.9.md).
 
 ---
 

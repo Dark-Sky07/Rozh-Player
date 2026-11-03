@@ -327,7 +327,7 @@ function openM3UImport(ctx: AppContext): void {
             const item = store.addMedia({
               name: channel.title,
               title: channel.title,
-              kind: /\.(mp3|m4a|aac|flac|wav|ogg|opus)(?:[?#]|$)/i.test(channel.url) ? 'audio' : 'stream',
+              kind: /\.(mp3|m4a|aac|flac|wav|ogg|opus|ac3|eac3|dts|mka|amr|au|ra)(?:[?#]|$)/i.test(channel.url) ? 'audio' : 'stream',
               source: 'url',
               url: channel.url,
               thumb: channel.logo,
@@ -439,7 +439,7 @@ export function renderStreams(host: HTMLElement, ctx: AppContext): void {
       title,
       url,
       isStream: true,
-      kind: /\.(mp3|m4a|aac|flac|wav|ogg|opus)$/i.test(url) ? 'audio' : /\.(m3u8|mpd)$/i.test(url) ? 'stream' : 'video',
+      kind: /\.(mp3|m4a|aac|flac|wav|ogg|opus|ac3|eac3|dts|mka|amr|au|ra)$/i.test(url) ? 'audio' : /\.(m3u8|mpd)$/i.test(url) ? 'stream' : 'video',
       size: 0,
     });
     renderStreams(host, ctx);

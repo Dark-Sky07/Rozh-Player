@@ -219,7 +219,7 @@ export function pickWebFiles(accept: string): Promise<File[]> {
  * providers, so here we deliberately use it instead.
  */
 export async function pickFiles(
-  accept = 'video/*,audio/*,.mkv,.webm,.avi,.mov,.m4v,.ts,.mp4,.mp3,.flac,.wav,.m4a,.opus,.ogg,.aac,.srt,.vtt,.ass,.ssa',
+  accept = 'video/*,audio/*,.mkv,.webm,.avi,.mov,.m4v,.ts,.m2ts,.mts,.vob,.mxf,.mp4,.h265,.hevc,.265,.264,.mp3,.flac,.wav,.m4a,.opus,.ogg,.aac,.ac3,.eac3,.dts,.srt,.vtt,.ass,.ssa',
 ): Promise<File[]> {
   if (platform.tauri && platform.mobile) return pickWebFiles('*/*');
 
@@ -255,6 +255,18 @@ const MIME_MAP: Record<string, string> = {
   mov: 'video/quicktime',
   avi: 'video/x-msvideo',
   ts: 'video/mp2t',
+  m2ts: 'video/mp2t',
+  mts: 'video/mp2t',
+  m2t: 'video/mp2t',
+  m2v: 'video/mpeg',
+  m1v: 'video/mpeg',
+  vob: 'video/mpeg',
+  mxf: 'application/mxf',
+  h264: 'video/h264',
+  264: 'video/h264',
+  h265: 'video/hevc',
+  265: 'video/hevc',
+  hevc: 'video/hevc',
   ogv: 'video/ogg',
   mp3: 'audio/mpeg',
   m4a: 'audio/mp4',
@@ -265,6 +277,13 @@ const MIME_MAP: Record<string, string> = {
   ogg: 'audio/ogg',
   oga: 'audio/ogg',
   opus: 'audio/opus',
+  ac3: 'audio/ac3',
+  eac3: 'audio/eac3',
+  dts: 'audio/vnd.dts',
+  mka: 'audio/x-matroska',
+  amr: 'audio/amr',
+  au: 'audio/basic',
+  ra: 'audio/vnd.rn-realaudio',
   wma: 'audio/x-ms-wma',
   aif: 'audio/aiff',
   aiff: 'audio/aiff',
@@ -295,7 +314,7 @@ export function baseName(name: string): string {
 }
 
 export function isAudioFile(name: string): boolean {
-  return /^(mp3|m4a|m4b|aac|flac|wav|ogg|oga|opus|wma|aiff?|ape|alac)$/i.test(ext(name));
+  return /^(mp3|m4a|m4b|aac|flac|wav|ogg|oga|opus|ac3|eac3|dts|mka|amr|au|ra|wma|aiff?|ape|alac)$/i.test(ext(name));
 }
 
 export function isSubtitleFile(name: string): boolean {
