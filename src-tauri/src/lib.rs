@@ -26,9 +26,11 @@ fn take_initial_open_files(state: tauri::State<'_, InitialOpenFiles>) -> Vec<Str
 }
 
 const MEDIA_EXTENSIONS: &[&str] = &[
-    "mp4", "m4v", "mov", "mkv", "avi", "webm", "wmv", "flv", "ts", "m2ts", "mpg", "mpeg",
-    "3gp", "ogv", "mp3", "m4a", "m4b", "aac", "flac", "wav", "ogg", "oga", "opus", "wma",
-    "aif", "aiff", "ape", "alac", "m3u8",
+    "mp4", "m4v", "mov", "mkv", "avi", "webm", "wmv", "flv", "ts", "m2ts", "mts", "m2t",
+    "mpg", "mpeg", "m1v", "m2v", "vob", "mxf", "3gp", "3g2", "f4v", "asf", "divx", "ogv",
+    "ogm", "nut", "rm", "rmvb", "y4m", "264", "h264", "265", "h265", "hevc", "mp3", "m4a",
+    "m4b", "aac", "flac", "wav", "ogg", "oga", "opus", "wma", "aif", "aiff", "ape", "alac",
+    "ac3", "eac3", "dts", "mka", "amr", "au", "ra", "m3u8",
 ];
 
 fn validate_local_media_path(raw: &str) -> Result<PathBuf, String> {
@@ -189,6 +191,37 @@ fn size_of(path: &Path) -> u64 {
     std::fs::metadata(path).map(|m| m.len()).unwrap_or(0)
 }
 
+/// Inspect the first video stream using FFmpeg's own demuxers/decoders.
+fn ffmpeg_probe(bin: &Path, input: &str) -> Result<String, String> {
+    let output = Command::new(bin)
+        .args(["-hide_banner", "-protocol_whitelist", "file,crypto,data", "-i"])
+        .arg(input)
+        .output()
+        .map_err(|e| format!("failed to inspect media with FFmpeg: {e}"))?;
+    // `ffmpeg -i` reports stream metadata on stderr and exits nonzero because
+    // no output was requested; that is expected for a probe.
+    Ok(String::from_utf8_lossy(&output.stderr).into_owned())
+}
+
+/// The webview can usually consume H.264 8-bit 4:2:0 in MP4. Other video
+/// codecs/profiles are transcoded to that portable baseline on the fallback
+/// path instead of merely changing their container and failing again.
+fn can_remux_for_webview(probe: &str) -> bool {
+    let Some(line) = probe.lines().find(|line| line.to_ascii_lowercase().contains("video:")) else {
+        return true; // audio-only media
+    };
+    let lower = line.to_ascii_lowercase();
+    let Some(codec) = lower.split("video:").nth(1).and_then(|rest| rest.split_whitespace().next()) else {
+        return false;
+    };
+    if codec != "h264" {
+        return false;
+    }
+    lower
+        .split(|ch: char| !ch.is_ascii_alphanumeric())
+        .any(|pixel| matches!(pixel, "yuv420p" | "yuvj420p" | "nv12"))
+}
+
 /// Run ffmpeg with a fixed argument list; returns Ok when a playable file exists.
 fn run_ffmpeg(bin: &Path, input: &str, output: &Path, args: &[&str]) -> Result<(), String> {
     if output.is_file() {
@@ -232,40 +265,50 @@ async fn remux_file(app: tauri::AppHandle, path: String) -> Result<String, Strin
     let remuxed = dir.join(format!("{stem}-{source_id:016x}.mp4"));
     let transcoded = dir.join(format!("{stem}-{source_id:016x}.x264.mp4"));
 
-    // ---- pass 1: copy the video stream, normalise audio to AAC -----------
-    let first = {
-        let bin = bin.clone();
-        let input = path.clone();
-        let out = remuxed.clone();
-        tauri::async_runtime::spawn_blocking(move || {
-            run_ffmpeg(
-                &bin,
-                &input,
-                &out,
-                &[
-                    "-map",
-                    "0:v:0?",
-                    "-map",
-                    "0:a:0?",
-                    "-c:v",
-                    "copy",
-                    "-c:a",
-                    "aac",
-                    "-b:a",
-                    "192k",
-                    "-movflags",
-                    "+faststart",
-                    "-f",
-                    "mp4",
-                ],
-            )
-            .map(|_| out.to_string_lossy().to_string())
-        })
+    // ---- pass 1: lossless remux only for broadly supported H.264 --------
+    // HEVC/H.265, VP9, AV1, MPEG-2/4, VC-1 and unusual H.264 profiles must be
+    // transcoded; a successful MP4 remux does not make their bitstreams
+    // decodable by the OS webview (the common x265-on-Windows failure).
+    let probe_bin = bin.clone();
+    let probe_input = path.clone();
+    let probe = tauri::async_runtime::spawn_blocking(move || ffmpeg_probe(&probe_bin, &probe_input))
         .await
-    };
+        .map_err(|e| e.to_string())??;
+    if can_remux_for_webview(&probe) {
+        let first = {
+            let bin = bin.clone();
+            let input = path.clone();
+            let out = remuxed.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                run_ffmpeg(
+                    &bin,
+                    &input,
+                    &out,
+                    &[
+                        "-map",
+                        "0:v:0?",
+                        "-map",
+                        "0:a:0?",
+                        "-c:v",
+                        "copy",
+                        "-c:a",
+                        "aac",
+                        "-b:a",
+                        "192k",
+                        "-movflags",
+                        "+faststart",
+                        "-f",
+                        "mp4",
+                    ],
+                )
+                .map(|_| out.to_string_lossy().to_string())
+            })
+            .await
+        };
 
-    if let Ok(Ok(playable)) = first {
-        return Ok(playable);
+        if let Ok(Ok(playable)) = first {
+            return Ok(playable);
+        }
     }
 
     // ---- pass 2: full transcode — slower, plays anything FFmpeg decodes --
@@ -749,7 +792,18 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{file_stem, next_token, validate_android_media_uri, validate_android_update_url};
+    use super::{can_remux_for_webview, file_stem, next_token, validate_android_media_uri, validate_android_update_url};
+
+    #[test]
+    fn remux_whitelist_forces_unsupported_video_codecs_through_transcoding() {
+        assert!(can_remux_for_webview("Stream #0:0: Video: h264 (High), yuv420p(tv)"));
+        assert!(can_remux_for_webview("Stream #0:0: Audio: aac, 48000 Hz"));
+        assert!(!can_remux_for_webview("Stream #0:0: Video: hevc (Main 10), yuv420p10le"));
+        assert!(!can_remux_for_webview("Stream #0:0: Video: av1, yuv420p"));
+        assert!(!can_remux_for_webview("Stream #0:0: Video: h264 (High 10), yuv420p10le"));
+        assert!(!can_remux_for_webview("Stream #0:0: Video: h264 (High 4:2:2), yuv422p"));
+        assert!(!can_remux_for_webview("Stream #0:0: Video: h264 (High 4:4:4), yuv420p12le"));
+    }
 
     #[test]
     fn stems_are_sanitised() {
