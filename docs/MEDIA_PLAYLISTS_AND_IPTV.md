@@ -22,9 +22,10 @@ The importer accepts lists up to 5 MiB and at most 500 channels. It does not exe
 
 ## Desktop recording and metadata
 
-- On Windows/macOS/Linux native builds, choose **Record stream** in Streams or Guide to save a live HTTP(S) IPTV feed to `.mkv`. FFmpeg uses `-c copy`: it does not decode or re-encode audio/video, preserving the incoming stream bit-for-bit where the container accepts it. The app must remain open; only one manual recording is supported at a time.
-- This is not a tuner integration or scheduled EPG DVR. It cannot record while ROZH is closed and does not capture broadcast hardware inputs. Web, phone, and Android TV recording are not provided.
+- On Windows/macOS/Linux native builds, choose **Record stream** for a live HTTP(S) IPTV feed, or **Schedule recording** for the next programme in Guide. Both save to `.mkv` with FFmpeg `-c copy`: audio/video are not decoded or re-encoded, preserving the incoming streams bit-for-bit where the container accepts them.
+- EPG schedules persist across ROZH restarts and are restored when the app opens. ROZH must be running and the computer awake at the programme time; closing the app or suspending the computer stops capture. One FFmpeg recording can run at a time, and overlapping schedules are rejected.
+- EPG scheduling requires a valid XMLTV feed. This is still not a tuner integration: broadcast hardware inputs need platform-specific device APIs and permissions. Web, phone, and Android TV recording are not provided.
 - Use the magnifier on a library item to search TVmaze for series or Apple Search for movies. The selected title, year, synopsis, genres, rating/artwork (where supplied) are stored locally. Results require internet and are limited to those catalogs.
 - Desktop codec fallback is quality-first: direct playback and lossless stream-copy remux are tried first. Conversion to H.264/AAC is offered only after playback still fails and only after confirmation; it can change quality, and the source is never overwritten. Declining conversion preserves the original but may leave playback unavailable on a device lacking that decoder.
 
-Third-party add-on code is not executed: ROZH has no secure extension sandbox or permission model, so arbitrary scripts are deliberately not enabled. Tuner integrations, scheduled DVR, and arbitrary-code add-ons remain future work rather than simulated UI.
+Data-only JSON source packs are supported for playlist/EPG URLs; they are imported only after user selection and execute no pack-provided code. A general executable add-on system remains disabled until a platform-wide sandbox and permission broker can be security-reviewed. Tuner integration remains future work because it depends on physical capture hardware and OS-specific APIs.

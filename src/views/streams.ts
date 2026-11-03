@@ -4,6 +4,7 @@ import type { AppContext } from '../core/context';
 import { icon, hydrateIcons } from '../core/icons';
 import { t } from '../core/i18n';
 import { store } from '../core/store';
+import { listSourcePacks } from '../core/addons';
 import { openModal, toast } from '../core/ui';
 import { isRecording, startIptvRecording, stopIptvRecording } from '../core/recording';
 import { $, $$, escapeHtml, platform, storage } from '../core/util';
@@ -63,6 +64,7 @@ export const PROVIDERS: Provider[] = [
 ];
 
 const RECENT_KEY = 'streams.recent';
+const recordingWatchers = new WeakMap<HTMLElement, () => void>();
 
 /** Clean, validated URL or null. Accepts bare hosts by adding https:// */
 export function normalizeUrl(raw: string): string | null {
@@ -236,17 +238,17 @@ export function parseM3UEpgUrl(text: string, baseUrl?: string): string | undefin
   }
 }
 
-function openM3UImport(ctx: AppContext): void {
+function openM3UImport(ctx: AppContext, preset?: { url: string; name: string; epgUrl?: string }): void {
   openModal({
     title: t('streams.importPlaylist'),
     icon: 'list-video',
     width: 640,
     body: `<label class="form-label">${escapeHtml(t('streams.playlistUrl'))}</label>
-      <input class="input" type="url" inputmode="url" dir="ltr" data-m3u-url placeholder="https://example.com/playlist.m3u" />
+      <input class="input" type="url" inputmode="url" dir="ltr" data-m3u-url value="${escapeHtml(preset?.url ?? '')}" placeholder="https://example.com/playlist.m3u" />
       <label class="form-label" style="margin-top:14px">${escapeHtml(t('streams.playlistName'))}</label>
-      <input class="input" data-m3u-name maxlength="80" placeholder="${escapeHtml(t('streams.playlistName'))}" />
+      <input class="input" data-m3u-name maxlength="80" value="${escapeHtml(preset?.name ?? '')}" placeholder="${escapeHtml(t('streams.playlistName'))}" />
       <label class="form-label" style="margin-top:14px">${escapeHtml(t('streams.epgUrl'))}</label>
-      <input class="input" type="url" inputmode="url" dir="ltr" data-m3u-epg placeholder="https://example.com/guide.xml" />
+      <input class="input" type="url" inputmode="url" dir="ltr" data-m3u-epg value="${escapeHtml(preset?.epgUrl ?? '')}" placeholder="https://example.com/guide.xml" />
       <p class="modal-hint">${escapeHtml(t('streams.epgHint'))}</p>
       <label class="form-label" style="margin-top:14px">${escapeHtml(t('streams.chooseFile'))}</label>
       <input class="input" type="file" accept=".m3u,.m3u8,audio/x-mpegurl,application/vnd.apple.mpegurl,text/plain" data-m3u-file />
@@ -356,6 +358,8 @@ function openM3UImport(ctx: AppContext): void {
 
 export function renderStreams(host: HTMLElement, ctx: AppContext): void {
   const recent = storage.get<string[]>(RECENT_KEY, []);
+  const sourcePacks = listSourcePacks();
+  const addonSources = sourcePacks.flatMap((pack) => pack.sources.map((source, index) => ({ pack, source, index })));
   host.innerHTML = `
     <div class="view-head">
       <div>
@@ -363,7 +367,7 @@ export function renderStreams(host: HTMLElement, ctx: AppContext): void {
         <p>${t('streams.sub')}</p>
       </div>
       <div class="spacer"></div>
-      ${platform.tv ? `<button class="btn btn-primary" data-import-m3u>${icon('list-video')}<span>${escapeHtml(t('streams.importPlaylist'))}</span></button>` : ''}
+      ${platform.tv || (platform.tauri && !platform.mobile) ? `<button class="btn btn-primary" data-import-m3u>${icon('list-video')}<span>${escapeHtml(t('streams.importPlaylist'))}</span></button>` : ''}
     </div>
 
     <form class="stream-form" data-form>
@@ -378,6 +382,10 @@ export function renderStreams(host: HTMLElement, ctx: AppContext): void {
         t(isRecording() ? 'pvr.stop' : 'pvr.record'),
       )}</span></button>` : ''}
     </form>
+
+    ${addonSources.length ? `<section class="addon-streams"><header><h3>${escapeHtml(t('streams.sourcePacks'))}</h3><span>${escapeHtml(t('settings.addons'))}</span></header>
+      <div>${addonSources.map(({ pack, source, index }) => `<button class="btn" data-addon-pack="${escapeHtml(pack.id)}" data-addon-source-index="${index}">${icon('list-video')}<span>${escapeHtml(source.name)}</span><small>${escapeHtml(pack.name)}</small></button>`).join('')}</div>
+    </section>` : ''}
 
     <div class="toolbar" style="margin-top:-6px">
       ${['HLS', 'DASH', 'MP4', 'MKV', 'WebM', 'MP3', 'FLAC', 'Radio']
@@ -426,6 +434,11 @@ export function renderStreams(host: HTMLElement, ctx: AppContext): void {
 
   hydrateIcons(host);
   $('[data-import-m3u]', host)?.addEventListener('click', () => openM3UImport(ctx));
+  $$('[data-addon-pack]', host).forEach((button) => button.addEventListener('click', () => {
+    const pack = sourcePacks.find((candidate) => candidate.id === (button as HTMLElement).dataset.addonPack);
+    const source = pack?.sources[Number((button as HTMLElement).dataset.addonSourceIndex)];
+    if (pack && source) openM3UImport(ctx, { url: source.playlistUrl, name: source.name, epgUrl: source.epgUrl });
+  }));
 
   const form = $('[data-form]', host) as HTMLFormElement;
   const input = $('[data-input]', host) as HTMLInputElement;
@@ -496,6 +509,13 @@ export function renderStreams(host: HTMLElement, ctx: AppContext): void {
       });
     }),
   );
+  const previousWatcher = recordingWatchers.get(host);
+  if (previousWatcher) window.removeEventListener('rozh:recording-state', previousWatcher);
+  const watcher = (): void => {
+    if (document.body.dataset.view === 'streams') renderStreams(host, ctx);
+  };
+  recordingWatchers.set(host, watcher);
+  window.addEventListener('rozh:recording-state', watcher);
 }
 
 /** Save a stream into the library so it survives restarts. */

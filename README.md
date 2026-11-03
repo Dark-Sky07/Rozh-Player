@@ -7,7 +7,7 @@
   **Windows · macOS · Linux · Android · Android TV · Web**
 
   [![CI](https://img.shields.io/badge/build-passing-4ecf9a?style=flat-square)](.github/workflows/ci.yml)
-  [![Release](https://img.shields.io/badge/release-v1.2.0-f8da7e?style=flat-square)](../../releases/latest)
+  [![Release](https://img.shields.io/badge/release-v1.3.0-f8da7e?style=flat-square)](../../releases/latest)
   [![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?style=flat-square)](https://tauri.app)
   [![License](https://img.shields.io/badge/license-MIT-f8a24a?style=flat-square)](LICENSE)
   [![Languages](https://img.shields.io/badge/languages-47-6ba8ff?style=flat-square)](#languages)
@@ -42,22 +42,22 @@ Every version ships ready-to-install builds for all platforms on the
 
 | Platform | File |
 | --- | --- |
-| **Windows 10/11 (x64)** | [ROZH-Player_1.2.0_x64-setup.exe](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.2.0/ROZH-Player_1.2.0_x64-setup.exe) |
-| **macOS — Apple Silicon (M1–M4)** | [ROZH-Player_1.2.0_aarch64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.2.0/ROZH-Player_1.2.0_aarch64.dmg) |
-| **macOS — Intel** | [ROZH-Player_1.2.0_x64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.2.0/ROZH-Player_1.2.0_x64.dmg) |
-| **Linux (Debian/Ubuntu)** | [ROZH-Player_1.2.0_amd64.deb](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.2.0/ROZH-Player_1.2.0_amd64.deb) |
-| **Linux (Fedora/RHEL/openSUSE)** | [ROZH-Player-1.2.0-1.x86_64.rpm](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.2.0/ROZH-Player-1.2.0-1.x86_64.rpm) |
-| **Linux (any distribution)** | [ROZH-Player_1.2.0_amd64.AppImage](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.2.0/ROZH-Player_1.2.0_amd64.AppImage) |
-| **Android 7.0+ (phones, tablets)** | [ROZH-Player-1.2.0.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.2.0/ROZH-Player-1.2.0.apk) |
-| **Android (Google Play bundle)** | [ROZH-Player-1.2.0.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.2.0/ROZH-Player-1.2.0.aab) |
-| **Android TV (dedicated build)** | [ROZH-Player-TV-1.2.0.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.2.0/ROZH-Player-TV-1.2.0.apk) |
-| **Android TV (Google Play bundle)** | [ROZH-Player-TV-1.2.0.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.2.0/ROZH-Player-TV-1.2.0.aab) |
-| **Web / PWA** | [rozh-player-web.zip](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.2.0/rozh-player-web.zip) — unzip and serve as static files |
+| **Windows 10/11 (x64)** | [ROZH-Player_1.3.0_x64-setup.exe](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/ROZH-Player_1.3.0_x64-setup.exe) |
+| **macOS — Apple Silicon (M1–M4)** | [ROZH-Player_1.3.0_aarch64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/ROZH-Player_1.3.0_aarch64.dmg) |
+| **macOS — Intel** | [ROZH-Player_1.3.0_x64.dmg](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/ROZH-Player_1.3.0_x64.dmg) |
+| **Linux (Debian/Ubuntu)** | [ROZH-Player_1.3.0_amd64.deb](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/ROZH-Player_1.3.0_amd64.deb) |
+| **Linux (Fedora/RHEL/openSUSE)** | [ROZH-Player-1.3.0-1.x86_64.rpm](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/ROZH-Player-1.3.0-1.x86_64.rpm) |
+| **Linux (any distribution)** | [ROZH-Player_1.3.0_amd64.AppImage](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/ROZH-Player_1.3.0_amd64.AppImage) |
+| **Android 7.0+ (phones, tablets)** | [ROZH-Player-1.3.0.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/ROZH-Player-1.3.0.apk) |
+| **Android (Google Play bundle)** | [ROZH-Player-1.3.0.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/ROZH-Player-1.3.0.aab) |
+| **Android TV (dedicated build)** | [ROZH-Player-TV-1.3.0.apk](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/ROZH-Player-TV-1.3.0.apk) |
+| **Android TV (Google Play bundle)** | [ROZH-Player-TV-1.3.0.aab](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/ROZH-Player-TV-1.3.0.aab) |
+| **Web / PWA** | [rozh-player-web.zip](https://github.com/Dark-Sky07/Rozh-Player/releases/download/v1.3.0/rozh-player-web.zip) — unzip and serve as static files |
 
 > Windows/macOS packages are not yet signed with Microsoft or Apple developer
 > identities, so platform security warnings may appear. Android APKs are signed.
 > This release is the GitHub sideload channel; AAB files are not automatically
-> published to Google Play. See the [release notes](docs/releases/v1.2.0.md).
+> published to Google Play. See the [release notes](docs/releases/v1.3.0.md).
 
 ## Updates
 
@@ -130,8 +130,9 @@ midnight black. Three simple rules:
 - Open local media by drag-and-drop, the native file dialog, or Windows Explorer;
   on Windows the toolbar Open media action is the single visible file picker
 - **Queue**, shuffle, repeat (one / all), and ordered user playlists
-- **Desktop IPTV recording** in Matroska by stream-copying without re-encoding; keep the app open while recording
+- **Desktop IPTV recording** in Matroska by stream-copying without re-encoding; supports manual and XMLTV-scheduled recordings while the app is running
 - **Movie/TV metadata search** via TVmaze and Apple Search, saved locally
+- **Data-only source-pack add-ons** for user-approved M3U/XMLTV sources; no third-party code executes
 - **Resume where you left off** — every file restarts at the second you stopped
 - Playback speed 0.25×–4× with pitch preservation
 - **A-B loop**, 5 s / 30 s seeks, frame stepping (`, .` or `Alt + ←/→`)
@@ -349,8 +350,10 @@ rozh-player/
 └── docs/                      # architecture, build, third-party, release notes
 ```
 
-More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and
-[docs/BUILD.md](docs/BUILD.md).
+More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
+[docs/BUILD.md](docs/BUILD.md),
+[IPTV recording](docs/MEDIA_PLAYLISTS_AND_IPTV.md), and
+[data-only source packs](docs/ADDONS.md).
 
 ## License
 

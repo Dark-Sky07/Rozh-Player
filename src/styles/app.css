@@ -1487,6 +1487,54 @@ html[dir='rtl'] .chapters i {
   border-radius: var(--r-lg);
   background: var(--surface-1);
 }
+.guide-channel-source {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+.guide-record,
+.guide-schedule {
+  justify-self: start;
+  min-height: 34px;
+  font-size: 0.76rem;
+}
+.guide-scheduled {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+}
+.guide-scheduled > header,
+.guide-scheduled article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.guide-scheduled h3 {
+  margin: 0;
+  color: var(--text-0);
+  font-size: 0.9rem;
+}
+.guide-scheduled article > div {
+  display: grid;
+  gap: 4px;
+}
+.guide-scheduled article b {
+  color: var(--text-0);
+  font-size: 0.82rem;
+}
+.guide-scheduled article small,
+.guide-scheduled header > span {
+  color: var(--text-3);
+  font-size: 0.72rem;
+}
+.guide-program {
+  align-content: start;
+}
 .guide-channel-play {
   min-width: 0;
   display: flex;
@@ -1665,6 +1713,71 @@ html[dir='rtl'] .chapters i {
 .stream-form .field {
   flex: 1;
   height: 48px;
+}
+.addon-streams {
+  display: grid;
+  gap: 10px;
+  margin: -8px 0 20px;
+  padding: 14px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+}
+.addon-streams header {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.addon-streams h3 {
+  margin: 0;
+  color: var(--text-0);
+  font-size: 0.9rem;
+}
+.addon-streams header span,
+.addon-streams button small {
+  color: var(--text-3);
+  font-size: 0.72rem;
+}
+.addon-streams > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.addon-streams button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.addon-pack-list {
+  display: grid;
+  gap: 8px;
+}
+.addon-pack {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line-1);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+}
+.addon-pack > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.addon-pack b {
+  color: var(--text-0);
+}
+.addon-pack small,
+.addon-pack p {
+  color: var(--text-3);
+  font-size: 0.75rem;
+  margin: 0;
+}
+.addon-file {
+  max-width: 300px;
 }
 .stream-grid {
   display: grid;
