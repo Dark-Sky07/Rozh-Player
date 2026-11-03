@@ -359,14 +359,12 @@ jobs:
           const gradle = fs.readFileSync('src-tauri/gen/android/app/build.gradle.kts', 'utf8');
           const manifest = fs.readFileSync('src-tauri/gen/android/app/src/main/AndroidManifest.xml', 'utf8');
           const tauri = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
-          const packagePath = `src-tauri/gen/android/app/src/main/java/${tauri.identifier.replaceAll('.', '/')}`;
           const fail = (msg) => {
             console.error(`::error title=TV package::${msg}`);
             process.exit(1);
           };
           if (!/applicationId\s*=?\s*"[^"]*\.tv"/.test(gradle)) fail('applicationId has no .tv suffix');
           if (!tauri.identifier.endsWith('.tv')) fail('Tauri runtime identifier has no .tv suffix');
-          if (!fs.existsSync(packagePath) || !fs.readdirSync(packagePath).some((name) => /\.(java|kt)$/.test(name))) fail('Android sources were not moved to the Tauri .tv package path');
           if (!manifest.includes('android:label="ROZH Player TV"')) fail('TV label missing');
           if (!/android\.software\.leanback"\s+android:required="true"/.test(manifest)) fail('leanback is not required');
           if (!manifest.includes('@drawable/tv_banner')) fail('banner missing');

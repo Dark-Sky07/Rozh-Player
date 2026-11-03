@@ -114,12 +114,14 @@ const basePackageDir = join(javaRoot, ...baseIdentifier.split('.'));
 const tvPackageDir = join(javaRoot, ...tvIdentifier.split('.'));
 await movePackageSources(basePackageDir, tvPackageDir);
 
+let androidSourceCount = 0;
 async function updatePackageDeclarations(dir) {
   if (!(await exists(dir))) return;
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const file = join(dir, entry.name);
     if (entry.isDirectory()) await updatePackageDeclarations(file);
     else if (/\.(java|kt)$/.test(entry.name)) {
+      androidSourceCount += 1;
       const source = await readFile(file, 'utf8');
       const escaped = baseIdentifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const next = source.replace(new RegExp(`(^\\s*package\\s+)${escaped}(\\s*;?)`, 'm'), `$1${tvIdentifier}$2`);
@@ -128,6 +130,9 @@ async function updatePackageDeclarations(dir) {
   }
 }
 await updatePackageDeclarations(tvPackageDir);
+if (androidSourceCount === 0) {
+  throw new Error(`No Android Java/Kotlin source found under ${tvPackageDir}`);
+}
 
 let gradleChanged = null;
 for (const file of ['build.gradle.kts', 'build.gradle']) {
@@ -143,6 +148,12 @@ for (const file of ['build.gradle.kts', 'build.gradle']) {
     }
   }
   if (gradleChanged) await writeFile(p, g);
+  if (!/applicationId\s*=?\s*"[^"]+\.tv"/.test(g)) {
+    throw new Error('Android applicationId was not updated to the dedicated .tv variant');
+  }
+  if (/namespace\s*=?\s*"[^"]+"/.test(g) && !/namespace\s*=?\s*"[^"]+\.tv"/.test(g)) {
+    throw new Error('Android namespace does not match the dedicated .tv variant');
+  }
   break;
 }
 
