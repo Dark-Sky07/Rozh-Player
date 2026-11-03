@@ -20,4 +20,11 @@ The Android TV build adds personal organization without requiring a media-server
 
 The importer accepts lists up to 5 MiB and at most 500 channels. It does not execute playlist scripts, access non-HTTP(S) channel schemes, or import media from provider-specific APIs. XMLTV downloads are capped at 20 MiB; the TV guide retains programmes within a seven-day forward window and shows the current and next programme, not catch-up playback. Android TV uses Tauri's native HTTP plugin for remote retrieval. Actual playback still depends on the stream format, provider availability, network, codecs, and device hardware.
 
-This is not a tuner-backed PVR/DVR. Recording requires a supported capture/tuner backend and explicit storage permissions, neither of which is provided by the current app. Third-party add-on code is not executed: ROZH has no secure extension sandbox or permission model, so arbitrary scripts are deliberately not enabled.
+## Desktop recording and metadata
+
+- On Windows/macOS/Linux native builds, choose **Record stream** in Streams or Guide to save a live HTTP(S) IPTV feed to `.mkv`. FFmpeg uses `-c copy`: it does not decode or re-encode audio/video, preserving the incoming stream bit-for-bit where the container accepts it. The app must remain open; only one manual recording is supported at a time.
+- This is not a tuner integration or scheduled EPG DVR. It cannot record while ROZH is closed and does not capture broadcast hardware inputs. Web, phone, and Android TV recording are not provided.
+- Use the magnifier on a library item to search TVmaze for series or Apple Search for movies. The selected title, year, synopsis, genres, rating/artwork (where supplied) are stored locally. Results require internet and are limited to those catalogs.
+- Desktop codec fallback is quality-first: direct playback and lossless stream-copy remux are tried first. Conversion to H.264/AAC is offered only after playback still fails and only after confirmation; it can change quality, and the source is never overwritten. Declining conversion preserves the original but may leave playback unavailable on a device lacking that decoder.
+
+Third-party add-on code is not executed: ROZH has no secure extension sandbox or permission model, so arbitrary scripts are deliberately not enabled. Tuner integrations, scheduled DVR, and arbitrary-code add-ons remain future work rather than simulated UI.

@@ -135,6 +135,18 @@ export interface Bookmark {
 
 export type MediaKind = 'video' | 'audio' | 'stream' | 'image';
 
+export interface ScrapedMetadata {
+  provider: 'TVmaze' | 'Apple iTunes';
+  title: string;
+  year?: number;
+  summary?: string;
+  genres?: string[];
+  posterUrl?: string;
+  rating?: number;
+  externalUrl?: string;
+  scrapedAt: number;
+}
+
 export interface MediaItem {
   id: string;
   name: string;
@@ -152,6 +164,7 @@ export interface MediaItem {
   inLibrary: boolean;
   plays: number;
   favorite?: boolean;
+  metadata?: ScrapedMetadata;
   /** XMLTV channel id used by Android TV's IPTV guide. */
   tvgId?: string;
   /** Playlist owning this imported channel's EPG mapping. */

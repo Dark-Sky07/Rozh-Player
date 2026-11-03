@@ -33,11 +33,11 @@ export async function convertFileSrc(path: string): Promise<string> {
  * Ask the Rust side to remux/transcode a path into something the webview can
  * decode. Returns a playable asset URL, or null when unavailable.
  */
-export async function remuxToPlayable(path: string): Promise<string | null> {
+export async function remuxToPlayable(path: string, allowTranscode = false): Promise<string | null> {
   if (!platform.tauri) return null;
   try {
     const { invoke } = await import('@tauri-apps/api/core');
-    const out = await invoke<string>('remux_file', { path });
+    const out = await invoke<string>('remux_file', { path, allowTranscode });
     if (!out) return null;
     return await convertFileSrc(out);
   } catch (err) {

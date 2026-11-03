@@ -1,11 +1,23 @@
+# ROZH Player 1.2.0
+
+**Quality-first playback, local metadata scraping, and lossless IPTV recording**
+
+- Added metadata search for TV series (TVmaze) and movies (Apple Search), with results cached in the local library.
+- Added manual desktop IPTV recording to Matroska using FFmpeg stream copy; no re-encoding is performed.
+- Made codec conversion opt-in: source-compatible files are played or losslessly remuxed first; a compatibility transcode now requires explicit user approval.
+- Added common video/container and audio formats to the desktop and Android file-routing paths.
+- Arbitrary add-on code and tuner-backed/scheduled DVR remain out of scope until a secure sandbox or tuner backend exists.
+- See [full release notes](releases/v1.2.0.md).
+
+---
+
 # ROZH Player 1.1.9
 
-**Android TV XMLTV guide, picture gallery, and broader desktop codec fallback**
+**Android TV XMLTV guide, picture gallery, and initial desktop codec fallback**
 
 - Added XMLTV programme guide import using playlist guide URLs and M3U `tvg-id` metadata; current and next programmes are cached locally.
 - Added a remote-friendly Android TV Pictures gallery; the dedicated TV build indexes images from MediaStore and selected folders.
-- Native desktop builds now transcode unsupported local video codecs (including HEVC/H.265/x265) to H.264/AAC after playback failure, with broader container/audio extension recognition.
-- PVR/DVR, third-party add-on execution, and a general media metadata scraper are not included; see the platform and security limits in the IPTV guide.
+- Added a desktop FFmpeg fallback for unsupported local video codecs; the subsequent v1.2.0 update makes potentially lossy conversion opt-in.
 - See [full release notes](releases/v1.1.9.md).
 
 ---

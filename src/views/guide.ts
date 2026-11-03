@@ -6,6 +6,7 @@ import { icon, hydrateIcons } from '../core/icons';
 import { n, t } from '../core/i18n';
 import { store, type GuideProgram, type MediaItem, type MediaPlaylist } from '../core/store';
 import { toast } from '../core/ui';
+import { isRecording, startIptvRecording, stopIptvRecording } from '../core/recording';
 
 const MAX_XML_BYTES = 20 * 1024 * 1024;
 const MAX_PROGRAMS = 20_000;
@@ -74,12 +75,19 @@ function programCard(item: MediaItem, sorted: GuideProgram[], now: number): stri
   const current = sorted.find((program) => program.start <= now && program.stop > now);
   const next = sorted.find((program) => program.start >= (current?.stop ?? now));
   const percent = current ? Math.min(100, Math.max(0, ((now - current.start) / (current.stop - current.start)) * 100)) : 0;
+  const recordingThis = isRecording(item.url);
+  const recordingBusy = isRecording() && !recordingThis;
   return `<article class="guide-channel">
+    <div class="guide-channel-source">
     <button class="guide-channel-play" data-guide-play="${escapeHtml(item.id)}" aria-label="${escapeHtml(t('player.play') + ' ' + item.title)}">
       ${item.thumb ? `<img src="${escapeHtml(item.thumb)}" alt="" loading="lazy" />` : `<span class="guide-channel-mark">${icon('broadcast')}</span>`}
       <span><b>${escapeHtml(item.title)}</b><small>${escapeHtml(item.bucket ?? t('player.stream'))}</small></span>
       ${icon('play')}
     </button>
+    ${platform.tauri && !platform.mobile && item.url ? `<button class="btn guide-record" data-guide-record="${escapeHtml(item.id)}" ${recordingBusy ? 'disabled' : ''}>${icon(recordingThis ? 'square' : 'video')}<span>${escapeHtml(
+      t(recordingThis ? 'pvr.stop' : 'pvr.record'),
+    )}</span></button>` : ''}
+    </div>
     <div class="guide-programs">
       ${current ? `<div class="guide-program guide-current"><small>${escapeHtml(t('guide.now'))} · ${clock(current.start)}–${clock(current.stop)}</small><b>${escapeHtml(current.title)}</b>${current.category ? `<span>${escapeHtml(current.category)}</span>` : ''}${current.description ? `<p>${escapeHtml(current.description)}</p>` : ''}<i><em style="width:${percent}%"></em></i></div>` : `<div class="guide-program guide-no-program"><small>${escapeHtml(t('guide.now'))}</small><b>${escapeHtml(t('guide.noCurrent'))}</b></div>`}
       ${next ? `<div class="guide-program guide-next"><small>${escapeHtml(t('guide.next'))} · ${clock(next.start)}</small><b>${escapeHtml(next.title)}</b></div>` : ''}
@@ -144,6 +152,12 @@ export function renderGuide(host: HTMLElement, ctx: AppContext): void {
       content.querySelectorAll<HTMLElement>('[data-guide-play]').forEach((button) => button.addEventListener('click', () => {
         const item = store.media.find((candidate) => candidate.id === button.dataset.guidePlay);
         if (item) void ctx.playMedia(item);
+      }));
+      content.querySelectorAll<HTMLElement>('[data-guide-record]').forEach((button) => button.addEventListener('click', async () => {
+        const item = store.media.find((candidate) => candidate.id === button.dataset.guideRecord);
+        if (item?.url && isRecording(item.url)) await stopIptvRecording();
+        else if (item?.url && !isRecording()) await startIptvRecording(item.url, item.metadata?.title ?? item.title);
+        await paint();
       }));
       $('[data-guide-playlists]', content)?.addEventListener('click', () => ctx.navigate('library', 'playlists'));
     }

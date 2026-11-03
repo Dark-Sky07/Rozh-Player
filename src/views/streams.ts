@@ -5,6 +5,7 @@ import { icon, hydrateIcons } from '../core/icons';
 import { t } from '../core/i18n';
 import { store } from '../core/store';
 import { openModal, toast } from '../core/ui';
+import { isRecording, startIptvRecording, stopIptvRecording } from '../core/recording';
 import { $, $$, escapeHtml, platform, storage } from '../core/util';
 
 export interface Provider {
@@ -373,12 +374,16 @@ export function renderStreams(host: HTMLElement, ctx: AppContext): void {
         )}" data-input aria-label="${escapeHtml(t('streams.custom'))}" />
       </div>
       <button class="btn btn-primary" type="submit">${icon('play')}<span>${t('streams.open')}</span></button>
+      ${platform.tauri && !platform.mobile ? `<button class="btn" type="button" data-record-stream>${icon('video')}<span>${escapeHtml(
+        t(isRecording() ? 'pvr.stop' : 'pvr.record'),
+      )}</span></button>` : ''}
     </form>
 
     <div class="toolbar" style="margin-top:-6px">
       ${['HLS', 'DASH', 'MP4', 'MKV', 'WebM', 'MP3', 'FLAC', 'Radio']
         .map((p) => `<span class="badge muted">${p}</span>`)
         .join('')}
+      ${platform.tauri && !platform.mobile ? `<small class="stream-record-note">${escapeHtml(t('pvr.notice'))}</small>` : ''}
     </div>
 
     <div class="box-title" style="margin:8px 0 10px">
@@ -424,6 +429,20 @@ export function renderStreams(host: HTMLElement, ctx: AppContext): void {
 
   const form = $('[data-form]', host) as HTMLFormElement;
   const input = $('[data-input]', host) as HTMLInputElement;
+  $('[data-record-stream]', host)?.addEventListener('click', async () => {
+    if (isRecording()) {
+      await stopIptvRecording();
+      renderStreams(host, ctx);
+      return;
+    }
+    const url = normalizeUrl(input.value);
+    if (!url) {
+      toast(t('streams.invalid'), 'bad');
+      return;
+    }
+    const title = url.split(/[?#]/)[0]?.split('/').pop() || t('player.stream');
+    if (await startIptvRecording(url, title)) renderStreams(host, ctx);
+  });
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const url = normalizeUrl(input.value);

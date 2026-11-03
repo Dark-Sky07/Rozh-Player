@@ -10,7 +10,7 @@
 import { icon, hydrateIcons } from './icons';
 import { t, n } from './i18n';
 import { store, type Aspect, type Fit, type LoopMode } from './store';
-import { hasOverlay, openDrawer, openPopover, toast, type PopItem } from './ui';
+import { confirmDialog, hasOverlay, openDrawer, openPopover, toast, type PopItem } from './ui';
 import { openUrlModal } from '../views/streams';
 import { remuxToPlayable, revealInFolder, setAndroidPlaybackMode, type NativeFile } from './native';
 import { nativeHlsLoader } from './netLoader';
@@ -2085,8 +2085,8 @@ export class Player {
   private nativeFallbackAttempted = false;
 
   /**
-   * Desktop only: hand a container the webview refuses to the bundled FFmpeg
-   * (lossless remux first, transcode as a last resort) and retry playback.
+   * Desktop only: try a lossless stream-copy remux first; ask before any
+   * potentially quality-changing FFmpeg conversion, then retry playback.
    */
   private async nativeFallback(): Promise<boolean> {
     const path = (this.current?.file as NativeFile | undefined)?.__path;
@@ -2094,7 +2094,15 @@ export class Player {
     this.nativeTried = true;
     this.stage.dataset.buffering = 'true';
     toast(t('player.preparing'), 'info', 4000);
-    const url = await remuxToPlayable(path);
+    let url = await remuxToPlayable(path);
+    if (!url) {
+      this.stage.dataset.buffering = 'false';
+      const approved = await confirmDialog(t('player.transcodeConfirm'), { okLabel: t('player.transcodeProceed') });
+      if (!approved) return false;
+      this.stage.dataset.buffering = 'true';
+      toast(t('player.preparing'), 'info', 4000);
+      url = await remuxToPlayable(path, true);
+    }
     if (!url) {
       this.stage.dataset.buffering = 'false';
       return false;

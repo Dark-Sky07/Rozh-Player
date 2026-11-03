@@ -17,6 +17,7 @@ import {
 } from '../core/device';
 import { confirmDialog, openModal, toast } from '../core/ui';
 import { escapeHtml, fmtBytes, fmtTime, fmtRelative, isAudioFile, pickFiles, platform, $, $$ } from '../core/util';
+import { openMetadataScraper } from './metadata';
 
 export type LibraryFilter = 'all' | 'video' | 'audio' | 'stream' | 'favorites' | 'playlists';
 
@@ -94,8 +95,9 @@ function streamHost(raw?: string): string {
 function card(item: MediaItem): string {
   const k = kindOf(item);
   const progress = item.duration > 0 ? Math.min(100, Math.max(0, (item.position / item.duration) * 100)) : 0;
-  const thumb = item.thumb
-    ? `<img src="${escapeHtml(item.thumb)}" alt="" loading="lazy" />`
+  const poster = item.thumb ?? item.metadata?.posterUrl;
+  const thumb = poster
+    ? `<img src="${escapeHtml(poster)}" alt="" loading="lazy" />`
     : `<div class="ph">${icon(k === 'audio' ? 'music' : k === 'stream' ? 'broadcast' : 'film')}</div>`;
   return `
     <div class="media-card" data-id="${escapeHtml(item.id)}" role="button" tabindex="0" aria-label="${escapeHtml(item.title)}">
@@ -114,7 +116,8 @@ function card(item: MediaItem): string {
         )}</button>
       </div>
       <div class="media-body">
-        <div class="media-name">${escapeHtml(item.title)}</div>
+        <div class="media-name">${escapeHtml(item.metadata?.title ?? item.title)}</div>
+        ${item.metadata ? `<div class="media-meta-info">${escapeHtml([item.metadata.year, item.metadata.genres?.slice(0, 2).join(' · ')].filter(Boolean).join(' · '))}</div>` : ''}
         <div class="media-info">
           <span>${escapeHtml(
             item.source === 'url'
@@ -126,14 +129,15 @@ function card(item: MediaItem): string {
           <span class="dotsep"></span>
           <span>${escapeHtml(item.playedAt ? fmtRelative(item.playedAt) : fmtRelative(item.addedAt))}</span>
         </div>
-        ${platform.tv ? `<div class="media-card-actions">
-          <button class="media-action ${item.favorite ? 'is-favorite' : ''}" data-favorite="${escapeHtml(item.id)}" aria-pressed="${
+        <div class="media-card-actions">
+          <button class="media-action" data-metadata="${escapeHtml(item.id)}" aria-label="${escapeHtml(t('metadata.title'))}">${icon('search')}</button>
+          ${platform.tv ? `<button class="media-action ${item.favorite ? 'is-favorite' : ''}" data-favorite="${escapeHtml(item.id)}" aria-pressed="${
             item.favorite ? 'true' : 'false'
           }" aria-label="${escapeHtml(t(item.favorite ? 'library.favoriteRemoved' : 'library.favoriteAdded'))}">${icon('star')}</button>
           <button class="media-action" data-playlist-add="${escapeHtml(item.id)}" aria-label="${escapeHtml(
             t('library.playlistAdd'),
-          )}">${icon('plus')}</button>
-        </div>` : ''}
+          )}">${icon('plus')}</button>` : ''}
+        </div>
       </div>
     </div>`;
 }
@@ -497,6 +501,11 @@ export function renderLibrary(host: HTMLElement, ctx: AppContext): void {
     toast(t(favorite ? 'library.favoriteAdded' : 'library.favoriteRemoved'), 'info', 1600);
     renderLibrary(host, ctx);
     ctx.refreshNav();
+  }));
+  $$('[data-metadata]', host).forEach((button) => button.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const item = store.media.find((candidate) => candidate.id === (button as HTMLElement).dataset.metadata);
+    if (item) openMetadataScraper(item, host, () => renderLibrary(host, ctx));
   }));
   $$('[data-playlist-add]', host).forEach((button) => button.addEventListener('click', (event) => {
     event.stopPropagation();
