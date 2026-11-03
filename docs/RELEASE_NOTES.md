@@ -1,3 +1,14 @@
+# ROZH Player 1.3.1
+
+**Android TV startup and remote-first interface reliability**
+
+- The dedicated TV package now has a native identity fallback so a stale frontend bundle cannot open the phone-style player screen.
+- Resolve the platform before shell initialization to show the TV home, large-screen styling, and D-pad navigation on the first render.
+- Verify the TV marker inside the packaged APK before signing; release publication stops if the wrong frontend is bundled.
+- See [full release notes](releases/v1.3.1.md).
+
+---
+
 # ROZH Player 1.3.0
 
 **EPG-scheduled desktop recordings and safe source-pack add-ons**

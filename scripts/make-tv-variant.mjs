@@ -25,6 +25,7 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const appDir = join(root, 'src-tauri', 'gen', 'android', 'app');
 const manifest = join(appDir, 'src', 'main', 'AndroidManifest.xml');
 const res = join(appDir, 'src', 'main', 'res');
+const tauriConfig = join(root, 'src-tauri', 'tauri.conf.json');
 
 const exists = async (p) => {
   try {
@@ -83,6 +84,18 @@ for (const file of ['build.gradle.kts', 'build.gradle']) {
     gradleChanged = `${m[1]} → ${m[1]}.tv`;
   }
   break;
+}
+
+/* ---- native app identity ------------------------------------------------- */
+// Keep Tauri's runtime config in sync with Gradle's applicationId. The
+// frontend's native identity check is the fail-safe if a TV web bundle was
+// accidentally rebuilt without VITE_TV_BUILD=1.
+if (await exists(tauriConfig)) {
+  const config = JSON.parse(await readFile(tauriConfig, 'utf8'));
+  if (typeof config.identifier !== 'string' || !config.identifier.endsWith('.tv')) {
+    config.identifier = `${config.identifier ?? 'app.rozh.player'}.tv`;
+    await writeFile(tauriConfig, `${JSON.stringify(config, null, 2)}\n`);
+  }
 }
 
 /* ---- manifest ------------------------------------------------------------ */
