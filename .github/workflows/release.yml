@@ -389,7 +389,10 @@ jobs:
           npx tauri android build --apk --aab 2>&1 | tee /tmp/android-tv.log
           code=${PIPESTATUS[0]}
           if [ "$code" -ne 0 ]; then
-            summary=$(tail -n 80 /tmp/android-tv.log | sed -e 's/%/%25/g' -e 's/\r//g' | awk '{printf "%s%%0A", $0}')
+            diagnostic=$(grep -E -i 'FAILURE:|What went wrong:|Execution failed|BUILD FAILED|(^|[[:space:]])error:|Exception|Error:' /tmp/android-tv.log | tail -n 12 || true)
+            if [ -z "$diagnostic" ]; then diagnostic=$(tail -n 12 /tmp/android-tv.log); fi
+            printf '### Android TV build diagnostics\n\n```text\n%s\n```\n' "$diagnostic" >> "$GITHUB_STEP_SUMMARY"
+            summary=$(printf '%s\n' "$diagnostic" | sed -E 's/\x1B\[[0-9;]*[[:alpha:]]//g' -e 's/%/%25/g' -e 's/\r//g' | awk '{printf "%s%%0A", $0}')
             echo "::error title=Android TV build failed::$summary"
             exit "$code"
           fi
