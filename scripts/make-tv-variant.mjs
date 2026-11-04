@@ -17,7 +17,7 @@
  * Every step is idempotent and duplicate-safe: Android's manifest merger refuses
  * duplicated `<uses-feature>` or attribute declarations.
  */
-import { readFile, writeFile, access, copyFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, access, copyFile, mkdir, readdir, rename, rmdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -35,6 +35,37 @@ const exists = async (p) => {
     return false;
   }
 };
+
+async function moveTree(source, destination) {
+  if (!(await exists(source))) return;
+  await mkdir(destination, { recursive: true });
+  for (const entry of await readdir(source, { withFileTypes: true })) {
+    const from = join(source, entry.name);
+    const to = join(destination, entry.name);
+    if (entry.isDirectory()) await moveTree(from, to);
+    else {
+      await mkdir(dirname(to), { recursive: true });
+      await rename(from, to);
+    }
+  }
+  await rmdir(source);
+}
+
+async function movePackageSources(source, destination) {
+  if (!(await exists(source))) return;
+  await mkdir(destination, { recursive: true });
+  for (const entry of await readdir(source, { withFileTypes: true })) {
+    const from = join(source, entry.name);
+    // A package ending in `.tv` nests under its phone-package directory.
+    if (from === destination) continue;
+    const to = join(destination, entry.name);
+    if (entry.isDirectory()) await moveTree(from, to);
+    else {
+      await mkdir(dirname(to), { recursive: true });
+      await rename(from, to);
+    }
+  }
+}
 
 if (!(await exists(manifest))) {
   console.error('[rozh] run `npx tauri android init` before making the TV variant');
@@ -71,31 +102,64 @@ function setAttr(xml, tagName, name, value) {
   });
 }
 
-/* ---- applicationId ------------------------------------------------------- */
+/* ---- native app identity ------------------------------------------------- */
+// Keep Tauri, Gradle, and Java/Kotlin aligned. Tauri derives the Android
+// source directory from the bundle identifier during build.
+const config = JSON.parse(await readFile(tauriConfig, 'utf8'));
+const currentIdentifier = typeof config.identifier === 'string' ? config.identifier : 'app.rozh.player';
+const baseIdentifier = currentIdentifier.endsWith('.tv') ? currentIdentifier.slice(0, -3) : currentIdentifier;
+const tvIdentifier = `${baseIdentifier}.tv`;
+const javaRoot = join(appDir, 'src', 'main', 'java');
+const basePackageDir = join(javaRoot, ...baseIdentifier.split('.'));
+const tvPackageDir = join(javaRoot, ...tvIdentifier.split('.'));
+await movePackageSources(basePackageDir, tvPackageDir);
+
+let androidSourceCount = 0;
+async function updatePackageDeclarations(dir) {
+  if (!(await exists(dir))) return;
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const file = join(dir, entry.name);
+    if (entry.isDirectory()) await updatePackageDeclarations(file);
+    else if (/\.(java|kt)$/.test(entry.name)) {
+      androidSourceCount += 1;
+      const source = await readFile(file, 'utf8');
+      const escaped = baseIdentifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const next = source.replace(new RegExp(`(^\\s*package\\s+)${escaped}(\\s*;?)`, 'm'), `$1${tvIdentifier}$2`);
+      if (next !== source) await writeFile(file, next);
+    }
+  }
+}
+await updatePackageDeclarations(tvPackageDir);
+if (androidSourceCount === 0) throw new Error(`No Android Java/Kotlin source found under ${tvPackageDir}`);
+
 let gradleChanged = null;
 for (const file of ['build.gradle.kts', 'build.gradle']) {
   const p = join(appDir, file);
   if (!(await exists(p))) continue;
   let g = await readFile(p, 'utf8');
-  const m = g.match(/applicationId\s*=?\s*"([^"]+)"/);
-  if (m && !m[1].endsWith('.tv')) {
-    g = g.replace(m[0], m[0].replace(`"${m[1]}"`, `"${m[1]}.tv"`));
-    await writeFile(p, g);
-    gradleChanged = `${m[1]} → ${m[1]}.tv`;
+  for (const key of ['namespace', 'applicationId']) {
+    const re = new RegExp(`(${key}\\s*=?\\s*)"([^"]+)"`);
+    const match = g.match(re);
+    if (match && match[2] !== tvIdentifier) {
+      g = g.replace(re, `$1"${tvIdentifier}"`);
+      gradleChanged = `${match[2]} → ${tvIdentifier}`;
+    }
+  }
+  if (gradleChanged) await writeFile(p, g);
+  if (!/applicationId\s*=?\s*"[^"]+\.tv"/.test(g)) {
+    throw new Error('Android applicationId was not updated to the dedicated .tv variant');
+  }
+  if (/namespace\s*=?\s*"[^"]+"/.test(g) && !/namespace\s*=?\s*"[^"]+\.tv"/.test(g)) {
+    throw new Error('Android namespace does not match the dedicated .tv variant');
   }
   break;
 }
 
-/* ---- native app identity ------------------------------------------------- */
-// Keep Tauri's runtime config in sync with Gradle's applicationId. The
-// frontend's native identity check is the fail-safe if a TV web bundle was
-// accidentally rebuilt without VITE_TV_BUILD=1.
-if (await exists(tauriConfig)) {
-  const config = JSON.parse(await readFile(tauriConfig, 'utf8'));
-  if (typeof config.identifier !== 'string' || !config.identifier.endsWith('.tv')) {
-    config.identifier = `${config.identifier ?? 'app.rozh.player'}.tv`;
-    await writeFile(tauriConfig, `${JSON.stringify(config, null, 2)}\n`);
-  }
+// The native identity is the fail-safe if a TV frontend is rebuilt without
+// VITE_TV_BUILD=1.
+if (config.identifier !== tvIdentifier) {
+  config.identifier = tvIdentifier;
+  await writeFile(tauriConfig, `${JSON.stringify(config, null, 2)}\n`);
 }
 
 /* ---- manifest ------------------------------------------------------------ */
