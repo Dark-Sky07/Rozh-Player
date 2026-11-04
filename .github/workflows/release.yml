@@ -381,6 +381,7 @@ jobs:
           node -e 'const fs=require("node:fs"); const html=fs.readFileSync("dist/index.html","utf8"); if (!html.includes(`data-tv-build="1"`)) { console.error("::error title=Android TV UI::VITE_TV_BUILD was not embedded in dist/index.html"); process.exit(1); } console.log("Android TV runtime flag embedded in frontend bundle");'
 
       - name: Build Android TV APK + AAB
+        id: build_android_tv
         shell: bash
         env:
           VITE_TV_BUILD: "1"
@@ -388,14 +389,35 @@ jobs:
           set +e
           npx tauri android build --apk --aab 2>&1 | tee /tmp/android-tv.log
           code=${PIPESTATUS[0]}
-          if [ "$code" -ne 0 ]; then
-            diagnostic=$(grep -E -i 'FAILURE:|What went wrong:|Execution failed|BUILD FAILED|(^|[[:space:]])error:|Exception|Error:' /tmp/android-tv.log | tail -n 12 || true)
-            if [ -z "$diagnostic" ]; then diagnostic=$(tail -n 12 /tmp/android-tv.log); fi
-            printf '### Android TV build diagnostics\n\n```text\n%s\n```\n' "$diagnostic" >> "$GITHUB_STEP_SUMMARY"
-            summary=$(printf '%s\n' "$diagnostic" | sed -E 's/\x1B\[[0-9;]*[[:alpha:]]//g' -e 's/%/%25/g' -e 's/\r//g' | awk '{printf "%s%%0A", $0}')
-            echo "::error title=Android TV build failed::$summary"
-            exit "$code"
-          fi
+          exit "$code"
+
+      - name: Report Android TV build failure
+        if: always() && steps.build_android_tv.outcome == 'failure'
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+
+          path = '/tmp/android-tv.log'
+          try:
+              with open(path, encoding='utf-8', errors='replace') as f:
+                  lines = f.readlines()
+          except OSError as exc:
+              lines = [f'Could not read Android TV build log: {exc}']
+
+          pattern = re.compile(r'FAILURE:|What went wrong:|Execution failed|BUILD FAILED|(^|\s)error:|Exception|Error:', re.I)
+          selected = [line.rstrip() for line in lines if pattern.search(line)]
+          if not selected:
+              selected = [line.rstrip() for line in lines[-20:]]
+          selected = [re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', line)[:500] for line in selected[-8:]]
+          diagnostic = '\n'.join(selected)[:2400] or 'No Android TV build log was captured.'
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as f:
+              f.write('### Android TV build diagnostics\n\n```text\n' + diagnostic + '\n```\n')
+
+          command = diagnostic.replace('%', '%25').replace('\r', '').replace('\n', '%0A').replace(':', '%3A').replace(',', '%2C')
+          print(f'::error title=Android TV build failed::{command}')
+          PY
 
       - name: Sign Android TV APK + AAB
         shell: bash
