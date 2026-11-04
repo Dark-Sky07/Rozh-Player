@@ -124,7 +124,11 @@ async function updatePackageDeclarations(dir) {
       androidSourceCount += 1;
       const source = await readFile(file, 'utf8');
       const escaped = baseIdentifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const next = source.replace(new RegExp(`(^\\s*package\\s+)${escaped}(\\s*;?)`, 'm'), `$1${tvIdentifier}$2`);
+      // Rewrite the whole package prefix, including generated subpackages and
+      // imports, so moving `app.rozh.player.*` under the `.tv` namespace keeps
+      // Kotlin/Java source names consistent with their new directory.
+      const packageRef = new RegExp(`(^\\s*(?:package|import)\\s+)${escaped}(?=\\.|\\s|;)(.*$)`, 'gm');
+      const next = source.replace(packageRef, `$1${tvIdentifier}$2`);
       if (next !== source) await writeFile(file, next);
     }
   }
