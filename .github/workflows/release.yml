@@ -406,7 +406,7 @@ jobs:
           except OSError as exc:
               lines = [f'Could not read Android TV build log: {exc}']
 
-          pattern = re.compile(r'FAILURE:|What went wrong:|Execution failed|BUILD FAILED|(^|\s)error:|Exception|Error:', re.I)
+          pattern = re.compile(r'FAILURE:|What went wrong:|Execution failed|BUILD FAILED|(^|\s)(error:|e:)|Exception|Error:', re.I)
           selected = [line.rstrip() for line in lines if pattern.search(line)]
           if not selected:
               selected = [line.rstrip() for line in lines[-20:]]
