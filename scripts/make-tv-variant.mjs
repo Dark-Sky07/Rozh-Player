@@ -124,11 +124,16 @@ async function updatePackageDeclarations(dir) {
       androidSourceCount += 1;
       const source = await readFile(file, 'utf8');
       const escaped = baseIdentifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      // Rewrite the whole package prefix, including generated subpackages and
-      // imports, so moving `app.rozh.player.*` under the `.tv` namespace keeps
-      // Kotlin/Java source names consistent with their new directory.
-      const packageRef = new RegExp(`(^\\s*(?:package|import)\\s+)${escaped}(?=\\.|\\s|;)(.*$)`, 'gm');
-      const next = source.replace(packageRef, `$1${tvIdentifier}$2`);
+      // Rewrite every reference to the phone package, not just package/import
+      // declarations. The native bridge is called by fully-qualified name from
+      // MainActivity (`app.rozh.player.MediaBridge`), so leaving code references
+      // untouched makes the TV Kotlin compile fail after the source is moved.
+      // Do not append `.tv` a second time when the script is run again.
+      const packageRef = new RegExp(
+        `(?<![\\w$])${escaped}(?=(?:\\.(?!tv(?:\\.|\\s|;|$))|\\s|;|$))`,
+        'g',
+      );
+      const next = source.replace(packageRef, tvIdentifier);
       if (next !== source) await writeFile(file, next);
     }
   }

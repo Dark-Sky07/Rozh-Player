@@ -163,3 +163,25 @@ jobs:
             echo "::error title=Android bridge compilation failed::$summary"
             exit "$code"
           fi
+      - name: Prepare Android TV package
+        run: node scripts/make-tv-variant.mjs
+      - name: Build Android TV debug APK and compile TV Kotlin
+        shell: bash
+        env:
+          VITE_TV_BUILD: "1"
+        run: |
+          set +e
+          npx tauri android build --debug --apk --target aarch64 --ci 2>&1 | tee /tmp/android-tv-bridge.log
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            tail -n 60 /tmp/android-tv-bridge.log > /tmp/android-tv-bridge-tail.log
+            {
+              echo '### Android TV bridge compilation failed'
+              echo '```text'
+              cat /tmp/android-tv-bridge-tail.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            summary=$(sed -e 's/%/%25/g' -e 's/\r//g' /tmp/android-tv-bridge-tail.log | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Android TV bridge compilation failed::$summary"
+            exit "$code"
+          fi
