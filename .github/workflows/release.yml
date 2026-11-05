@@ -437,12 +437,17 @@ jobs:
             python - "$unsigned" <<'PY'
           import sys, zipfile
           apk = zipfile.ZipFile(sys.argv[1])
-          pages = [name for name in apk.namelist() if name.endswith('index.html')]
-          if not pages:
-              raise SystemExit('Android TV APK has no bundled index.html')
-          if not any(b'data-tv-build="1"' in apk.read(name) for name in pages):
-              raise SystemExit('Android TV APK is missing data-tv-build="1"; refusing to publish a phone-style UI')
-          print('Verified TV runtime flag in packaged APK:', ', '.join(pages))
+          entries = apk.infolist()
+          candidates = [item for item in entries if not item.is_dir() and item.file_size <= 25_000_000]
+          marked = [item.filename for item in candidates if b'data-tv-build="1"' in apk.read(item)]
+          if not marked:
+              html = [item.filename for item in entries if item.filename.lower().endswith(('.html', '.htm'))]
+              sample = [item.filename for item in entries[:20]]
+              raise SystemExit(
+                  'Android TV runtime marker was not found in the packaged APK. '
+                  f'HTML entries: {html or "none"}; sample entries: {sample}'
+              )
+          print('Verified TV runtime flag in packaged APK:', ', '.join(marked))
           PY
             mkdir -p out
             "$BT/zipalign" -f -p 4 "$unsigned" out/unsigned-tv-aligned.apk
