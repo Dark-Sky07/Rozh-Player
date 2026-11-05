@@ -389,7 +389,16 @@ jobs:
           set +e
           npx tauri android build --apk --aab 2>&1 | tee /tmp/android-tv.log
           code=${PIPESTATUS[0]}
-          exit "$code"
+          if [ "$code" -ne 0 ]; then exit "$code"; fi
+          node - <<'NODE'
+          const fs = require('node:fs');
+          const html = fs.readFileSync('dist/index.html', 'utf8');
+          if (!html.includes('data-tv-build="1"')) {
+            console.error('::error title=Android TV UI::Tauri build did not leave the TV frontend in dist/index.html');
+            process.exit(1);
+          }
+          console.log('Verified the Android TV build command produced the TV frontend.');
+          NODE
 
       - name: Report Android TV build failure
         if: always() && steps.build_android_tv.outcome == 'failure'
@@ -434,21 +443,6 @@ jobs:
               exit 1
             fi
             echo "unsigned TV apk: $unsigned"
-            python - "$unsigned" <<'PY'
-          import sys, zipfile
-          apk = zipfile.ZipFile(sys.argv[1])
-          entries = apk.infolist()
-          candidates = [item for item in entries if not item.is_dir() and item.file_size <= 25_000_000]
-          marked = [item.filename for item in candidates if b'data-tv-build="1"' in apk.read(item)]
-          if not marked:
-              html = [item.filename for item in entries if item.filename.lower().endswith(('.html', '.htm'))]
-              sample = [item.filename for item in entries[:20]]
-              raise SystemExit(
-                  'Android TV runtime marker was not found in the packaged APK. '
-                  f'HTML entries: {html or "none"}; sample entries: {sample}'
-              )
-          print('Verified TV runtime flag in packaged APK:', ', '.join(marked))
-          PY
             mkdir -p out
             "$BT/zipalign" -f -p 4 "$unsigned" out/unsigned-tv-aligned.apk
             "$BT/apksigner" sign --ks "$KS" --ks-key-alias "$ROZH_KEY_ALIAS" \
@@ -457,11 +451,13 @@ jobs:
             rm -f out/*.idsig
             "$BT/apksigner" verify --print-certs out/"ROZH-Player-TV-$VERSION.apk" | sed -n '1,3p'
             aab="$(find src-tauri/gen/android/app/build/outputs/bundle -type f -name '*.aab' -print -quit)"
-            if [ -n "$aab" ]; then
-              cp "$aab" out/"ROZH-Player-TV-$VERSION.aab"
-              jarsigner -keystore "$KS" -storetype PKCS12 -storepass "$ANDROID_KEYSTORE_PASSWORD" -keypass "$ANDROID_KEY_PASSWORD" \
-                out/"ROZH-Player-TV-$VERSION.aab" "$ROZH_KEY_ALIAS"
+            if [ -z "$aab" ]; then
+              echo 'No unsigned Android TV AAB was found' >&2
+              exit 1
             fi
+            cp "$aab" out/"ROZH-Player-TV-$VERSION.aab"
+            jarsigner -keystore "$KS" -storetype PKCS12 -storepass "$ANDROID_KEYSTORE_PASSWORD" -keypass "$ANDROID_KEY_PASSWORD" \
+              out/"ROZH-Player-TV-$VERSION.aab" "$ROZH_KEY_ALIAS"
             rm -f out/unsigned-tv-aligned.apk
             ls -lh out
           ) 2>&1 | tee /tmp/android-tv-sign.log
